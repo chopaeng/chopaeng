@@ -1480,7 +1480,6 @@ export const OnlineCommunityModal: React.FC = () => {
                                 ) : (
                                     occupancy.busiestIslands.map((island) => {
                                         const isFull = island.visitors >= 7;
-                                        const isOnline = island.status === 'ONLINE' || !island.status;
 
                                         return (
                                             <div key={island.name} className="radar-gate-row-themed">

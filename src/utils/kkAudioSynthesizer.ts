@@ -4,6 +4,8 @@
  * Plays full procedural melodies with chord progressions and basslines with 100% offline reliability.
  */
 
+import { playCustomClickSound } from './soundFxManager';
+
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
 let currentPlaybackTimer: any = null;
@@ -221,29 +223,34 @@ export const setMasterVolume = (vol: number) => {
 };
 
 /**
- * Click tactile UI sound
+ * Click tactile UI sound (routed through Sound FX Customizer)
  */
 export const playChimeClick = () => {
     try {
-        const ctx = getAudioContext();
-        if (!ctx) return;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
+        // Dynamically import or call soundFxManager
+        playCustomClickSound();
+    } catch {
+        try {
+            const ctx = getAudioContext();
+            if (!ctx) return;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
 
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.07);
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.07);
 
-        gain.gain.setValueAtTime(0.06, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.07);
+            gain.gain.setValueAtTime(0.06, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.07);
 
-        osc.connect(gain);
-        if (masterGain) gain.connect(masterGain);
-        else gain.connect(ctx.destination);
+            osc.connect(gain);
+            if (masterGain) gain.connect(masterGain);
+            else gain.connect(ctx.destination);
 
-        osc.start();
-        osc.stop(ctx.currentTime + 0.07);
-    } catch { /* ignore */ }
+            osc.start();
+            osc.stop(ctx.currentTime + 0.07);
+        } catch { /* ignore */ }
+    }
 };
 
 /**

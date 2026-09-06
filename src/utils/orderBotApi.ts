@@ -435,40 +435,11 @@ export const submitSubIslandDrop = async (
 };
 
 // ─── Browser Notifications ─────────────────────────────────────────────────
-
-/**
- * Requests browser notification permission.
- * Returns true if granted.
- */
-export const requestNotificationPermission = async (): Promise<boolean> => {
-    if (!('Notification' in window)) return false;
-    if (Notification.permission === 'granted') return true;
-    if (Notification.permission === 'denied') return false;
-    const result = await Notification.requestPermission();
-    return result === 'granted';
-};
-
-/**
- * Fires a browser notification when an order is ready.
- */
-export const notifyOrderReady = (islandName?: string, dodoCode?: string): void => {
-    if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    const title = '🏝️ Your order is ready!';
-    const body = islandName
-        ? `Fly to ${islandName}${dodoCode ? ` · Dodo: ${dodoCode}` : ''}`
-        : 'Your items are ready for pick-up. Open Chopaeng to see your Dodo code.';
-    const n = new Notification(title, {
-        body,
-        icon: '/logo192.png',
-        badge: '/logo192.png',
-        tag: 'chopaeng-order-ready',
-        requireInteraction: true,
-    });
-    n.onclick = () => {
-        window.focus();
-        n.close();
-    };
-};
+export {
+    requestNotificationPermission,
+    requestNotificationPermissionDetailed,
+    notifyOrderStatusChange as notifyOrderReady,
+} from './orderNotifications';
 
 // ─── Order History & Reorder ───────────────────────────────────────────────
 

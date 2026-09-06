@@ -10,6 +10,7 @@ import RevealErrorPopup from "../components/RevealErrorPopup";
 import DisclaimerBanner from "../components/DisclaimerBanner";
 import { HowItWorksExplainer, TREASURE_ISLANDS_EXPLAINER_CONFIG } from "../components/HowItWorksExplainer";
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
+import { openCommunityModal } from "../utils/communityPresenceApi";
 
 type SearchMode = "FILTER" | "ITEM" | "VILLAGER";
 type FilterKey = "ALL" | IslandCategory | "favorites";
@@ -472,7 +473,7 @@ const TreasureIslands = () => {
 
                     {/* Telemetry Stats Strip */}
                     <div className="row g-2 mt-3 pt-3 border-top text-muted small fw-bold">
-                        <div className="col-6 col-md-3 d-flex align-items-center gap-2">
+                        <div className="col-6 col-md d-flex align-items-center gap-2">
                             <span className="badge bg-success-subtle text-success rounded-circle p-2">
                                 <i className="fa-solid fa-tower-broadcast"></i>
                             </span>
@@ -481,7 +482,30 @@ const TreasureIslands = () => {
                                 <span className="x-small text-muted">Islands Online</span>
                             </div>
                         </div>
-                        <div className="col-6 col-md-3 d-flex align-items-center gap-2">
+
+                        <div
+                            className="col-6 col-md d-flex align-items-center gap-2 cursor-pointer"
+                            onClick={() => {
+                                playChimeClick();
+                                openCommunityModal('islands');
+                            }}
+                            role="button"
+                            tabIndex={0}
+                            title="Click to view full island occupancy radar"
+                        >
+                            <span className="badge bg-primary-subtle text-primary rounded-circle p-2">
+                                <i className="fa-solid fa-plane-arrival"></i>
+                            </span>
+                            <div>
+                                <div className="d-flex align-items-center gap-1">
+                                    <span className="text-primary fw-black fs-6 lh-1">{stats.totalVisitors}</span>
+                                    <span className="badge bg-primary text-white rounded-pill px-1.5 py-0" style={{ fontSize: '0.6rem' }}>Radar</span>
+                                </div>
+                                <span className="x-small text-muted">In The Islands</span>
+                            </div>
+                        </div>
+
+                        <div className="col-6 col-md d-flex align-items-center gap-2">
                             <span className="badge bg-info-subtle text-info rounded-circle p-2">
                                 <i className="fa-solid fa-plane"></i>
                             </span>
@@ -490,7 +514,8 @@ const TreasureIslands = () => {
                                 <span className="x-small text-muted">Public Gates</span>
                             </div>
                         </div>
-                        <div className="col-6 col-md-3 d-flex align-items-center gap-2">
+
+                        <div className="col-6 col-md d-flex align-items-center gap-2">
                             <span className="badge bg-warning-subtle text-warning rounded-circle p-2">
                                 <i className="fa-solid fa-crown"></i>
                             </span>
@@ -499,13 +524,23 @@ const TreasureIslands = () => {
                                 <span className="x-small text-muted">Sub Member Islands</span>
                             </div>
                         </div>
-                        <div className="col-6 col-md-3 d-flex align-items-center gap-2">
+
+                        <div
+                            className="col-6 col-md d-flex align-items-center gap-2 cursor-pointer"
+                            onClick={() => {
+                                playChimeClick();
+                                openCommunityModal('visits');
+                            }}
+                            role="button"
+                            tabIndex={0}
+                            title="Click to view all-time website visits telemetry"
+                        >
                             <span className="badge bg-success-subtle text-success rounded-circle p-2">
-                                <i className="fa-solid fa-rotate"></i>
+                                <i className="fa-solid fa-chart-line"></i>
                             </span>
                             <div>
-                                <span className="d-block text-dark fw-black fs-6 lh-1">24/7 Auto</span>
-                                <span className="x-small text-muted">Continuous Restock</span>
+                                <span className="d-block text-dark fw-black fs-6 lh-1">2.8M+</span>
+                                <span className="x-small text-muted">Lifetime Visits</span>
                             </div>
                         </div>
                     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
     THEME_OPTIONS,
@@ -17,6 +17,14 @@ import {
     areNotificationsEnabled,
     setNotificationsEnabled,
 } from '../utils/orderNotifications';
+import { openSuggestionModal } from '../utils/suggestionsApi';
+import { useIslandData } from '../context/useIslandData';
+import {
+    openCommunityModal,
+    calculateIslandOccupancy,
+    getTrafficStats,
+    type TrafficStats,
+} from '../utils/communityPresenceApi';
 
 const LS_ORDER_KEY = 'chopaeng_active_order';
 const POLL_INTERVAL = 3_500; // Fast 3.5s real-time AJAX polling
@@ -106,6 +114,10 @@ export const NookPhoneDock: React.FC = () => {
 
     // Audio & Island BGM / KK Slider State
     const [hourlyState, setHourlyState] = useState<HourlyBgmState>(() => hourlyBgm.getState());
+    const { islands } = useIslandData();
+    const [trafficStats, setTrafficStats] = useState<TrafficStats>(getTrafficStats);
+
+    const occupancy = useMemo(() => calculateIslandOccupancy(islands), [islands]);
 
     const previousStatusRef = useRef<string | null>(null);
     const previousDodoRef = useRef<string | null>(null);
@@ -143,7 +155,12 @@ export const NookPhoneDock: React.FC = () => {
             }
         };
         window.addEventListener('chopaeng_theme_updated', handleThemeUpdate);
-        return () => window.removeEventListener('chopaeng_theme_updated', handleThemeUpdate);
+        const handleTraffic = (e: any) => { if (e.detail) setTrafficStats(e.detail); };
+        window.addEventListener('chopaeng_traffic_updated', handleTraffic);
+        return () => {
+            window.removeEventListener('chopaeng_theme_updated', handleThemeUpdate);
+            window.removeEventListener('chopaeng_traffic_updated', handleTraffic);
+        };
     }, []);
 
     // Read active order from localStorage
@@ -356,7 +373,9 @@ export const NookPhoneDock: React.FC = () => {
             name: 'Island BGM',
             icon: 'fa-radio',
             bg: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-            action: handleToggleBgmPlay,
+            action: () => {
+                window.dispatchEvent(new CustomEvent('chopaeng_open_jukebox', { detail: { mode: 'hourly' } }));
+            },
         },
         {
             name: 'Passport',
@@ -395,6 +414,26 @@ export const NookPhoneDock: React.FC = () => {
             icon: 'fa-map-location-dot',
             bg: 'linear-gradient(135deg, #06b6d4, #0891b2)',
             action: () => navigate('/islands'),
+        },
+        {
+            name: 'Suggest',
+            icon: 'fa-lightbulb',
+            bg: 'linear-gradient(135deg, #f59e0b, #d97706)',
+            action: () => openSuggestionModal(),
+        },
+        {
+            name: 'Sound FX',
+            icon: 'fa-bell',
+            bg: 'linear-gradient(135deg, #14b8a6, #0d9488)',
+            action: () => {
+                window.dispatchEvent(new CustomEvent('chopaeng_open_jukebox', { detail: { mode: 'sfx' } }));
+            },
+        },
+        {
+            name: 'Island Radar',
+            icon: 'fa-satellite-dish',
+            bg: 'linear-gradient(135deg, #059669, #047857)',
+            action: () => openCommunityModal('online'),
         },
     ];
 
@@ -542,6 +581,40 @@ export const NookPhoneDock: React.FC = () => {
 
                         {/* Scrollable body */}
                         <div className="nookphone-screen-body flex-grow-1 overflow-y-auto px-3 pb-3" style={{ minHeight: 0 }}>
+                            {/* ── LIVE ISLAND TRAFFIC & COMMUNITY RADAR BANNER ── */}
+                            <div
+                                className="p-2.5 rounded-3 mb-3 border shadow-xs animate-up"
+                                style={{
+                                    backgroundColor: currentStyle.isDark ? 'rgba(34, 197, 94, 0.12)' : '#f0fdf4',
+                                    borderColor: currentStyle.isDark ? 'rgba(34, 197, 94, 0.3)' : '#86efac',
+                                    cursor: 'pointer',
+                                }}
+                                onClick={() => {
+                                    playChimeClick();
+                                    openCommunityModal('online');
+                                    setIsOpen(false);
+                                }}
+                                role="button"
+                                tabIndex={0}
+                            >
+                                <div className="d-flex align-items-center justify-content-between mb-1">
+                                    <div className="d-flex align-items-center gap-1.5">
+                                        <span className="spinner-grow spinner-grow-sm text-success" style={{ width: 8, height: 8 }} />
+                                        <span className="fw-black text-uppercase" style={{ fontSize: '0.72rem', color: '#16a34a' }}>
+                                            Island Radar &amp; Traffic
+                                        </span>
+                                    </div>
+                                    <span className="tiny-text fw-bold text-success">
+                                        Live →
+                                    </span>
+                                </div>
+                                <div className="d-flex align-items-center justify-content-between text-muted" style={{ fontSize: '0.74rem' }}>
+                                    <span>🏝️ <strong>{occupancy.totalVisitors}</strong> on Islands</span>
+                                    <span>👥 <strong>{trafficStats.activeOnlineCount}</strong> Online</span>
+                                    <span>✈️ <strong>2.8M</strong> Visits</span>
+                                </div>
+                            </div>
+
                             {/* ── LIVE ORDER TRACKER PILL ── */}
                             {hasActiveOrder && (
                                 <div
@@ -740,6 +813,42 @@ export const NookPhoneDock: React.FC = () => {
                                         </button>
                                     </div>
                                 ))}
+                            </div>
+
+                            {/* ── RESIDENT SUGGESTION BOX BANNER ── */}
+                            <div
+                                className="p-2.5 rounded-3 mb-3 border shadow-xs d-flex align-items-center justify-content-between transition-all hover-lift cursor-pointer"
+                                style={{
+                                    backgroundColor: currentStyle.isDark ? 'rgba(245, 158, 11, 0.12)' : '#fffbeb',
+                                    borderColor: currentStyle.isDark ? 'rgba(245, 158, 11, 0.3)' : '#fef3c7',
+                                }}
+                                onClick={() => handleAppClick(openSuggestionModal)}
+                                role="button"
+                                tabIndex={0}
+                                title="Open Resident Suggestion Box"
+                            >
+                                <div className="d-flex align-items-center gap-2 overflow-hidden">
+                                    <div
+                                        className="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0 shadow-2xs"
+                                        style={{
+                                            width: '30px',
+                                            height: '30px',
+                                            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                            fontSize: '0.85rem',
+                                        }}
+                                    >
+                                        <i className="fa-solid fa-lightbulb" />
+                                    </div>
+                                    <div className="overflow-hidden">
+                                        <div className="fw-black x-small text-truncate" style={{ color: currentStyle.isDark ? '#fef3c7' : '#92400e' }}>
+                                            Suggest a Feature
+                                        </div>
+                                        <div className="tiny-text opacity-75 text-truncate" style={{ color: currentStyle.isDark ? '#d1d5db' : '#b45309', fontSize: '0.65rem' }}>
+                                            Send ideas & feedback to our Discord team
+                                        </div>
+                                    </div>
+                                </div>
+                                <i className="fa-solid fa-arrow-right tiny-text opacity-60 flex-shrink-0 ms-1" style={{ color: currentStyle.isDark ? '#fef3c7' : '#92400e' }} />
                             </div>
 
                             {/* ── NOOKPHONE CASE SKINS (CUSTOMIZER WORKSHOP) ── */}

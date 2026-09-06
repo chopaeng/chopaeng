@@ -1169,3 +1169,554 @@
     gap: 0.75rem;
     flex-shrink: 0;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   NOOK INC. RESIDENT PASSPORT STUDIO UI
+   ═══════════════════════════════════════════════════════════════ */
+.studio-hero-bar {
+    background: var(--pf-card-bg, #ffffff);
+    border: 2px solid var(--pf-sand-border, #e9e4cf);
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    position: relative;
+    box-shadow: 0 4px 15px -2px rgba(45, 106, 79, 0.06);
+    color: var(--pf-text-main, #1e293b);
+}
+
+.studio-mode-pill-group {
+    display: inline-flex;
+    background: #e2e8f0;
+    padding: 3px;
+    border-radius: 9999px;
+    gap: 2px;
+}
+
+.studio-mode-pill-btn {
+    border: none;
+    background: transparent;
+    padding: 0.35rem 0.85rem;
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #64748b;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.2s ease;
+}
+
+.studio-mode-pill-btn:hover {
+    color: var(--pf-text-main, #1e293b);
+}
+
+.studio-mode-pill-btn.active {
+    background: #ffffff;
+    color: #1b4332;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* Category Section Navigation */
+.studio-nav-tabs {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.25rem;
+    scrollbar-width: thin;
+}
+
+.studio-nav-btn {
+    border: 1.5px solid var(--pf-border-subtle, #e2e8f0);
+    background: var(--pf-card-bg, #ffffff);
+    color: var(--pf-text-muted, #475569);
+    padding: 0.5rem 0.95rem;
+    border-radius: 9999px;
+    font-size: 0.82rem;
+    font-weight: 800;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.studio-nav-btn:hover {
+    border-color: var(--pf-green-light, #86efac);
+    background: var(--pf-green-tint, #f0fdf4);
+    color: var(--pf-green-dark, #166534);
+}
+
+.studio-nav-btn.active {
+    background: var(--pf-green, #2d6a4f);
+    border-color: var(--pf-green, #2d6a4f);
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(45, 106, 79, 0.25);
+}
+
+/* Tool Section Card */
+.studio-tool-card {
+    background: var(--pf-card-bg, #ffffff);
+    border: 1.5px solid var(--pf-border-subtle, #e9e4cf);
+    border-radius: 1.25rem;
+    padding: 1.35rem;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+    color: var(--pf-text-main, #1e293b);
+}
+
+.studio-inner-box {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid var(--pf-border-subtle, #e2e8f0);
+    border-radius: 1rem;
+    padding: 1rem 1.15rem;
+}
+
+/* Fruit Cards */
+.studio-fruit-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.65rem;
+}
+
+@media (min-width: 576px) {
+    .studio-fruit-grid {
+        grid-template-columns: repeat(6, 1fr);
+    }
+}
+
+.studio-fruit-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 0.4rem;
+    background: var(--pf-card-bg, #ffffff);
+    border: 2px solid var(--pf-border-subtle, #e2e8f0);
+    border-radius: 1rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    width: 100%;
+}
+
+.studio-fruit-card:hover {
+    border-color: var(--pf-green-light, #52b788);
+    background: var(--pf-green-tint, #f0fdf4);
+    transform: translateY(-2px);
+}
+
+.studio-fruit-card.active {
+    background: var(--pf-green-tint, #e8f5e9);
+    border-color: var(--pf-green, #2d6a4f);
+    box-shadow: 0 4px 12px rgba(45, 106, 79, 0.18);
+    transform: translateY(-2px);
+}
+
+.studio-fruit-icon {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    margin-bottom: 0.35rem;
+}
+
+.studio-fruit-label {
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--pf-text-main, #1e293b);
+}
+
+.studio-fruit-card.active .studio-fruit-label {
+    color: var(--pf-green, #1b4332);
+}
+
+.studio-fruit-check {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    color: var(--pf-green, #2d6a4f);
+    font-size: 0.75rem;
+}
+
+/* Personality Pills */
+.studio-personality-pill {
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    border: 1.5px solid var(--pf-border-subtle, #e2e8f0);
+    background: var(--pf-card-bg, #ffffff);
+    color: var(--pf-text-muted, #475569);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: all 0.2s ease;
+}
+
+.studio-personality-pill:hover {
+    transform: translateY(-1px);
+    border-color: #cbd5e1;
+}
+
+.studio-personality-pill.active {
+    transform: translateY(-1px);
+    font-weight: 900;
+}
+
+/* Color Swatches */
+.studio-color-swatch-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.studio-color-swatch-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.75rem 0.35rem 0.45rem;
+    border-radius: 9999px;
+    border: 1.5px solid var(--pf-border-subtle, #e2e8f0);
+    background: var(--pf-card-bg, #ffffff);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--pf-text-main, #334155);
+}
+
+.studio-color-swatch-btn:hover {
+    border-color: #94a3b8;
+    transform: translateY(-1px);
+}
+
+.studio-color-swatch-btn.active {
+    border-color: var(--pf-green, #1e293b);
+    background: var(--pf-green-tint, #f8fafc);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.studio-color-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    flex-shrink: 0;
+}
+
+/* Villager Tags & Chips */
+.studio-villager-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.3rem 0.75rem 0.3rem 0.45rem;
+    border-radius: 9999px;
+    background: var(--pf-card-bg, #ffffff);
+    border: 1.5px solid var(--pf-border-subtle, #e2e8f0);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--pf-text-main, #1e293b);
+    transition: all 0.18s ease;
+}
+
+.studio-villager-chip:hover {
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+}
+
+.studio-villager-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #f1f5f9;
+}
+
+/* Motto Suggestion Chip */
+.studio-motto-chip {
+    border: 1px solid var(--pf-border-subtle, #e2e8f0);
+    background: var(--pf-card-bg, #ffffff);
+    color: var(--pf-text-muted, #475569);
+    padding: 0.3rem 0.65rem;
+    border-radius: 9999px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.studio-motto-chip:hover {
+    border-color: var(--pf-green-light, #52b788);
+    background: var(--pf-green-tint, #f0fdf4);
+    color: var(--pf-green-dark, #166534);
+    transform: translateY(-1px);
+}
+
+/* Sticky Preview Container */
+.studio-preview-sticky {
+    position: sticky;
+    top: 5rem;
+    z-index: 10;
+}
+
+/* Save Action Bar */
+.studio-save-bar {
+    background: var(--pf-card-bg, #ffffff);
+    border: 2px solid var(--pf-sand-border, #e9e4cf);
+    border-radius: 1.25rem;
+    padding: 1rem 1.35rem;
+    box-shadow: 0 6px 20px -3px rgba(45, 106, 79, 0.08);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   STUDIO THEME ADAPTATIONS (CELESTE, ROOST, DAL, NOOKLINK)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="celeste"] .studio-hero-bar,
+[data-theme="celeste"] .studio-tool-card,
+[data-theme="celeste"] .studio-save-bar {
+    background-color: #1e293b !important;
+    border-color: rgba(167, 139, 250, 0.28) !important;
+    color: #f8fafc !important;
+}
+
+[data-theme="celeste"] .studio-inner-box {
+    background: rgba(15, 23, 42, 0.6) !important;
+    border-color: rgba(167, 139, 250, 0.2) !important;
+}
+
+[data-theme="celeste"] .studio-mode-pill-group {
+    background: #0f172a !important;
+}
+
+[data-theme="celeste"] .studio-mode-pill-btn {
+    color: #94a3b8;
+}
+
+[data-theme="celeste"] .studio-mode-pill-btn.active {
+    background: #334155 !important;
+    color: #ffffff !important;
+}
+
+[data-theme="celeste"] .studio-nav-btn {
+    background: #1e293b !important;
+    border-color: rgba(167, 139, 250, 0.28) !important;
+    color: #cbd5e1 !important;
+}
+
+[data-theme="celeste"] .studio-nav-btn:hover {
+    background: #2e265c !important;
+    color: #ffffff !important;
+}
+
+[data-theme="celeste"] .studio-nav-btn.active {
+    background: #7c3aed !important;
+    border-color: #a78bfa !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35) !important;
+}
+
+[data-theme="celeste"] .studio-fruit-card,
+[data-theme="celeste"] .studio-color-swatch-btn,
+[data-theme="celeste"] .studio-villager-chip,
+[data-theme="celeste"] .studio-motto-chip {
+    background-color: #1e293b !important;
+    border-color: rgba(167, 139, 250, 0.25) !important;
+    color: #f8fafc !important;
+}
+
+[data-theme="celeste"] .studio-fruit-card:hover {
+    background-color: #2e265c !important;
+    border-color: #a78bfa !important;
+}
+
+[data-theme="celeste"] .studio-fruit-card.active {
+    background-color: rgba(124, 58, 237, 0.25) !important;
+    border-color: #a78bfa !important;
+}
+
+[data-theme="celeste"] .studio-fruit-label {
+    color: #f8fafc !important;
+}
+
+[data-theme="celeste"] .studio-fruit-check {
+    color: #a78bfa !important;
+}
+
+/* Roost Theme */
+[data-theme="roost"] .studio-hero-bar,
+[data-theme="roost"] .studio-tool-card,
+[data-theme="roost"] .studio-save-bar {
+    background-color: #1c1917 !important;
+    border-color: rgba(217, 119, 6, 0.3) !important;
+    color: #fdf8f5 !important;
+}
+
+[data-theme="roost"] .studio-inner-box {
+    background: rgba(0, 0, 0, 0.3) !important;
+    border-color: rgba(217, 119, 6, 0.2) !important;
+}
+
+[data-theme="roost"] .studio-mode-pill-group {
+    background: #292524 !important;
+}
+
+[data-theme="roost"] .studio-mode-pill-btn.active {
+    background: #44403c !important;
+    color: #ffffff !important;
+}
+
+[data-theme="roost"] .studio-nav-btn {
+    background: #1c1917 !important;
+    border-color: rgba(217, 119, 6, 0.3) !important;
+    color: #d6d3d1 !important;
+}
+
+[data-theme="roost"] .studio-nav-btn.active {
+    background: #d97706 !important;
+    border-color: #f59e0b !important;
+    color: #ffffff !important;
+}
+
+[data-theme="roost"] .studio-fruit-card,
+[data-theme="roost"] .studio-color-swatch-btn,
+[data-theme="roost"] .studio-villager-chip,
+[data-theme="roost"] .studio-motto-chip {
+    background-color: #1c1917 !important;
+    border-color: rgba(217, 119, 6, 0.25) !important;
+    color: #fdf8f5 !important;
+}
+
+[data-theme="roost"] .studio-fruit-card.active {
+    background-color: rgba(217, 119, 6, 0.25) !important;
+    border-color: #d97706 !important;
+}
+
+/* DAL Theme */
+[data-theme="dal"] .studio-hero-bar,
+[data-theme="dal"] .studio-tool-card,
+[data-theme="dal"] .studio-save-bar {
+    background-color: #0f172a !important;
+    border-color: rgba(56, 189, 248, 0.3) !important;
+    color: #f8fafc !important;
+}
+
+[data-theme="dal"] .studio-inner-box {
+    background: rgba(15, 23, 42, 0.8) !important;
+    border-color: rgba(56, 189, 248, 0.2) !important;
+}
+
+[data-theme="dal"] .studio-nav-btn.active {
+    background: #0284c7 !important;
+    border-color: #38bdf8 !important;
+    color: #ffffff !important;
+}
+
+[data-theme="dal"] .studio-fruit-card,
+[data-theme="dal"] .studio-color-swatch-btn,
+[data-theme="dal"] .studio-villager-chip,
+[data-theme="dal"] .studio-motto-chip {
+    background-color: #0f172a !important;
+    border-color: rgba(56, 189, 248, 0.25) !important;
+    color: #f8fafc !important;
+}
+
+[data-theme="dal"] .studio-fruit-card.active {
+    background-color: rgba(2, 132, 199, 0.25) !important;
+    border-color: #38bdf8 !important;
+}
+
+/* NookLink Theme */
+[data-theme="nooklink"] .studio-hero-bar,
+[data-theme="nooklink"] .studio-tool-card,
+[data-theme="nooklink"] .studio-save-bar {
+    background-color: #090d16 !important;
+    border-color: rgba(16, 185, 129, 0.3) !important;
+    color: #f8fafc !important;
+}
+
+[data-theme="nooklink"] .studio-inner-box {
+    background: rgba(9, 13, 22, 0.8) !important;
+    border-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+[data-theme="nooklink"] .studio-nav-btn.active {
+    background: #10b981 !important;
+    border-color: #34d399 !important;
+    color: #ffffff !important;
+}
+
+[data-theme="nooklink"] .studio-fruit-card,
+[data-theme="nooklink"] .studio-color-swatch-btn,
+[data-theme="nooklink"] .studio-villager-chip,
+[data-theme="nooklink"] .studio-motto-chip {
+    background-color: #090d16 !important;
+    border-color: rgba(16, 185, 129, 0.25) !important;
+    color: #f8fafc !important;
+}
+
+[data-theme="nooklink"] .studio-fruit-card.active {
+    background-color: rgba(16, 185, 129, 0.25) !important;
+    border-color: #34d399 !important;
+}
+
+/* Autocomplete Popover */
+.studio-dropdown-popover {
+    background: var(--pf-card-bg, #ffffff);
+    border: 1px solid var(--pf-border-subtle, #e2e8f0);
+}
+
+[data-theme="celeste"] .studio-dropdown-popover {
+    background: #1e293b !important;
+    border-color: rgba(167, 139, 250, 0.3) !important;
+}
+
+[data-theme="roost"] .studio-dropdown-popover {
+    background: #1c1917 !important;
+    border-color: rgba(217, 119, 6, 0.3) !important;
+}
+
+[data-theme="dal"] .studio-dropdown-popover {
+    background: #0f172a !important;
+    border-color: rgba(56, 189, 248, 0.3) !important;
+}
+
+[data-theme="nooklink"] .studio-dropdown-popover {
+    background: #090d16 !important;
+    border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+.studio-dropdown-item {
+    background: transparent;
+    border: none;
+    width: 100%;
+    color: var(--pf-text-main, #1e293b);
+    transition: background-color 0.15s ease;
+}
+
+.studio-dropdown-item:hover {
+    background: var(--pf-green-tint, #f1f5f9);
+}
+
+[data-theme="celeste"] .studio-dropdown-item:hover {
+    background: #2e265c !important;
+}
+
+[data-theme="roost"] .studio-dropdown-item:hover {
+    background: #292524 !important;
+}
+
+[data-theme="dal"] .studio-dropdown-item:hover {
+    background: #1e293b !important;
+}
+
+[data-theme="nooklink"] .studio-dropdown-item:hover {
+    background: #131d2e !important;
+}
+
+

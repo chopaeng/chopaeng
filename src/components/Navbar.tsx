@@ -6,6 +6,8 @@ import { THEME_OPTIONS, getStoredTheme, setStoredTheme, type ThemeMode } from ".
 import { openSuggestionModal } from "../utils/suggestionsApi";
 import { KKSliderJukebox } from "./audio/KKSliderJukebox";
 import { AnimaleseVoiceModal } from "./audio/AnimaleseVoiceModal";
+import { OnlineCommunityModal } from "./community/OnlineCommunityModal";
+import { openCommunityModal } from "../utils/communityPresenceApi";
 import { NookPhoneDock } from "./NookPhoneDock";
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
 
@@ -1502,6 +1504,25 @@ export const Navbar: React.FC = () => {
                         <div className="chopaeng-toolbar d-none d-md-inline-flex">
                             <button
                                 type="button"
+                                onClick={() => openCommunityModal('online')}
+                                className="chopaeng-toolbar-btn position-relative"
+                                title="Live Island Radar & Online Residents"
+                                aria-label="Open Live Island Radar & Online Residents"
+                            >
+                                <i className="fa-solid fa-satellite-dish text-success" aria-hidden="true" />
+                                <span
+                                    className="position-absolute top-0 end-0 rounded-circle bg-success"
+                                    style={{
+                                        width: 7,
+                                        height: 7,
+                                        transform: 'translate(20%, -20%)',
+                                        boxShadow: '0 0 6px #22c55e',
+                                    }}
+                                />
+                            </button>
+
+                            <button
+                                type="button"
                                 onClick={openJukebox}
                                 className="chopaeng-toolbar-btn"
                                 title="K.K. Slider Jukebox"
@@ -1789,6 +1810,19 @@ export const Navbar: React.FC = () => {
                         type="button"
                         onClick={() => {
                             setIsMobileMenuOpen(false);
+                            openCommunityModal('online');
+                        }}
+                        className="btn btn-sm btn-outline-success w-100 rounded-pill fw-bold py-2 d-flex align-items-center justify-content-center gap-2"
+                        style={{ fontSize: '0.8rem' }}
+                    >
+                        <i className="fa-solid fa-satellite-dish text-success" aria-hidden="true" />
+                        <span>Live Radar &amp; Who's Online</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setIsMobileMenuOpen(false);
                             openSuggestionModal();
                         }}
                         className="btn btn-sm btn-outline-warning w-100 rounded-pill fw-bold py-2 d-flex align-items-center justify-content-center gap-2"
@@ -1816,6 +1850,9 @@ export const Navbar: React.FC = () => {
 
             {/* Animalese Voice Studio Modal */}
             <AnimaleseVoiceModal />
+
+            {/* Live Community & Island Traffic Radar Modal */}
+            <OnlineCommunityModal />
 
             {/* NookPhone Quick App Dock */}
             <NookPhoneDock />

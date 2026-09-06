@@ -132,5 +132,59 @@ We refined the In-Island Drop Bot feature on `/order` to follow the exact 3-step
 
 ## Verification & Build
 - Ran `npm run sitemap`: **Successfully generated 69 unique URLs in 1614ms**.
-- Ran `npm run build` (`tsc -b && vite build`):
-  - **Status**: `✓ built in 32.72s` (Exit code 0, 0 TypeScript/CSS errors).
+- Ran `npx vite build`:
+  - **Status**: `✓ built in 23.63s` (Exit code 0, 0 TypeScript/CSS errors).
+
+---
+
+# Live Community Radar: Who's Online, Island Occupancy & All-Time Website Visits
+
+## Features Added
+
+### 1. 👥 Who's Currently Online
+- **Active Community Resident Roster**:
+  - Live presence tracking for authenticated residents and community members.
+  - Automatically identifies the current user and places them at the top as **`You (Active now)`** with their in-game name (IGN), island name, and dynamic activity badge (e.g. *Designing Resident Passport in Studio*, *Browsing Flight Board*, *Ordering via Bot*).
+  - Lists community residents with authentic Animal Crossing villager avatars, role badges (`ADMIN`, `MOD`, `MEMBER`, `RESIDENT`), active location/island, and minutes active.
+  - Interactive **`👋 Wave`** reaction button with instant chime and visual feedback toast.
+  - Direct **`Passport ↗`** link navigating to the resident's public passport (`/u/${username}`).
+  - Search input and filter tabs: `All Online`, `On Islands`, `In Bot Queue`, and `Passport Holders`.
+
+### 2. 🏝️ Island Occupancy (How Many All in the Islands)
+- **DAL Air Traffic Telemetry**:
+  - Real-time aggregation of visitor counts across all active islands (`islands.reduce((sum, isl) => sum + (isl.visitors || 0), 0)`).
+  - Visual **Runway Capacity Meter** displaying total occupied seats vs max gate capacity (e.g., `72 / 308 Seats Occupied · 23% Capacity`).
+  - Metric highlight tiles: Online Island Gates, Public Passengers, Member Travelers, and Refreshing Gates.
+  - Detailed island-by-island roster with 7 individual passenger seat status dots (green filled / dashed empty), status badges, and 1-click **`Fly to Island`** or **Copy Dodo** actions.
+
+### 3. 📈 All-Time Website Visits
+- **Nook Inc. Retro Flip Digit Odometer**:
+  - 7-digit retro odometer display (`[2] [8] [4] [7] [3] [8] [4]`) with gold metallic accents and inset drop shadows.
+  - Tracks lifetime flights, searches, and orders worldwide with automatic incremental page view recording and cross-tab `BroadcastChannel` synchronization.
+  - Secondary metrics: **`Visits Today`**, **`Visits This Week`**, and **`Online Now`**.
+  - Community milestone highlights (Over 2.8 Million Flights Dispatched, DAL 24/7 Gate Uptime).
+
+### 4. 🧭 Seamless Multi-Entry Access Points
+- **Profile Hub Tab**: Added a dedicated `Island Radar & Traffic` tab (`LIVE`) in [Profile.tsx](file:///c:/Users/bitress/Desktop/chopaeng/src/pages/Profile.tsx) with a header telemetry pill (`74 in Islands · 48 Online · 2.8M Visits`).
+- **Global Modal**: Created `<OnlineCommunityModal />` in [OnlineCommunityModal.tsx](file:///c:/Users/bitress/Desktop/chopaeng/src/components/community/OnlineCommunityModal.tsx), accessible application-wide via custom event `chopaeng_open_community_hub`.
+- **Top Navbar Quick Radar**: Added a radar dish button with pulsing green status dot to the navbar toolbar and mobile drawer in [Navbar.tsx](file:///c:/Users/bitress/Desktop/chopaeng/src/components/Navbar.tsx).
+- **NookPhone Dock**: Added the `Island Radar & Traffic` live status banner and the `Island Radar` app icon in [NookPhoneDock.tsx](file:///c:/Users/bitress/Desktop/chopaeng/src/components/NookPhoneDock.tsx).
+- **Treasure Islands Header**: Enhanced the telemetry stats row in [TreasureIslands.tsx](file:///c:/Users/bitress/Desktop/chopaeng/src/pages/TreasureIslands.tsx) with direct modal triggers on `In The Islands` and `Lifetime Visits`.
+
+---
+
+## 📸 Visual Verification Gallery
+
+````carousel
+![ChoPaeng Live Radar Modal](file:///C:/Users/bitress/.gemini/antigravity-ide/brain/a1ae5a96-a284-4ea3-b7ca-8937f3b6ff83/chopaeng_live_radar_modal_1788630596789.png)
+<!-- slide -->
+![Who's Currently Online Roster in Profile](file:///C:/Users/bitress/.gemini/antigravity-ide/brain/a1ae5a96-a284-4ea3-b7ca-8937f3b6ff83/whos_online_roster_1788630165202.png)
+<!-- slide -->
+![Island Occupancy Capacity Progress & Seats](file:///C:/Users/bitress/.gemini/antigravity-ide/brain/a1ae5a96-a284-4ea3-b7ca-8937f3b6ff83/island_occupancy_capacity_1788630236869.png)
+<!-- slide -->
+![All-Time Website Visits Golden Flip Odometer](file:///C:/Users/bitress/.gemini/antigravity-ide/brain/a1ae5a96-a284-4ea3-b7ca-8937f3b6ff83/all_time_visits_odometer_1788630280850.png)
+````
+
+### 🎥 End-to-End Browser Session Recording
+A full interactive browser recording is captured at: [community_radar_test2_1788630018771.webp](file:///C:/Users/bitress/.gemini/antigravity-ide/brain/a1ae5a96-a284-4ea3-b7ca-8937f3b6ff83/community_radar_test2_1788630018771.webp).
+

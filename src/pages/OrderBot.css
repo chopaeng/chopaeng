@@ -335,6 +335,37 @@
     box-shadow: 0 2px 8px rgba(245, 158, 11, 0.06);
 }
 
+.ob-notify-close {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.ob-notify-close:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: #1e293b;
+}
+
+[data-theme="celeste"] .ob-notify-close,
+[data-theme="roost"] .ob-notify-close {
+    color: #94a3b8;
+}
+
+[data-theme="celeste"] .ob-notify-close:hover,
+[data-theme="roost"] .ob-notify-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #f8fafc;
+}
+
 /* ── Offline Banner ──────────────────────────────────────────── */
 .ob-offline-banner {
     background: #fef2f2;

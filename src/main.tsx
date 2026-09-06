@@ -5,6 +5,7 @@ import { HelmetProvider } from 'react-helmet-async'
 import App from './App.tsx'
 import './assets/css/style.css';
 import { initTheme } from './utils/theme';
+import './utils/soundFxManager';
 
 initTheme();
 

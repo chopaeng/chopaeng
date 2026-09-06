@@ -12,8 +12,15 @@ import { parseDiscordNicknameToCharacters, formatCharactersToNickname } from "..
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
 import { fetchUserOrderHistory, type OrderHistoryItem } from "../utils/orderBotApi";
 import { getStoredPassport, savePassportToDb, fetchPublicPassportFromDb, updateDiscordNickname, type PublicPassportData } from "../utils/userProfileApi";
+import {
+    getTrafficStats,
+    calculateIslandOccupancy,
+    getOnlineResidentsList,
+    openCommunityModal,
+    type TrafficStats,
+} from "../utils/communityPresenceApi";
 import { HowItWorksExplainer, PROFILE_EXPLAINER_CONFIG } from "../components/HowItWorksExplainer";
-import { FRUIT_ICONS, ZODIAC_SIGNS, PERSONALITY_THEMES } from "../components/passport/ResidentPassportCard";
+import { ResidentPassportCard, FRUIT_ICONS, ZODIAC_SIGNS, PERSONALITY_THEMES } from "../components/passport/ResidentPassportCard";
 import { setUserScopedItem } from "../utils/accountStorage";
 import "./Profile.css";
 
@@ -151,18 +158,57 @@ const Profile = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [prefNotice, setPrefNotice] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<"profile" | "access" | "favorites" | "orders" | "history">("profile");
+    const [activeTab, setActiveTab] = useState<"profile" | "access" | "favorites" | "orders" | "history" | "community">("profile");
     const [accessFilter, setAccessFilter] = useState<"all" | "public" | "member" | "order">("all");
 
-    // Only load 40k catalog items if user is actively viewing orders or history
-    const isOrdersTab = activeTab === "orders" || activeTab === "history";
-    const { data: catalogData } = useCatalogData({ enabled: isOrdersTab });
+    // Community Radar & Traffic Telemetry State
+    const [trafficStats, setTrafficStats] = useState<TrafficStats>(getTrafficStats);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setTrafficStats(getTrafficStats());
+        }, 30_000);
+        return () => clearInterval(interval);
+    }, []);
+    const [communitySearchQuery, setCommunitySearchQuery] = useState("");
+    const [communityFilter, setCommunityFilter] = useState<"all" | "on_island" | "ordering" | "passport">("all");
+    const [communitySubTab, setCommunitySubTab] = useState<"online" | "islands" | "visits">("online");
+    const [profileWaveNote, setProfileWaveNote] = useState<string | null>(null);
+
+    const liveOccupancy = useMemo(() => calculateIslandOccupancy(allIslands), [allIslands]);
+    const onlineResidents = useMemo(() => getOnlineResidentsList(authUser, "/profile"), [authUser]);
+
+    const filteredOnlineResidents = useMemo(() => {
+        return onlineResidents.filter((r) => {
+            if (communityFilter === "on_island" && r.status !== "on_island") return false;
+            if (communityFilter === "ordering" && r.status !== "ordering") return false;
+            if (communityFilter === "passport" && !r.hasPublicPassport) return false;
+            if (communitySearchQuery.trim()) {
+                const q = communitySearchQuery.toLowerCase().trim();
+                return (
+                    r.displayName.toLowerCase().includes(q) ||
+                    r.username.toLowerCase().includes(q) ||
+                    (r.ign && r.ign.toLowerCase().includes(q)) ||
+                    (r.islandName && r.islandName.toLowerCase().includes(q)) ||
+                    r.currentActivity.toLowerCase().includes(q)
+                );
+            }
+            return true;
+        });
+    }, [onlineResidents, communityFilter, communitySearchQuery]);
+
+    // Load catalog if user is viewing orders, history, or passport studio (for villagers & sprites)
+    const shouldLoadCatalog = activeTab === "orders" || activeTab === "history" || activeTab === "profile";
+    const { data: catalogData } = useCatalogData({ enabled: shouldLoadCatalog });
 
     // Public Passport Customizer State
     const [passportData, setPassportData] = useState<PublicPassportData>(() => getStoredPassport(authUser?.username || ''));
     const [savingPassport, setSavingPassport] = useState(false);
     const [villagerSearchQuery, setVillagerSearchQuery] = useState('');
     const [passportLinkCopied, setPassportLinkCopied] = useState(false);
+    const [studioViewMode, setStudioViewMode] = useState<"split" | "card" | "editor">("split");
+    const [studioSection, setStudioSection] = useState<"identity" | "vibe" | "motto" | "besties" | "privacy">("identity");
+    const [passportDirty, setPassportDirty] = useState(false);
 
     // Orders History & Reorder State
     const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
@@ -818,6 +864,20 @@ const Profile = () => {
                                             <i className="fa-solid fa-calendar-check text-primary me-1"></i>
                                             Joined {formatDate(profileUser?.joined_at ?? profileUser?.joined_timestamp)}
                                         </span>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                playChimeClick();
+                                                setActiveTab("community");
+                                            }}
+                                            className="badge rounded-pill bg-white text-dark border px-3 py-1.5 shadow-2xs small fw-bold d-inline-flex align-items-center gap-2 text-decoration-none transition-all"
+                                            style={{ cursor: 'pointer' }}
+                                            title="View Live Island Radar, Online Residents & Traffic"
+                                        >
+                                            <span style={{ width: 8, height: 8, backgroundColor: '#22c55e', borderRadius: '50%', boxShadow: '0 0 6px #22c55e' }} />
+                                            <span><strong>{liveOccupancy.totalVisitors}</strong> in Islands · <strong>{trafficStats.activeOnlineCount}</strong> Online · <strong>2.8M</strong> Visits</span>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -906,6 +966,23 @@ const Profile = () => {
                             <i className="fa-solid fa-clock-rotate-left"></i>
                             <span>Flight History &amp; Logs</span>
                         </button>
+
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={activeTab === "community"}
+                            className={`pf-tab-btn ${activeTab === "community" ? "active" : ""}`}
+                            onClick={() => {
+                                playChimeClick();
+                                setActiveTab("community");
+                            }}
+                        >
+                            <i className="fa-solid fa-satellite-dish text-success"></i>
+                            <span>Island Radar &amp; Traffic</span>
+                            <span className="badge bg-success text-white rounded-pill px-2 py-0.5" style={{ fontSize: '0.62rem' }}>
+                                LIVE
+                            </span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -919,7 +996,7 @@ const Profile = () => {
                 {activeTab === "profile" && (
                     <div className="row g-4 animate-fade" role="tabpanel" aria-label="Profile Hub">
                         <div className="col-lg-8">
-                            <div className="pf-card mb-4">
+                            <div className="pf-card h-100">
                                 <div className="pf-section-header flex-column flex-sm-row align-items-start align-items-sm-center">
                                     <div>
                                         <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
@@ -1122,564 +1199,6 @@ const Profile = () => {
                                     })}
                                 </div>
                             </div>
-
-                            {/* 2. Authentic Nook Inc. Resident Passport Studio */}
-                            <div className="pf-card">
-                                <div className="pf-section-header mb-4 pb-2 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                    <div className="d-flex align-items-center gap-3">
-                                        <div className="icon-bubble bg-success bg-opacity-10 text-success" style={{ width: 44, height: 44, fontSize: "1.25rem" }}>
-                                            <i className="fa-solid fa-passport"></i>
-                                        </div>
-                                        <div>
-                                            <h2 className="h5 ac-font text-dark mb-0">Nook Inc. Resident Passport Studio</h2>
-                                            <p className="tiny-text text-muted mb-0">
-                                                Customize your official in-game passport, choose your island besties, and share with the ACNH community.
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div className="d-flex align-items-center gap-2">
-                                        <span className={`badge rounded-pill px-3 py-1 fw-bold ${passportData.isPublic ? "bg-success text-white" : "bg-secondary text-white"}`}>
-                                            <i className={`fa-solid ${passportData.isPublic ? "fa-globe" : "fa-lock"} me-1`}></i>
-                                            {passportData.isPublic ? "Public Profile" : "Private"}
-                                        </span>
-                                        <Link
-                                            to={`/u/${encodeURIComponent(passportData.username || profileUser?.discord_name || authUser?.username || "resident")}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="btn btn-xs btn-outline-success rounded-pill fw-bold px-3 py-1 d-inline-flex align-items-center gap-1 shadow-2xs"
-                                            title="Open Public Passport in New Tab"
-                                        >
-                                            <span>View Live</span>
-                                            <i className="fa-solid fa-arrow-up-right-from-square"></i>
-                                        </Link>
-                                    </div>
-                                </div>
-
-                                <form
-                                    onSubmit={async (e) => {
-                                        e.preventDefault();
-                                        setSavingPassport(true);
-                                        playChimeClick();
-                                        const ok = await savePassportToDb(passportData, getAuthToken());
-                                        setSavingPassport(false);
-                                        setPrefNotice(ok ? "Your Resident Passport has been saved to the ChoBot database!" : "Passport saved locally (server sync pending).");
-                                        setTimeout(() => setPrefNotice(null), 3500);
-                                    }}
-                                >
-                                    <div className="row g-4">
-                                        {/* Left Column: Core Identity & Aesthetics */}
-                                        <div className="col-lg-6">
-                                            {/* Section 1: Resident Identity & Island Traits */}
-                                            <div className="bg-light rounded-4 p-3 border mb-3">
-                                                <h3 className="h6 fw-black text-dark mb-3 ac-font d-flex align-items-center gap-2">
-                                                    <i className="fa-solid fa-address-card text-success"></i>
-                                                    Resident Identity &amp; Island Traits
-                                                </h3>
-
-                                                {/* Pronouns */}
-                                                <div className="mb-3">
-                                                    <div className="d-flex align-items-center justify-content-between mb-1">
-                                                        <label className="form-label fw-bold small text-dark mb-0">
-                                                            Pronouns
-                                                        </label>
-                                                        <div className="d-flex gap-1 flex-wrap">
-                                                            {["she/her", "he/him", "they/them", "she/they"].map((p) => (
-                                                                <button
-                                                                    key={p}
-                                                                    type="button"
-                                                                    className={`btn btn-xs rounded-pill px-2 py-0 border ${passportData.pronouns === p ? "btn-success text-white" : "btn-white text-muted"}`}
-                                                                    style={{ fontSize: "0.68rem" }}
-                                                                    onClick={() => {
-                                                                        playChimeClick();
-                                                                        setPassportData({ ...passportData, pronouns: p });
-                                                                    }}
-                                                                >
-                                                                    {p}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                    <input
-                                                        type="text"
-                                                        className="form-control rounded-3 border-2"
-                                                        placeholder="e.g. she/her, they/them, he/him"
-                                                        value={passportData.pronouns}
-                                                        onChange={(e) => setPassportData({ ...passportData, pronouns: e.target.value })}
-                                                    />
-                                                </div>
-
-                                                {/* Birthday (Day & Month) + Zodiac Constellation */}
-                                                <div className="mb-3">
-                                                    <div className="d-flex align-items-center justify-content-between mb-1">
-                                                        <label className="form-label fw-bold small text-dark mb-0">
-                                                            Birthday &amp; Zodiac Sign
-                                                        </label>
-                                                        <span className="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-30 rounded-pill x-small fw-bold">
-                                                            <i className="fa-solid fa-star text-warning me-1"></i>
-                                                            {ZODIAC_SIGNS[passportData.birthMonth] || "Island Star"}
-                                                        </span>
-                                                    </div>
-                                                    <div className="row g-2">
-                                                        <div className="col-5">
-                                                            <select
-                                                                className="form-select rounded-3 border-2"
-                                                                value={passportData.birthDay}
-                                                                onChange={(e) => setPassportData({ ...passportData, birthDay: e.target.value })}
-                                                            >
-                                                                {Array.from({ length: 31 }, (_, i) => String(i + 1)).map((d) => (
-                                                                    <option key={d} value={d}>
-                                                                        Day {d}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
-                                                        <div className="col-7">
-                                                            <select
-                                                                className="form-select rounded-3 border-2"
-                                                                value={passportData.birthMonth}
-                                                                onChange={(e) => setPassportData({ ...passportData, birthMonth: e.target.value })}
-                                                            >
-                                                                {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m) => (
-                                                                    <option key={m} value={m}>
-                                                                        {m}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Native Fruit Selector */}
-                                                <div className="mb-3">
-                                                    <label className="form-label fw-bold small text-dark mb-1">
-                                                        Native Fruit (Island Orchard Origin)
-                                                    </label>
-                                                    <div className="row g-2">
-                                                        {(["Apple", "Cherry", "Orange", "Peach", "Pear", "Coconut"] as const).map((fruit) => {
-                                                            const isSelected = passportData.nativeFruit === fruit;
-                                                            return (
-                                                                <div key={fruit} className="col-4 col-sm-4">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            playChimeClick();
-                                                                            setPassportData({ ...passportData, nativeFruit: fruit });
-                                                                        }}
-                                                                        className={`w-100 p-2 rounded-3 border text-center transition-all d-flex flex-column align-items-center justify-content-center ${
-                                                                            isSelected ? "btn-success text-white shadow-2xs border-success" : "bg-white text-dark hover-bg-light"
-                                                                        }`}
-                                                                        style={{ minHeight: "56px" }}
-                                                                    >
-                                                                        <img
-                                                                            src={FRUIT_ICONS[fruit]}
-                                                                            alt=""
-                                                                            style={{ width: 22, height: 22, objectFit: "contain" }}
-                                                                            onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
-                                                                        />
-                                                                        <span className="tiny-text fw-bold mt-1">{fruit}</span>
-                                                                    </button>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-
-                                                {/* Country & Language */}
-                                                <div className="row g-2">
-                                                    <div className="col-6">
-                                                        <label className="form-label fw-bold small text-dark mb-1">
-                                                            Country / Region
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            className="form-control rounded-3 border-2"
-                                                            placeholder="e.g. Canada, Japan"
-                                                            value={passportData.country}
-                                                            onChange={(e) => setPassportData({ ...passportData, country: e.target.value })}
-                                                        />
-                                                    </div>
-                                                    <div className="col-6">
-                                                        <label className="form-label fw-bold small text-dark mb-1">
-                                                            Language
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            className="form-control rounded-3 border-2"
-                                                            placeholder="e.g. English, Español"
-                                                            value={passportData.language}
-                                                            onChange={(e) => setPassportData({ ...passportData, language: e.target.value })}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Section 2: Island Vibe & Aesthetics */}
-                                            <div className="bg-light rounded-4 p-3 border mb-3">
-                                                <h3 className="h6 fw-black text-dark mb-3 ac-font d-flex align-items-center gap-2">
-                                                    <i className="fa-solid fa-palette text-primary"></i>
-                                                    Island Vibe &amp; Aesthetics
-                                                </h3>
-
-                                                {/* Personality Chips */}
-                                                <div className="mb-3">
-                                                    <label className="form-label fw-bold small text-dark mb-1">
-                                                        Your Island Personality
-                                                    </label>
-                                                    <div className="d-flex flex-wrap gap-1">
-                                                        {(["Lazy", "Jock", "Cranky", "Smug", "Normal", "Peppy", "Snooty", "Big Sister"] as const).map((p) => {
-                                                            const isSelected = passportData.personality === p;
-                                                            const pTheme = PERSONALITY_THEMES[p] || PERSONALITY_THEMES.Normal;
-                                                            return (
-                                                                <button
-                                                                    key={p}
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        playChimeClick();
-                                                                        setPassportData({ ...passportData, personality: p });
-                                                                    }}
-                                                                    className={`btn btn-xs rounded-pill px-2 py-1 border transition-all ${
-                                                                        isSelected ? "shadow-2xs fw-bold" : "bg-white text-muted"
-                                                                    }`}
-                                                                    style={{
-                                                                        fontSize: "0.76rem",
-                                                                        backgroundColor: isSelected ? pTheme.bg : undefined,
-                                                                        color: isSelected ? pTheme.text : undefined,
-                                                                        borderColor: isSelected ? pTheme.text : undefined,
-                                                                    }}
-                                                                >
-                                                                    <i className={`fa-solid ${pTheme.icon} me-1`}></i>
-                                                                    {p}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-
-                                                {/* Theme Colour with AC Preset Palette */}
-                                                <div className="mb-3">
-                                                    <div className="d-flex align-items-center justify-content-between mb-1">
-                                                        <label className="form-label fw-bold small text-dark mb-0">
-                                                            Passport Theme Colour
-                                                        </label>
-                                                        <div className="d-flex align-items-center gap-1">
-                                                            {[
-                                                                { hex: "#37b06d", label: "Nook Leaf" },
-                                                                { hex: "#8b5cf6", label: "Celeste Star" },
-                                                                { hex: "#d97706", label: "Roost Amber" },
-                                                                { hex: "#0284c7", label: "Dodo Sky" },
-                                                                { hex: "#ec4899", label: "Cherry Blossom" },
-                                                                { hex: "#eab308", label: "Bell Coin" },
-                                                            ].map((c) => (
-                                                                <button
-                                                                    key={c.hex}
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        playChimeClick();
-                                                                        setPassportData({ ...passportData, favouriteColour: c.hex });
-                                                                    }}
-                                                                    className="rounded-circle border-0 p-0 shadow-2xs"
-                                                                    style={{
-                                                                        width: 18,
-                                                                        height: 18,
-                                                                        backgroundColor: c.hex,
-                                                                        outline: passportData.favouriteColour === c.hex ? "2px solid #1e293b" : "none",
-                                                                        outlineOffset: "1px",
-                                                                    }}
-                                                                    title={c.label}
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                    <div className="d-flex align-items-center gap-2">
-                                                        <input
-                                                            type="color"
-                                                            className="form-control form-control-color border-2 rounded-3"
-                                                            value={passportData.favouriteColour || "#37b06d"}
-                                                            onChange={(e) => setPassportData({ ...passportData, favouriteColour: e.target.value })}
-                                                            title="Choose custom colour"
-                                                        />
-                                                        <input
-                                                            type="text"
-                                                            className="form-control rounded-3 border-2 font-monospace small"
-                                                            value={passportData.favouriteColour}
-                                                            onChange={(e) => setPassportData({ ...passportData, favouriteColour: e.target.value })}
-                                                            placeholder="#37b06d"
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                {/* Favourite K.K. Slider Song */}
-                                                <div className="mb-0">
-                                                    <div className="d-flex align-items-center justify-content-between mb-1">
-                                                        <label className="form-label fw-bold small text-dark mb-0">
-                                                            Favourite K.K. Slider Song
-                                                        </label>
-                                                        <span className="tiny-text text-muted">Aircheck Track</span>
-                                                    </div>
-                                                    <input
-                                                        type="text"
-                                                        className="form-control rounded-3 border-2 mb-1"
-                                                        placeholder="e.g. K.K. Cruisin', Bubblegum K.K."
-                                                        value={passportData.favouriteSong}
-                                                        onChange={(e) => setPassportData({ ...passportData, favouriteSong: e.target.value })}
-                                                    />
-                                                    <div className="d-flex gap-1 flex-wrap">
-                                                        {["K.K. Cruisin'", "Bubblegum K.K.", "Stale Cupcakes", "K.K. Disco", "Drivin'"].map((song) => (
-                                                            <button
-                                                                key={song}
-                                                                type="button"
-                                                                className="btn btn-xs rounded-pill px-2 py-0 bg-white border text-muted"
-                                                                style={{ fontSize: "0.68rem" }}
-                                                                onClick={() => {
-                                                                    playChimeClick();
-                                                                    setPassportData({ ...passportData, favouriteSong: song });
-                                                                }}
-                                                            >
-                                                                {song}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Right Column: Bio, Hobbies & Villager Showcase */}
-                                        <div className="col-lg-6">
-                                            {/* Section 3: Island Motto & Bio */}
-                                            <div className="bg-light rounded-4 p-3 border mb-3">
-                                                <h3 className="h6 fw-black text-dark mb-3 ac-font d-flex align-items-center gap-2">
-                                                    <i className="fa-solid fa-quote-left text-warning"></i>
-                                                    Island Motto &amp; Comment Bubble
-                                                </h3>
-
-                                                <div className="mb-2">
-                                                    <div className="d-flex align-items-center justify-content-between mb-1">
-                                                        <label className="form-label fw-bold small text-dark mb-0">
-                                                            Passport Comment (160 characters max)
-                                                        </label>
-                                                        <span className={`tiny-text font-monospace ${passportData.aboutYou.length > 160 ? "text-danger fw-bold" : "text-muted"}`}>
-                                                            {passportData.aboutYou.length}/160
-                                                        </span>
-                                                    </div>
-                                                    <textarea
-                                                        className="form-control rounded-3 border-2"
-                                                        rows={3}
-                                                        maxLength={160}
-                                                        placeholder="Share your island theme, favorite activities, or dream designs with visitors..."
-                                                        value={passportData.aboutYou}
-                                                        onChange={(e) => setPassportData({ ...passportData, aboutYou: e.target.value })}
-                                                    ></textarea>
-                                                </div>
-
-                                                <div className="d-flex gap-1 flex-wrap mb-3">
-                                                    {[
-                                                        "Living my best island life! 🌴",
-                                                        "5-Star Island in progress ⭐",
-                                                        "Cottagecore vibes only 🍄",
-                                                        "Hunting for cute DIYs & friends 🛠️",
-                                                    ].map((preset) => (
-                                                        <button
-                                                            key={preset}
-                                                            type="button"
-                                                            className="btn btn-xs rounded-pill px-2 py-0 bg-white border text-muted"
-                                                            style={{ fontSize: "0.68rem" }}
-                                                            onClick={() => {
-                                                                playChimeClick();
-                                                                setPassportData({ ...passportData, aboutYou: preset });
-                                                            }}
-                                                        >
-                                                            {preset}
-                                                        </button>
-                                                    ))}
-                                                </div>
-
-                                                {/* Hobbies */}
-                                                <div className="mb-0">
-                                                    <label className="form-label fw-bold small text-dark mb-1">
-                                                        Hobbies &amp; Activities
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        className="form-control rounded-3 border-2"
-                                                        placeholder="e.g. Gardening, Fishing, Stargazing, Decorating"
-                                                        value={passportData.hobbies}
-                                                        onChange={(e) => setPassportData({ ...passportData, hobbies: e.target.value })}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Section 4: Favorite Villagers Showcase (Up to 10) */}
-                                            <div className="bg-light rounded-4 p-3 border mb-3">
-                                                <div className="d-flex align-items-center justify-content-between mb-2">
-                                                    <h3 className="h6 fw-black text-dark mb-0 ac-font d-flex align-items-center gap-2">
-                                                        <i className="fa-solid fa-paw text-warning"></i>
-                                                        Island Besties &amp; Villagers ({passportData.favouriteVillagers.length}/10)
-                                                    </h3>
-                                                    <span className="tiny-text text-muted font-monospace">
-                                                        Max 10
-                                                    </span>
-                                                </div>
-
-                                                {/* Selected Villagers Visual Tags */}
-                                                <div className="d-flex flex-wrap gap-1 mb-2">
-                                                    {passportData.favouriteVillagers.map((vName) => {
-                                                        const matched = (catalogData?.villagers || []).find((v) => v.name.toLowerCase() === vName.toLowerCase());
-                                                        const sprite = matched?.image || matched?.variations?.[0]?.imageUrl;
-                                                        return (
-                                                            <span
-                                                                key={vName}
-                                                                className="badge bg-white text-dark border rounded-pill px-2 py-1 d-inline-flex align-items-center gap-1 shadow-2xs"
-                                                                style={{ fontSize: "0.78rem" }}
-                                                            >
-                                                                {sprite ? (
-                                                                    <img
-                                                                        src={sprite}
-                                                                        alt=""
-                                                                        style={{ width: 18, height: 18, objectFit: "contain", borderRadius: "50%" }}
-                                                                    />
-                                                                ) : (
-                                                                    <i className="fa-solid fa-paw text-warning small"></i>
-                                                                )}
-                                                                <span>{vName}</span>
-                                                                <button
-                                                                    type="button"
-                                                                    className="btn btn-link text-muted hover-text-danger p-0 ms-1 border-0"
-                                                                    onClick={() => {
-                                                                        playChimeClick();
-                                                                        setPassportData({
-                                                                            ...passportData,
-                                                                            favouriteVillagers: passportData.favouriteVillagers.filter((v) => v !== vName),
-                                                                        });
-                                                                    }}
-                                                                    aria-label={`Remove ${vName}`}
-                                                                >
-                                                                    <i className="fa-solid fa-xmark"></i>
-                                                                </button>
-                                                            </span>
-                                                        );
-                                                    })}
-                                                </div>
-
-                                                {/* Search Villager Autocomplete */}
-                                                {passportData.favouriteVillagers.length < 10 && (
-                                                    <div className="position-relative">
-                                                        <div className="input-group">
-                                                            <span className="input-group-text bg-white border-2 border-end-0 text-muted">
-                                                                <i className="fa-solid fa-magnifying-glass"></i>
-                                                            </span>
-                                                            <input
-                                                                type="text"
-                                                                className="form-control rounded-end-3 border-2 border-start-0"
-                                                                placeholder="Search villager name (e.g. Raymond, Shino, Marshal)..."
-                                                                value={villagerSearchQuery}
-                                                                onChange={(e) => setVillagerSearchQuery(e.target.value)}
-                                                            />
-                                                        </div>
-
-                                                        {/* Autocomplete Dropdown Popover */}
-                                                        {villagerSearchQuery.trim().length > 0 && (
-                                                            <div className="position-absolute start-0 end-0 bg-white border rounded-3 shadow-lg p-2 mt-1 z-3" style={{ maxHeight: "200px", overflowY: "auto" }}>
-                                                                {(catalogData?.villagers || [])
-                                                                    .filter((v) => v.name.toLowerCase().includes(villagerSearchQuery.trim().toLowerCase()) && !passportData.favouriteVillagers.includes(v.name))
-                                                                    .slice(0, 8)
-                                                                    .map((v) => {
-                                                                        const sprite = v.image || v.variations?.[0]?.imageUrl;
-                                                                        return (
-                                                                            <button
-                                                                                key={v.name}
-                                                                                type="button"
-                                                                                className="dropdown-item d-flex align-items-center justify-content-between p-2 rounded-2 hover-bg-light"
-                                                                                onClick={() => {
-                                                                                    playChimeClick();
-                                                                                    setPassportData({
-                                                                                        ...passportData,
-                                                                                        favouriteVillagers: [...passportData.favouriteVillagers, v.name].slice(0, 10),
-                                                                                    });
-                                                                                    setVillagerSearchQuery("");
-                                                                                }}
-                                                                            >
-                                                                                <div className="d-flex align-items-center gap-2">
-                                                                                    {sprite && (
-                                                                                        <img
-                                                                                            src={sprite}
-                                                                                            alt=""
-                                                                                            style={{ width: 24, height: 24, objectFit: "contain" }}
-                                                                                        />
-                                                                                    )}
-                                                                                    <strong className="text-dark small">{v.name}</strong>
-                                                                                    {v.species && <span className="tiny-text text-muted">({v.species})</span>}
-                                                                                </div>
-                                                                                {v.personality && (
-                                                                                    <span className="badge bg-light text-muted x-small">
-                                                                                        {v.personality}
-                                                                                    </span>
-                                                                                )}
-                                                                            </button>
-                                                                        );
-                                                                    })}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Section 5: Privacy & Public Settings */}
-                                            <div className="bg-white rounded-4 p-3 border">
-                                                <h3 className="h6 fw-black text-dark mb-3 ac-font d-flex align-items-center gap-2">
-                                                    <i className="fa-solid fa-sliders text-success"></i>
-                                                    Privacy &amp; Sharing Controls
-                                                </h3>
-
-                                                <div className="form-check form-switch mb-2">
-                                                    <input
-                                                        className="form-check-input"
-                                                        type="checkbox"
-                                                        role="switch"
-                                                        id="showCharAndIsland"
-                                                        checked={passportData.showCharacterAndIsland}
-                                                        onChange={(e) => setPassportData({ ...passportData, showCharacterAndIsland: e.target.checked })}
-                                                    />
-                                                    <label className="form-check-label fw-bold small text-dark ms-2" htmlFor="showCharAndIsland">
-                                                        Show in-game character &amp; island name on passport
-                                                    </label>
-                                                </div>
-
-                                                <div className="form-check form-switch">
-                                                    <input
-                                                        className="form-check-input"
-                                                        type="checkbox"
-                                                        role="switch"
-                                                        id="makeProfilePublic"
-                                                        checked={passportData.isPublic}
-                                                        onChange={(e) => setPassportData({ ...passportData, isPublic: e.target.checked })}
-                                                    />
-                                                    <label className="form-check-label fw-bold small text-dark ms-2" htmlFor="makeProfilePublic">
-                                                        Make passport public (accessible via your personal URL)
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Bottom Submit Action Bar */}
-                                    <div className="d-flex align-items-center justify-content-between p-3 rounded-4 bg-white border shadow-sm mt-4 flex-wrap gap-2">
-                                        <div className="d-flex align-items-center gap-2 tiny-text text-muted">
-                                            <i className="fa-solid fa-cloud-arrow-up text-success"></i>
-                                            <span>Changes sync securely to your ChoPaeng database resident passport.</span>
-                                        </div>
-
-                                        <button
-                                            type="submit"
-                                            disabled={savingPassport}
-                                            className="btn btn-nook rounded-pill fw-black px-4 py-2 shadow-xs d-inline-flex align-items-center gap-2"
-                                        >
-                                            <i className={savingPassport ? "fa-solid fa-spinner fa-spin" : "fa-solid fa-floppy-disk"}></i>
-                                            <span>{savingPassport ? "Saving to Database..." : "Save Passport to Database"}</span>
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
                         </div>
 
                         {/* Account & Passport Sidebar Column */}
@@ -1799,6 +1318,1019 @@ const Profile = () => {
                                         )}
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* 2. Authentic Nook Inc. Resident Passport Studio */}
+                        <div className="col-12">
+                            <div className="pf-card">
+                                {/* Studio Command Header */}
+                                <div className="studio-hero-bar mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
+                                    <div className="d-flex align-items-center gap-3">
+                                        <div className="icon-bubble bg-success bg-opacity-10 text-success shadow-2xs" style={{ width: 48, height: 48, fontSize: "1.35rem" }}>
+                                            <i className="fa-solid fa-passport"></i>
+                                        </div>
+                                        <div>
+                                            <div className="d-flex align-items-center gap-2 flex-wrap">
+                                                <h2 className="h5 ac-font mb-0">Nook Inc. Resident Passport Studio</h2>
+                                                <span className="badge bg-success bg-opacity-15 text-success border border-success border-opacity-25 rounded-pill x-small fw-bold">
+                                                    <i className="fa-solid fa-leaf me-1"></i>Official DAL Studio
+                                                </span>
+                                            </div>
+                                            <p className="tiny-text text-muted mb-0">
+                                                Customize your authentic in-game passport, preview updates in real-time, and share your resident card.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* View Mode & Quick Actions */}
+                                    <div className="d-flex align-items-center gap-2 flex-wrap">
+                                        {/* View Mode Switcher */}
+                                        <div className="studio-mode-pill-group">
+                                            <button
+                                                type="button"
+                                                className={`studio-mode-pill-btn ${studioViewMode === "split" ? "active" : ""}`}
+                                                onClick={() => {
+                                                    playChimeClick();
+                                                    setStudioViewMode("split");
+                                                }}
+                                                title="Split Studio: Live Card Preview + Editor"
+                                            >
+                                                <i className="fa-solid fa-table-columns"></i>
+                                                <span className="d-none d-sm-inline">Split Studio</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`studio-mode-pill-btn ${studioViewMode === "card" ? "active" : ""}`}
+                                                onClick={() => {
+                                                    playChimeClick();
+                                                    setStudioViewMode("card");
+                                                }}
+                                                title="Full Card Preview"
+                                            >
+                                                <i className="fa-solid fa-passport"></i>
+                                                <span className="d-none d-sm-inline">Live Card</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`studio-mode-pill-btn ${studioViewMode === "editor" ? "active" : ""}`}
+                                                onClick={() => {
+                                                    playChimeClick();
+                                                    setStudioViewMode("editor");
+                                                }}
+                                                title="Studio Tools Only"
+                                            >
+                                                <i className="fa-solid fa-sliders"></i>
+                                                <span className="d-none d-sm-inline">Studio Tools</span>
+                                            </button>
+                                        </div>
+
+                                        {/* Public Badge */}
+                                        <span className={`badge rounded-pill px-3 py-2 fw-bold ${passportData.isPublic ? "bg-success text-white" : "bg-secondary text-white"}`}>
+                                            <i className={`fa-solid ${passportData.isPublic ? "fa-globe" : "fa-lock"} me-1`}></i>
+                                            {passportData.isPublic ? "Public" : "Private"}
+                                        </span>
+
+                                        {/* Share Link Button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                playChimeClick();
+                                                const uname = passportData.username || profileUser?.discord_name || authUser?.username || "resident";
+                                                const url = `${window.location.origin}/u/${encodeURIComponent(uname)}`;
+                                                navigator.clipboard.writeText(url).then(() => {
+                                                    setPassportLinkCopied(true);
+                                                    setTimeout(() => setPassportLinkCopied(false), 2500);
+                                                }).catch(() => {
+                                                    setPassportLinkCopied(true);
+                                                    setTimeout(() => setPassportLinkCopied(false), 2500);
+                                                });
+                                            }}
+                                            className={`btn btn-xs rounded-pill fw-bold px-3 py-2 d-inline-flex align-items-center gap-1 shadow-2xs ${
+                                                passportLinkCopied ? "btn-success text-white" : "btn-white border text-dark"
+                                            }`}
+                                            title="Copy Public Passport URL"
+                                        >
+                                            <i className={`fa-solid ${passportLinkCopied ? "fa-check" : "fa-share-nodes"}`}></i>
+                                            <span>{passportLinkCopied ? "Link Copied!" : "Share"}</span>
+                                        </button>
+
+                                        {/* View Live Page */}
+                                        <Link
+                                            to={`/u/${encodeURIComponent(passportData.username || profileUser?.discord_name || authUser?.username || "resident")}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="btn btn-xs btn-outline-success rounded-pill fw-bold px-3 py-2 d-inline-flex align-items-center gap-1 shadow-2xs"
+                                            title="Open Public Passport in New Tab"
+                                        >
+                                            <span>View Live</span>
+                                            <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                                        </Link>
+                                    </div>
+                                </div>
+
+                                <form
+                                    onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        setSavingPassport(true);
+                                        playChimeClick();
+                                        const ok = await savePassportToDb(passportData, getAuthToken());
+                                        setSavingPassport(false);
+                                        setPassportDirty(false);
+                                        setPrefNotice(ok ? "Your Resident Passport has been saved to the ChoBot database!" : "Passport saved locally (server sync pending).");
+                                        setTimeout(() => setPrefNotice(null), 3500);
+                                    }}
+                                >
+                                    {/* ── CARD FOCUS VIEW MODE ── */}
+                                    {studioViewMode === "card" && (
+                                        <div className="py-3 px-1 animate-fade" style={{ maxWidth: 880, margin: "0 auto" }}>
+                                            <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                                                <div className="d-flex align-items-center gap-2">
+                                                    <span className="live-sync-pulse">
+                                                        <span className="live-sync-dot"></span>
+                                                        <span>Full Card Viewport</span>
+                                                    </span>
+                                                    <span className="tiny-text text-muted">
+                                                        Official Dodo Airlines boarding record
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        playChimeClick();
+                                                        setStudioViewMode("split");
+                                                    }}
+                                                    className="btn btn-xs btn-outline-success rounded-pill fw-bold px-3 py-1 d-inline-flex align-items-center gap-1"
+                                                >
+                                                    <i className="fa-solid fa-pen-to-square"></i>
+                                                    <span>Open Split Studio to Edit</span>
+                                                </button>
+                                            </div>
+
+                                            <ResidentPassportCard
+                                                passport={passportData}
+                                                allVillagers={catalogData?.villagers || []}
+                                                avatarUrl={profileUser?.avatar || authUser?.avatar || passportData.avatarUrl}
+                                                interactive={true}
+                                                onShareClick={() => {
+                                                    playChimeClick();
+                                                    const uname = passportData.username || profileUser?.discord_name || authUser?.username || "resident";
+                                                    const url = `${window.location.origin}/u/${encodeURIComponent(uname)}`;
+                                                    navigator.clipboard.writeText(url);
+                                                    setPassportLinkCopied(true);
+                                                    setTimeout(() => setPassportLinkCopied(false), 2500);
+                                                }}
+                                                shareCopied={passportLinkCopied}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* ── SPLIT OR EDITOR VIEW MODE ── */}
+                                    {studioViewMode !== "card" && (
+                                        <div className="row g-4">
+                                            {/* LEFT COLUMN: Sticky Live Passport Card Preview (Split Mode Only) */}
+                                            {studioViewMode === "split" && (
+                                                <div className="col-xl-6 col-12">
+                                                    <div className="studio-preview-sticky">
+                                                        <div className="d-flex align-items-center justify-content-between mb-2">
+                                                            <div className="d-flex align-items-center gap-2">
+                                                                <span className="live-sync-pulse">
+                                                                    <span className="live-sync-dot"></span>
+                                                                    <span>Live Preview</span>
+                                                                </span>
+                                                                <span className="badge bg-light text-muted border rounded-pill x-small">
+                                                                    Updates in real time
+                                                                </span>
+                                                            </div>
+                                                            <span className="tiny-text font-monospace text-muted">
+                                                                CP-{(passportData.username || "RESIDENT").toUpperCase().slice(0, 8)}-{passportData.birthDay || "01"}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Interactive Live Passport Card Component */}
+                                                        <ResidentPassportCard
+                                                            passport={passportData}
+                                                            allVillagers={catalogData?.villagers || []}
+                                                            avatarUrl={profileUser?.avatar || authUser?.avatar || passportData.avatarUrl}
+                                                            interactive={true}
+                                                            onShareClick={() => {
+                                                                playChimeClick();
+                                                                const uname = passportData.username || profileUser?.discord_name || authUser?.username || "resident";
+                                                                const url = `${window.location.origin}/u/${encodeURIComponent(uname)}`;
+                                                                navigator.clipboard.writeText(url);
+                                                                setPassportLinkCopied(true);
+                                                                setTimeout(() => setPassportLinkCopied(false), 2500);
+                                                            }}
+                                                            shareCopied={passportLinkCopied}
+                                                        />
+
+                                                        {/* Preview Status Strip */}
+                                                        <div className="mt-2 p-2 px-3 rounded-3 studio-inner-box d-flex align-items-center justify-content-between flex-wrap gap-2 shadow-2xs">
+                                                            <div className="d-flex align-items-center gap-2 tiny-text text-muted">
+                                                                <i className="fa-solid fa-circle-check text-success"></i>
+                                                                <span>Live sync ready. Select tabs on the right to edit.</span>
+                                                            </div>
+                                                            <div className="d-flex align-items-center gap-2">
+                                                                <span className={`badge rounded-pill x-small fw-bold ${passportData.isPublic ? "bg-success text-white" : "bg-secondary text-white"}`}>
+                                                                    <i className={`fa-solid ${passportData.isPublic ? "fa-globe" : "fa-lock"} me-1`}></i>
+                                                                    {passportData.isPublic ? "Public Passport" : "Private"}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* RIGHT COLUMN: Categorized Studio Tools & Navigation */}
+                                            <div className={studioViewMode === "split" ? "col-xl-6 col-12" : "col-12"}>
+                                                {/* Category Navigation Pills */}
+                                                <div className="studio-nav-tabs">
+                                                    {[
+                                                        { id: "identity", label: "Identity & Island", icon: "fa-address-card" },
+                                                        { id: "vibe", label: "Vibe & Themes", icon: "fa-palette" },
+                                                        { id: "motto", label: "Motto & Bio", icon: "fa-quote-left" },
+                                                        { id: "besties", label: `Besties (${passportData.favouriteVillagers.length}/10)`, icon: "fa-paw" },
+                                                        { id: "privacy", label: "Privacy & Link", icon: "fa-sliders" },
+                                                    ].map((sec) => (
+                                                        <button
+                                                            key={sec.id}
+                                                            type="button"
+                                                            className={`studio-nav-btn ${studioSection === sec.id ? "active" : ""}`}
+                                                            onClick={() => {
+                                                                playChimeClick();
+                                                                setStudioSection(sec.id as any);
+                                                            }}
+                                                        >
+                                                            <i className={`fa-solid ${sec.icon}`}></i>
+                                                            <span>{sec.label}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                {/* TAB 1: RESIDENT IDENTITY & ISLAND TRAITS */}
+                                                {studioSection === "identity" && (
+                                                    <div className="studio-tool-card animate-fade">
+                                                        <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+                                                            <h3 className="h6 fw-black mb-0 ac-font d-flex align-items-center gap-2">
+                                                                <i className="fa-solid fa-address-card text-success"></i>
+                                                                Resident Identity &amp; Island Traits
+                                                            </h3>
+                                                            <span className="tiny-text text-muted">Core Passport Record</span>
+                                                        </div>
+
+                                                        {/* Primary IGN & Island Name (Syncs to Polaroid!) */}
+                                                        <div className="row g-2 mb-3">
+                                                            <div className="col-sm-6">
+                                                                <label className="form-label fw-bold small mb-1">
+                                                                    In-Game Name (IGN)
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    className="form-control rounded-3 border-2"
+                                                                    placeholder="e.g. Cho, Tom"
+                                                                    value={passportData.primaryIgn || ""}
+                                                                    onChange={(e) => {
+                                                                        setPassportDirty(true);
+                                                                        setPassportData({ ...passportData, primaryIgn: e.target.value });
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <div className="col-sm-6">
+                                                                <label className="form-label fw-bold small mb-1">
+                                                                    Island Name
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    className="form-control rounded-3 border-2"
+                                                                    placeholder="e.g. Cho Island, Nooktopia"
+                                                                    value={passportData.primaryIsland || ""}
+                                                                    onChange={(e) => {
+                                                                        setPassportDirty(true);
+                                                                        setPassportData({ ...passportData, primaryIsland: e.target.value });
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <div className="col-12">
+                                                                <p className="tiny-text text-muted mb-0">
+                                                                    <i className="fa-solid fa-camera-retro me-1 text-success"></i>
+                                                                    These traits appear directly on your passport polaroid portrait frame.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Pronouns */}
+                                                        <div className="mb-3">
+                                                            <div className="d-flex align-items-center justify-content-between mb-1">
+                                                                <label className="form-label fw-bold small mb-0">
+                                                                    Pronouns
+                                                                </label>
+                                                                <div className="d-flex gap-1 flex-wrap">
+                                                                    {["she/her", "he/him", "they/them", "she/they"].map((p) => (
+                                                                        <button
+                                                                            key={p}
+                                                                            type="button"
+                                                                            className={`btn btn-xs rounded-pill px-2 py-0 border ${passportData.pronouns === p ? "btn-success text-white" : "studio-motto-chip"}`}
+                                                                            style={{ fontSize: "0.68rem" }}
+                                                                            onClick={() => {
+                                                                                playChimeClick();
+                                                                                setPassportDirty(true);
+                                                                                setPassportData({ ...passportData, pronouns: p });
+                                                                            }}
+                                                                        >
+                                                                            {p}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                className="form-control rounded-3 border-2"
+                                                                placeholder="e.g. she/her, they/them, he/him"
+                                                                value={passportData.pronouns}
+                                                                onChange={(e) => {
+                                                                    setPassportDirty(true);
+                                                                    setPassportData({ ...passportData, pronouns: e.target.value });
+                                                                }}
+                                                            />
+                                                        </div>
+
+                                                        {/* Birthday & Dynamic Zodiac Constellation */}
+                                                        <div className="mb-3">
+                                                            <div className="d-flex align-items-center justify-content-between mb-1">
+                                                                <label className="form-label fw-bold small mb-0">
+                                                                    Birthday &amp; Zodiac Sign
+                                                                </label>
+                                                                <span className="badge bg-warning bg-opacity-15 text-warning border border-warning border-opacity-30 rounded-pill x-small fw-bold">
+                                                                    <i className="fa-solid fa-star me-1"></i>
+                                                                    {ZODIAC_SIGNS[passportData.birthMonth] || "Island Star"}
+                                                                </span>
+                                                            </div>
+                                                            <div className="row g-2">
+                                                                <div className="col-5">
+                                                                    <select
+                                                                        className="form-select rounded-3 border-2"
+                                                                        value={passportData.birthDay}
+                                                                        onChange={(e) => {
+                                                                            playChimeClick();
+                                                                            setPassportDirty(true);
+                                                                            setPassportData({ ...passportData, birthDay: e.target.value });
+                                                                        }}
+                                                                    >
+                                                                        {Array.from({ length: 31 }, (_, i) => String(i + 1)).map((d) => (
+                                                                            <option key={d} value={d}>
+                                                                                Day {d}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                </div>
+                                                                <div className="col-7">
+                                                                    <select
+                                                                        className="form-select rounded-3 border-2"
+                                                                        value={passportData.birthMonth}
+                                                                        onChange={(e) => {
+                                                                            playChimeClick();
+                                                                            setPassportDirty(true);
+                                                                            setPassportData({ ...passportData, birthMonth: e.target.value });
+                                                                        }}
+                                                                    >
+                                                                        {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m) => (
+                                                                            <option key={m} value={m}>
+                                                                                {m}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Native Fruit Selector */}
+                                                        <div className="mb-3">
+                                                            <label className="form-label fw-bold small mb-2 d-flex align-items-center justify-content-between">
+                                                                <span>Native Fruit (Island Orchard Origin)</span>
+                                                                <span className="tiny-text text-muted">Selected: <strong>{passportData.nativeFruit}</strong></span>
+                                                            </label>
+                                                            <div className="studio-fruit-grid">
+                                                                {(["Apple", "Cherry", "Orange", "Peach", "Pear", "Coconut"] as const).map((fruit) => {
+                                                                    const isSelected = passportData.nativeFruit === fruit;
+                                                                    return (
+                                                                        <button
+                                                                            key={fruit}
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                playChimeClick();
+                                                                                setPassportDirty(true);
+                                                                                setPassportData({ ...passportData, nativeFruit: fruit });
+                                                                            }}
+                                                                            className={`studio-fruit-card ${isSelected ? "active" : ""}`}
+                                                                        >
+                                                                            <img
+                                                                                src={FRUIT_ICONS[fruit]}
+                                                                                alt={fruit}
+                                                                                className="studio-fruit-icon"
+                                                                                onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
+                                                                            />
+                                                                            <span className="studio-fruit-label">{fruit}</span>
+                                                                            {isSelected && <i className="fa-solid fa-circle-check studio-fruit-check"></i>}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Country & Language */}
+                                                        <div className="row g-2">
+                                                            <div className="col-6">
+                                                                <label className="form-label fw-bold small mb-1">
+                                                                    Country / Region
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    className="form-control rounded-3 border-2"
+                                                                    placeholder="e.g. Canada, Japan"
+                                                                    value={passportData.country}
+                                                                    onChange={(e) => {
+                                                                        setPassportDirty(true);
+                                                                        setPassportData({ ...passportData, country: e.target.value });
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <div className="col-6">
+                                                                <label className="form-label fw-bold small mb-1">
+                                                                    Language
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    className="form-control rounded-3 border-2"
+                                                                    placeholder="e.g. English, Español"
+                                                                    value={passportData.language}
+                                                                    onChange={(e) => {
+                                                                        setPassportDirty(true);
+                                                                        setPassportData({ ...passportData, language: e.target.value });
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* TAB 2: ISLAND VIBE & AESTHETICS */}
+                                                {studioSection === "vibe" && (
+                                                    <div className="studio-tool-card animate-fade">
+                                                        <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+                                                            <h3 className="h6 fw-black mb-0 ac-font d-flex align-items-center gap-2">
+                                                                <i className="fa-solid fa-palette text-primary"></i>
+                                                                Island Vibe &amp; Aesthetics
+                                                            </h3>
+                                                            <span className="tiny-text text-muted">Visual Styling &amp; Sound</span>
+                                                        </div>
+
+                                                        {/* Personality Archetypes */}
+                                                        <div className="mb-3">
+                                                            <label className="form-label fw-bold small mb-1">
+                                                                Your Island Personality
+                                                            </label>
+                                                            <div className="d-flex flex-wrap gap-1">
+                                                                {(["Lazy", "Jock", "Cranky", "Smug", "Normal", "Peppy", "Snooty", "Big Sister"] as const).map((p) => {
+                                                                    const isSelected = passportData.personality === p;
+                                                                    const pTheme = PERSONALITY_THEMES[p] || PERSONALITY_THEMES.Normal;
+                                                                    return (
+                                                                        <button
+                                                                            key={p}
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                playChimeClick();
+                                                                                setPassportDirty(true);
+                                                                                setPassportData({ ...passportData, personality: p });
+                                                                            }}
+                                                                            className={`studio-personality-pill ${isSelected ? "active" : ""}`}
+                                                                            style={{
+                                                                                backgroundColor: isSelected ? pTheme.bg : undefined,
+                                                                                color: isSelected ? pTheme.text : undefined,
+                                                                                borderColor: isSelected ? pTheme.text : undefined,
+                                                                            }}
+                                                                        >
+                                                                            <i className={`fa-solid ${pTheme.icon}`}></i>
+                                                                            <span>{p}</span>
+                                                                            {isSelected && <i className="fa-solid fa-check ms-1 small"></i>}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Theme Colour with AC Preset Palette */}
+                                                        <div className="mb-3">
+                                                            <div className="d-flex align-items-center justify-content-between mb-2">
+                                                                <label className="form-label fw-bold small mb-0">
+                                                                    Passport Theme Color
+                                                                </label>
+                                                                <span className="tiny-text text-muted">Palette Preset</span>
+                                                            </div>
+                                                            <div className="studio-color-swatch-grid mb-2">
+                                                                {[
+                                                                    { hex: "#37b06d", label: "Nook Leaf" },
+                                                                    { hex: "#8b5cf6", label: "Celeste Star" },
+                                                                    { hex: "#d97706", label: "Roost Amber" },
+                                                                    { hex: "#0284c7", label: "Dodo Sky" },
+                                                                    { hex: "#ec4899", label: "Cherry Blossom" },
+                                                                    { hex: "#eab308", label: "Bell Coin" },
+                                                                    { hex: "#292524", label: "Brewster Noir" },
+                                                                    { hex: "#14b8a6", label: "Seafarer Teal" },
+                                                                ].map((c) => (
+                                                                    <button
+                                                                        key={c.hex}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            playChimeClick();
+                                                                            setPassportDirty(true);
+                                                                            setPassportData({ ...passportData, favouriteColour: c.hex });
+                                                                        }}
+                                                                        className={`studio-color-swatch-btn ${passportData.favouriteColour === c.hex ? "active" : ""}`}
+                                                                    >
+                                                                        <span className="studio-color-dot" style={{ backgroundColor: c.hex }} />
+                                                                        <span>{c.label}</span>
+                                                                        {passportData.favouriteColour === c.hex && <i className="fa-solid fa-check small text-success"></i>}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                            <div className="d-flex align-items-center gap-2">
+                                                                <input
+                                                                    type="color"
+                                                                    className="form-control form-control-color border-2 rounded-3"
+                                                                    value={passportData.favouriteColour || "#37b06d"}
+                                                                    onChange={(e) => {
+                                                                        setPassportDirty(true);
+                                                                        setPassportData({ ...passportData, favouriteColour: e.target.value });
+                                                                    }}
+                                                                    title="Choose custom colour"
+                                                                />
+                                                                <input
+                                                                    type="text"
+                                                                    className="form-control rounded-3 border-2 font-monospace small"
+                                                                    value={passportData.favouriteColour}
+                                                                    onChange={(e) => {
+                                                                        setPassportDirty(true);
+                                                                        setPassportData({ ...passportData, favouriteColour: e.target.value });
+                                                                    }}
+                                                                    placeholder="#37b06d"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Favourite K.K. Slider Song */}
+                                                        <div>
+                                                            <div className="d-flex align-items-center justify-content-between mb-1">
+                                                                <label className="form-label fw-bold small mb-0">
+                                                                    Favourite K.K. Slider Song
+                                                                </label>
+                                                                <span className="tiny-text text-muted">Aircheck Track</span>
+                                                            </div>
+                                                            <div className="input-group mb-2">
+                                                                <span className="input-group-text border-2 border-end-0 text-muted">
+                                                                    <i className="fa-solid fa-compact-disc"></i>
+                                                                </span>
+                                                                <input
+                                                                    type="text"
+                                                                    className="form-control rounded-end-3 border-2 border-start-0"
+                                                                    placeholder="e.g. K.K. Cruisin', Bubblegum K.K."
+                                                                    value={passportData.favouriteSong}
+                                                                    onChange={(e) => {
+                                                                        setPassportDirty(true);
+                                                                        setPassportData({ ...passportData, favouriteSong: e.target.value });
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <div className="d-flex gap-1 flex-wrap">
+                                                                {["K.K. Cruisin'", "Bubblegum K.K.", "Stale Cupcakes", "K.K. Disco", "Drivin'", "Animal City"].map((song) => (
+                                                                    <button
+                                                                        key={song}
+                                                                        type="button"
+                                                                        className={`btn btn-xs rounded-pill px-2 py-0 border ${passportData.favouriteSong === song ? "btn-success text-white" : "studio-motto-chip"}`}
+                                                                        style={{ fontSize: "0.68rem" }}
+                                                                        onClick={() => {
+                                                                            playChimeClick();
+                                                                            setPassportDirty(true);
+                                                                            setPassportData({ ...passportData, favouriteSong: song });
+                                                                        }}
+                                                                    >
+                                                                        {song}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* TAB 3: ISLAND MOTTO & BIO */}
+                                                {studioSection === "motto" && (
+                                                    <div className="studio-tool-card animate-fade">
+                                                        <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+                                                            <h3 className="h6 fw-black mb-0 ac-font d-flex align-items-center gap-2">
+                                                                <i className="fa-solid fa-quote-left text-warning"></i>
+                                                                Island Motto &amp; Comment Bubble
+                                                            </h3>
+                                                            <span className="tiny-text text-muted">Passport Inscription</span>
+                                                        </div>
+
+                                                        {/* Comment Textarea with Live Counter */}
+                                                        <div className="mb-2">
+                                                            <div className="d-flex align-items-center justify-content-between mb-1">
+                                                                <label className="form-label fw-bold small mb-0">
+                                                                    Passport Comment (160 characters max)
+                                                                </label>
+                                                                <span className={`tiny-text font-monospace ${passportData.aboutYou.length > 160 ? "text-danger fw-bold" : "text-muted"}`}>
+                                                                    {passportData.aboutYou.length}/160
+                                                                </span>
+                                                            </div>
+                                                            <textarea
+                                                                className="form-control rounded-3 border-2"
+                                                                rows={3}
+                                                                maxLength={160}
+                                                                placeholder="Share your island theme, favorite activities, or dream designs with visitors..."
+                                                                value={passportData.aboutYou}
+                                                                onChange={(e) => {
+                                                                    setPassportDirty(true);
+                                                                    setPassportData({ ...passportData, aboutYou: e.target.value });
+                                                                }}
+                                                            ></textarea>
+                                                        </div>
+
+                                                        {/* Quick Motto Chips */}
+                                                        <div className="mb-3">
+                                                            <span className="tiny-text text-muted fw-bold d-block mb-1">
+                                                                Inspirational Quick-Pills:
+                                                            </span>
+                                                            <div className="d-flex gap-1 flex-wrap">
+                                                                {[
+                                                                    "Living my best island life! 🌴",
+                                                                    "5-Star Island in progress ⭐",
+                                                                    "Cottagecore vibes only 🍄",
+                                                                    "Hunting for cute DIYs & friends 🛠️",
+                                                                    "Catching bugs & making bells 💰",
+                                                                    "Stargazing with Celeste ✨",
+                                                                ].map((preset) => (
+                                                                    <button
+                                                                        key={preset}
+                                                                        type="button"
+                                                                        className="studio-motto-chip"
+                                                                        onClick={() => {
+                                                                            playChimeClick();
+                                                                            setPassportDirty(true);
+                                                                            setPassportData({ ...passportData, aboutYou: preset });
+                                                                        }}
+                                                                    >
+                                                                        <i className="fa-solid fa-sparkles text-warning small"></i>
+                                                                        <span>{preset}</span>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Hobbies & Activities */}
+                                                        <div className="mb-3">
+                                                            <label className="form-label fw-bold small mb-1">
+                                                                Hobbies &amp; Activities
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                className="form-control rounded-3 border-2 mb-1"
+                                                                placeholder="e.g. Gardening, Fishing, Stargazing, Decorating"
+                                                                value={passportData.hobbies}
+                                                                onChange={(e) => {
+                                                                    setPassportDirty(true);
+                                                                    setPassportData({ ...passportData, hobbies: e.target.value });
+                                                                }}
+                                                            />
+                                                            <div className="d-flex gap-1 flex-wrap">
+                                                                {["Gardening & Flowers 🌸", "Island Decorating 🏡", "Fishing & Diving 🎣", "Stargazing ✨", "Catalog Trading 📦"].map((h) => (
+                                                                    <button
+                                                                        key={h}
+                                                                        type="button"
+                                                                        className="studio-motto-chip"
+                                                                        style={{ fontSize: "0.68rem" }}
+                                                                        onClick={() => {
+                                                                            playChimeClick();
+                                                                            setPassportDirty(true);
+                                                                            setPassportData({ ...passportData, hobbies: h });
+                                                                        }}
+                                                                    >
+                                                                        {h}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Favourite Shows & Films / Media Aesthetic */}
+                                                        <div>
+                                                            <label className="form-label fw-bold small mb-1">
+                                                                Favorite Media / Island Aesthetic
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                className="form-control rounded-3 border-2"
+                                                                placeholder="e.g. Studio Ghibli, Sailor Moon, Cyberpunk"
+                                                                value={passportData.favouriteShowsFilms || ""}
+                                                                onChange={(e) => {
+                                                                    setPassportDirty(true);
+                                                                    setPassportData({ ...passportData, favouriteShowsFilms: e.target.value });
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* TAB 4: ISLAND BESTIES & VILLAGERS */}
+                                                {studioSection === "besties" && (
+                                                    <div className="studio-tool-card animate-fade">
+                                                        <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+                                                            <h3 className="h6 fw-black mb-0 ac-font d-flex align-items-center gap-2">
+                                                                <i className="fa-solid fa-paw text-warning"></i>
+                                                                Island Besties &amp; Villagers ({passportData.favouriteVillagers.length}/10)
+                                                            </h3>
+                                                            <span className="badge bg-warning bg-opacity-15 text-warning rounded-pill x-small fw-bold">
+                                                                Max 10
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Current Selected Villagers Chips */}
+                                                        <div className="mb-3">
+                                                            <div className="d-flex flex-wrap gap-2 mb-2">
+                                                                {passportData.favouriteVillagers.map((vName) => {
+                                                                    const matched = (catalogData?.villagers || []).find((v) => v.name.toLowerCase() === vName.toLowerCase());
+                                                                    const sprite = matched?.image || matched?.variations?.[0]?.imageUrl;
+                                                                    return (
+                                                                        <div key={vName} className="studio-villager-chip">
+                                                                            {sprite ? (
+                                                                                <img src={sprite} alt="" className="studio-villager-avatar" />
+                                                                            ) : (
+                                                                                <i className="fa-solid fa-paw text-warning small"></i>
+                                                                            )}
+                                                                            <span>{vName}</span>
+                                                                            <button
+                                                                                type="button"
+                                                                                className="btn btn-link text-muted hover-text-danger p-0 ms-1 border-0"
+                                                                                onClick={() => {
+                                                                                    playChimeClick();
+                                                                                    setPassportDirty(true);
+                                                                                    setPassportData({
+                                                                                        ...passportData,
+                                                                                        favouriteVillagers: passportData.favouriteVillagers.filter((v) => v !== vName),
+                                                                                    });
+                                                                                }}
+                                                                                aria-label={`Remove ${vName}`}
+                                                                            >
+                                                                                <i className="fa-solid fa-xmark"></i>
+                                                                            </button>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                                {passportData.favouriteVillagers.length === 0 && (
+                                                                    <div className="p-3 text-center text-muted small w-100 rounded-3 border border-dashed studio-inner-box">
+                                                                        <i className="fa-solid fa-paw text-warning me-1"></i>
+                                                                        No island besties added yet. Search or click recommendations below!
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Quick Popular Villagers Recommendations */}
+                                                        {passportData.favouriteVillagers.length < 10 && (
+                                                            <div className="mb-3">
+                                                                <span className="tiny-text text-muted fw-bold d-block mb-1">
+                                                                    Quick Add Popular Villagers:
+                                                                </span>
+                                                                <div className="d-flex gap-1 flex-wrap">
+                                                                    {["Raymond", "Shino", "Marshal", "Sasha", "Ione", "Ankha", "Judy", "Sherb", "Marina", "Bob"]
+                                                                        .filter((name) => !passportData.favouriteVillagers.includes(name))
+                                                                        .map((vName) => {
+                                                                            const matched = (catalogData?.villagers || []).find((v) => v.name.toLowerCase() === vName.toLowerCase());
+                                                                            const sprite = matched?.image || matched?.variations?.[0]?.imageUrl;
+                                                                            return (
+                                                                                <button
+                                                                                    key={vName}
+                                                                                    type="button"
+                                                                                    className="studio-motto-chip shadow-2xs d-inline-flex align-items-center gap-1"
+                                                                                    style={{ fontSize: "0.74rem" }}
+                                                                                    onClick={() => {
+                                                                                        playChimeClick();
+                                                                                        setPassportDirty(true);
+                                                                                        setPassportData({
+                                                                                            ...passportData,
+                                                                                            favouriteVillagers: [...passportData.favouriteVillagers, vName].slice(0, 10),
+                                                                                        });
+                                                                                    }}
+                                                                                >
+                                                                                    {sprite ? (
+                                                                                        <img src={sprite} alt="" style={{ width: 16, height: 16, borderRadius: "50%" }} />
+                                                                                    ) : (
+                                                                                        <i className="fa-solid fa-plus text-success x-small"></i>
+                                                                                    )}
+                                                                                    <span>+{vName}</span>
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Search Villager Autocomplete */}
+                                                        {passportData.favouriteVillagers.length < 10 && (
+                                                            <div className="position-relative">
+                                                                <label className="form-label fw-bold small mb-1">
+                                                                    Search Villagers by Name
+                                                                </label>
+                                                                <div className="input-group">
+                                                                    <span className="input-group-text border-2 border-end-0 text-muted">
+                                                                        <i className="fa-solid fa-magnifying-glass"></i>
+                                                                    </span>
+                                                                    <input
+                                                                        type="text"
+                                                                        className="form-control rounded-end-3 border-2 border-start-0"
+                                                                        placeholder="Type villager name (e.g. Roald, Beau, Judy)..."
+                                                                        value={villagerSearchQuery}
+                                                                        onChange={(e) => setVillagerSearchQuery(e.target.value)}
+                                                                    />
+                                                                </div>
+
+                                                                {/* Autocomplete Dropdown Popover */}
+                                                                {villagerSearchQuery.trim().length > 0 && (
+                                                                    <div className="position-absolute start-0 end-0 rounded-3 shadow-lg p-2 mt-1 z-3 studio-dropdown-popover" style={{ maxHeight: "220px", overflowY: "auto" }}>
+                                                                        {(catalogData?.villagers || [])
+                                                                            .filter((v) => v.name.toLowerCase().includes(villagerSearchQuery.trim().toLowerCase()) && !passportData.favouriteVillagers.includes(v.name))
+                                                                            .slice(0, 8)
+                                                                            .map((v) => {
+                                                                                const sprite = v.image || v.variations?.[0]?.imageUrl;
+                                                                                return (
+                                                                                    <button
+                                                                                        key={v.name}
+                                                                                        type="button"
+                                                                                        className="studio-dropdown-item d-flex align-items-center justify-content-between p-2 rounded-2"
+                                                                                        onClick={() => {
+                                                                                            playChimeClick();
+                                                                                            setPassportDirty(true);
+                                                                                            setPassportData({
+                                                                                                ...passportData,
+                                                                                                favouriteVillagers: [...passportData.favouriteVillagers, v.name].slice(0, 10),
+                                                                                            });
+                                                                                            setVillagerSearchQuery("");
+                                                                                        }}
+                                                                                    >
+                                                                                        <div className="d-flex align-items-center gap-2">
+                                                                                            {sprite && (
+                                                                                                <img
+                                                                                                    src={sprite}
+                                                                                                    alt=""
+                                                                                                    style={{ width: 24, height: 24, objectFit: "contain", borderRadius: "50%" }}
+                                                                                                />
+                                                                                            )}
+                                                                                            <strong className="small">{v.name}</strong>
+                                                                                            {v.species && <span className="tiny-text text-muted">({v.species})</span>}
+                                                                                        </div>
+                                                                                        <div className="d-flex align-items-center gap-2">
+                                                                                            {v.personality && (
+                                                                                                <span className="badge bg-light text-muted x-small">
+                                                                                                    {v.personality}
+                                                                                                </span>
+                                                                                            )}
+                                                                                            <span className="badge bg-success bg-opacity-15 text-success rounded-pill x-small fw-bold">
+                                                                                                + Add
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    </button>
+                                                                                );
+                                                                            })}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* TAB 5: PRIVACY & PUBLISHING CONTROLS */}
+                                                {studioSection === "privacy" && (
+                                                    <div className="studio-tool-card animate-fade">
+                                                        <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+                                                            <h3 className="h6 fw-black mb-0 ac-font d-flex align-items-center gap-2">
+                                                                <i className="fa-solid fa-sliders text-success"></i>
+                                                                Privacy &amp; Sharing Controls
+                                                            </h3>
+                                                            <span className="tiny-text text-muted">Publishing Settings</span>
+                                                        </div>
+
+                                                        {/* Switches */}
+                                                        <div className="studio-inner-box mb-3">
+                                                            <div className="form-check form-switch mb-3">
+                                                                <input
+                                                                    className="form-check-input"
+                                                                    type="checkbox"
+                                                                    role="switch"
+                                                                    id="showCharAndIsland"
+                                                                    checked={passportData.showCharacterAndIsland}
+                                                                    onChange={(e) => {
+                                                                        setPassportDirty(true);
+                                                                        setPassportData({ ...passportData, showCharacterAndIsland: e.target.checked });
+                                                                    }}
+                                                                />
+                                                                <label className="form-check-label fw-bold small ms-2" htmlFor="showCharAndIsland">
+                                                                    Show in-game character &amp; island name on passport
+                                                                </label>
+                                                                <p className="tiny-text text-muted mb-0 ms-2">
+                                                                    Displays your primary character nickname and island origin on the Polaroid photo.
+                                                                </p>
+                                                            </div>
+
+                                                            <div className="form-check form-switch">
+                                                                <input
+                                                                    className="form-check-input"
+                                                                    type="checkbox"
+                                                                    role="switch"
+                                                                    id="makeProfilePublic"
+                                                                    checked={passportData.isPublic}
+                                                                    onChange={(e) => {
+                                                                        setPassportDirty(true);
+                                                                        setPassportData({ ...passportData, isPublic: e.target.checked });
+                                                                    }}
+                                                                />
+                                                                <label className="form-check-label fw-bold small ms-2" htmlFor="makeProfilePublic">
+                                                                    Make passport public (accessible via your personal URL)
+                                                                </label>
+                                                                <p className="tiny-text text-muted mb-0 ms-2">
+                                                                    Enables any visitor to view your resident passport card at your dedicated handle URL.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Public Handle Box */}
+                                                        <div className="studio-inner-box">
+                                                            <div className="d-flex align-items-center justify-content-between mb-2">
+                                                                <span className="fw-bold small">
+                                                                    <i className="fa-solid fa-link text-primary me-1"></i> Your Public Passport Link:
+                                                                </span>
+                                                                <span className={`badge rounded-pill x-small fw-bold ${passportData.isPublic ? "bg-success text-white" : "bg-secondary text-white"}`}>
+                                                                    {passportData.isPublic ? "Active & Public" : "Draft (Private)"}
+                                                                </span>
+                                                            </div>
+                                                            <div className="input-group">
+                                                                <input
+                                                                    type="text"
+                                                                    readOnly
+                                                                    className="form-control rounded-start-3 border-2 font-monospace small"
+                                                                    value={`${window.location.origin}/u/${encodeURIComponent(passportData.username || profileUser?.discord_name || authUser?.username || "resident")}`}
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        playChimeClick();
+                                                                        const uname = passportData.username || profileUser?.discord_name || authUser?.username || "resident";
+                                                                        const url = `${window.location.origin}/u/${encodeURIComponent(uname)}`;
+                                                                        navigator.clipboard.writeText(url);
+                                                                        setPassportLinkCopied(true);
+                                                                        setTimeout(() => setPassportLinkCopied(false), 2500);
+                                                                    }}
+                                                                    className={`btn fw-bold px-3 ${passportLinkCopied ? "btn-success" : "btn-dark"}`}
+                                                                >
+                                                                    <i className={`fa-solid ${passportLinkCopied ? "fa-check" : "fa-copy"} me-1`}></i>
+                                                                    <span>{passportLinkCopied ? "Copied!" : "Copy"}</span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Bottom Sticky Action Bar */}
+                                    <div className="studio-save-bar mt-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                        <div className="d-flex align-items-center gap-2">
+                                            {passportDirty ? (
+                                                <span className="badge bg-warning bg-opacity-20 text-warning border border-warning border-opacity-40 rounded-pill px-3 py-1 fw-bold">
+                                                    <i className="fa-solid fa-pen-nib me-1"></i>
+                                                    Unsaved Studio Changes
+                                                </span>
+                                            ) : (
+                                                <span className="badge bg-success bg-opacity-15 text-success border border-success border-opacity-30 rounded-pill px-3 py-1 fw-bold">
+                                                    <i className="fa-solid fa-cloud-check me-1"></i>
+                                                    Passport Synchronized
+                                                </span>
+                                            )}
+                                            <span className="tiny-text text-muted d-none d-md-inline">
+                                                Changes save securely to ChoBot &amp; your browser.
+                                            </span>
+                                        </div>
+
+                                        <div className="d-flex align-items-center gap-2">
+                                            <button
+                                                type="submit"
+                                                disabled={savingPassport}
+                                                className="btn btn-nook rounded-pill fw-black px-4 py-2 shadow-xs d-inline-flex align-items-center gap-2"
+                                            >
+                                                <i className={savingPassport ? "fa-solid fa-spinner fa-spin" : "fa-solid fa-floppy-disk"}></i>
+                                                <span>{savingPassport ? "Saving to Database..." : "Save Passport to Database"}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     </div>
@@ -2425,6 +2957,498 @@ const Profile = () => {
                                             <i className="fa-solid fa-shield-check me-2"></i>Clean record! No active warnings or penalties on this passport.
                                         </div>
                                     )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* ── TAB 6: LIVE COMMUNITY RADAR & ISLAND TRAFFIC ──────────────────── */}
+                {activeTab === "community" && (
+                    <div className="row g-4 animate-fade" role="tabpanel" aria-label="Island Radar & Community Traffic">
+                        <div className="col-12">
+                            {/* Hero Telemetry Card */}
+                            <div
+                                className="p-4 p-md-5 rounded-5 text-white shadow-sm border mb-4 position-relative overflow-hidden"
+                                style={{
+                                    background: 'linear-gradient(135deg, #065f46 0%, #047857 50%, #0f766e 100%)',
+                                }}
+                            >
+                                <div className="row g-4 align-items-center">
+                                    <div className="col-lg-7">
+                                        <div className="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill bg-white bg-opacity-20 border border-white border-opacity-25 mb-3">
+                                            <span style={{ width: 8, height: 8, backgroundColor: '#4ade80', borderRadius: '50%', boxShadow: '0 0 8px #4ade80' }} />
+                                            <span className="tiny-text fw-bold tracking-wider text-uppercase text-white">
+                                                DAL AIR TRAFFIC CONTROL · LIVE TELEMETRY
+                                            </span>
+                                        </div>
+                                        <h2 className="h2 ac-font mb-2 text-white">
+                                            Community Radar &amp; Island Occupancy
+                                        </h2>
+                                        <p className="text-white-50 mb-4 max-w-xl">
+                                            Real-time overview of Animal Crossing residents online right now, active player occupancy across all treasure islands, and lifetime website flight telemetry.
+                                        </p>
+
+                                        <div className="d-flex align-items-center gap-2 flex-wrap">
+                                            <button
+                                                type="button"
+                                                className="btn btn-warning rounded-pill px-4 py-2 fw-black text-dark shadow-xs d-inline-flex align-items-center gap-2"
+                                                onClick={() => openCommunityModal("online")}
+                                            >
+                                                <i className="fa-solid fa-satellite-dish"></i>
+                                                <span>Open Live Radar Modal</span>
+                                            </button>
+                                            <Link
+                                                to="/islands"
+                                                className="btn btn-outline-light rounded-pill px-4 py-2 fw-bold d-inline-flex align-items-center gap-2"
+                                            >
+                                                <i className="fa-solid fa-plane-departure"></i>
+                                                <span>Live Flight Board</span>
+                                            </Link>
+                                        </div>
+                                    </div>
+
+                                    <div className="col-lg-5">
+                                        <div className="row g-3">
+                                            <div className="col-6">
+                                                <div className="p-3.5 rounded-4 bg-white bg-opacity-10 border border-white border-opacity-20 text-center">
+                                                    <div className="text-white-50 tiny-text fw-bold text-uppercase">Online Now</div>
+                                                    <div className="display-6 fw-black text-white mt-1">
+                                                        {trafficStats.activeOnlineCount}
+                                                    </div>
+                                                    <div className="tiny-text text-white-50">Residents Active</div>
+                                                </div>
+                                            </div>
+                                            <div className="col-6">
+                                                <div className="p-3.5 rounded-4 bg-white bg-opacity-10 border border-white border-opacity-20 text-center">
+                                                    <div className="text-white-50 tiny-text fw-bold text-uppercase">In Islands</div>
+                                                    <div className="display-6 fw-black text-warning mt-1">
+                                                        {liveOccupancy.totalVisitors}
+                                                    </div>
+                                                    <div className="tiny-text text-white-50">Players on Gates</div>
+                                                </div>
+                                            </div>
+                                            <div className="col-6">
+                                                <div className="p-3.5 rounded-4 bg-white bg-opacity-10 border border-white border-opacity-20 text-center">
+                                                    <div className="text-white-50 tiny-text fw-bold text-uppercase">All-Time Visits</div>
+                                                    <div className="fs-3 fw-black text-white mt-1">
+                                                        {trafficStats.allTimeVisits.toLocaleString()}
+                                                    </div>
+                                                    <div className="tiny-text text-white-50">Lifetime Flights</div>
+                                                </div>
+                                            </div>
+                                            <div className="col-6">
+                                                <div className="p-3.5 rounded-4 bg-white bg-opacity-10 border border-white border-opacity-20 text-center">
+                                                    <div className="text-white-50 tiny-text fw-bold text-uppercase">Visits Today</div>
+                                                    <div className="fs-3 fw-black text-info mt-1">
+                                                        {trafficStats.visitsToday.toLocaleString()}
+                                                    </div>
+                                                    <div className="tiny-text text-white-50">Flights Logged</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {profileWaveNote && (
+                                <div className="alert alert-success border-success-subtle rounded-4 py-2 px-3 mb-4 d-flex align-items-center justify-content-between animate-bounce-gentle">
+                                    <span className="small fw-bold">
+                                        <i className="fa-solid fa-hand me-2 text-warning"></i>
+                                        {profileWaveNote}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        className="btn-close btn-close-sm"
+                                        onClick={() => setProfileWaveNote(null)}
+                                    ></button>
+                                </div>
+                            )}
+
+                            {/* Sub-Tabs Switcher */}
+                            <div className="pf-card p-3 mb-4">
+                                <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                    <div className="d-flex align-items-center gap-2">
+                                        <button
+                                            type="button"
+                                            className={`btn btn-sm rounded-pill px-3.5 py-1.5 fw-bold ${
+                                                communitySubTab === "online"
+                                                    ? "btn-success text-white shadow-2xs"
+                                                    : "btn-light text-dark border"
+                                            }`}
+                                            onClick={() => {
+                                                playChimeClick();
+                                                setCommunitySubTab("online");
+                                            }}
+                                        >
+                                            <i className="fa-solid fa-users me-1.5"></i>
+                                            Who's Currently Online ({trafficStats.activeOnlineCount})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`btn btn-sm rounded-pill px-3.5 py-1.5 fw-bold ${
+                                                communitySubTab === "islands"
+                                                    ? "btn-success text-white shadow-2xs"
+                                                    : "btn-light text-dark border"
+                                            }`}
+                                            onClick={() => {
+                                                playChimeClick();
+                                                setCommunitySubTab("islands");
+                                            }}
+                                        >
+                                            <i className="fa-solid fa-plane-arrival me-1.5"></i>
+                                            Island Occupancy ({liveOccupancy.totalVisitors} on Islands)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`btn btn-sm rounded-pill px-3.5 py-1.5 fw-bold ${
+                                                communitySubTab === "visits"
+                                                    ? "btn-success text-white shadow-2xs"
+                                                    : "btn-light text-dark border"
+                                            }`}
+                                            onClick={() => {
+                                                playChimeClick();
+                                                setCommunitySubTab("visits");
+                                            }}
+                                        >
+                                            <i className="fa-solid fa-chart-line me-1.5"></i>
+                                            All-Time Website Visits
+                                        </button>
+                                    </div>
+
+                                    <div className="tiny-text text-muted">
+                                        <i className="fa-solid fa-circle-check text-success me-1"></i>
+                                        Live data synced via Dodo Flight APIs
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── SUB-TAB 1: WHO'S CURRENTLY ONLINE ── */}
+                            {communitySubTab === "online" && (
+                                <div className="pf-card">
+                                    <div className="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+                                        <div>
+                                            <h3 className="h5 ac-font text-dark mb-1">Active Community Residents</h3>
+                                            <p className="tiny-text text-muted mb-0">
+                                                Animal Crossing islanders actively browsing ChoPaeng, flying to islands, and crafting orders.
+                                            </p>
+                                        </div>
+
+                                        {/* Search Bar */}
+                                        <div className="d-flex align-items-center gap-2">
+                                            <input
+                                                type="text"
+                                                className="form-control form-control-sm rounded-pill px-3 py-1.5"
+                                                placeholder="Search by name, IGN, or island..."
+                                                style={{ maxWidth: 260 }}
+                                                value={communitySearchQuery}
+                                                onChange={(e) => setCommunitySearchQuery(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Filter Pills */}
+                                    <div className="d-flex align-items-center gap-1.5 mb-4 flex-wrap">
+                                        <button
+                                            type="button"
+                                            className={`btn btn-xs rounded-pill px-3 fw-bold ${
+                                                communityFilter === "all" ? "btn-dark text-white" : "btn-outline-secondary"
+                                            }`}
+                                            onClick={() => setCommunityFilter("all")}
+                                        >
+                                            All Online ({onlineResidents.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`btn btn-xs rounded-pill px-3 fw-bold ${
+                                                communityFilter === "on_island" ? "btn-success text-white" : "btn-outline-secondary"
+                                            }`}
+                                            onClick={() => setCommunityFilter("on_island")}
+                                        >
+                                            <i className="fa-solid fa-plane-arrival me-1"></i>
+                                            On Islands ({onlineResidents.filter((r) => r.status === "on_island").length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`btn btn-xs rounded-pill px-3 fw-bold ${
+                                                communityFilter === "ordering" ? "btn-info text-white" : "btn-outline-secondary"
+                                            }`}
+                                            onClick={() => setCommunityFilter("ordering")}
+                                        >
+                                            <i className="fa-solid fa-box-open me-1"></i>
+                                            In Bot Queue ({onlineResidents.filter((r) => r.status === "ordering").length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`btn btn-xs rounded-pill px-3 fw-bold ${
+                                                communityFilter === "passport" ? "btn-warning text-dark" : "btn-outline-secondary"
+                                            }`}
+                                            onClick={() => setCommunityFilter("passport")}
+                                        >
+                                            <i className="fa-solid fa-id-card me-1"></i>
+                                            Passport Holders ({onlineResidents.filter((r) => r.hasPublicPassport).length})
+                                        </button>
+                                    </div>
+
+                                    {/* Resident Cards Grid */}
+                                    <div className="row g-3">
+                                        {filteredOnlineResidents.map((resident) => (
+                                            <div className="col-md-6 col-xl-4" key={resident.id}>
+                                                <div
+                                                    className={`p-3 rounded-4 border h-100 d-flex flex-column justify-content-between transition-all ${
+                                                        resident.isCurrentUser
+                                                            ? "bg-success-subtle border-success shadow-xs"
+                                                            : "bg-white shadow-2xs"
+                                                    }`}
+                                                >
+                                                    <div className="d-flex align-items-start gap-3">
+                                                        <div className="position-relative flex-shrink-0">
+                                                            <img
+                                                                src={resident.avatarUrl}
+                                                                alt={resident.displayName}
+                                                                className="rounded-circle border"
+                                                                style={{ width: 48, height: 48, objectFit: 'cover' }}
+                                                                onError={(e) => {
+                                                                    (e.currentTarget as HTMLImageElement).src =
+                                                                        "https://acnhcdn.com/latest/NpcIcon/der00.png";
+                                                                }}
+                                                            />
+                                                            <span
+                                                                className="position-absolute bottom-0 end-0 rounded-circle border border-2 border-white"
+                                                                style={{
+                                                                    width: 12,
+                                                                    height: 12,
+                                                                    backgroundColor:
+                                                                        resident.status === "on_island"
+                                                                            ? "#3b82f6"
+                                                                            : resident.status === "ordering"
+                                                                            ? "#f59e0b"
+                                                                            : "#22c55e",
+                                                                }}
+                                                            />
+                                                        </div>
+
+                                                        <div className="flex-grow-1 min-w-0">
+                                                            <div className="d-flex align-items-center gap-1.5 flex-wrap">
+                                                                <strong className="text-dark text-truncate" style={{ maxWidth: 120 }}>
+                                                                    {resident.displayName}
+                                                                </strong>
+                                                                {resident.isCurrentUser && (
+                                                                    <span className="badge bg-warning text-dark rounded-pill tiny-text fw-bold">
+                                                                        You
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="tiny-text text-muted mt-0.5">
+                                                                IGN: <strong>{resident.ign}</strong> · 🏝️ {resident.islandName}
+                                                            </div>
+                                                            <div className="mt-1.5">
+                                                                <span
+                                                                    className="badge rounded-pill px-2.5 py-1 tiny-text fw-normal text-wrap"
+                                                                    style={{
+                                                                        backgroundColor:
+                                                                            resident.status === "on_island"
+                                                                                ? "#eff6ff"
+                                                                                : resident.status === "ordering"
+                                                                                ? "#fffbeb"
+                                                                                : "#f0fdf4",
+                                                                        color:
+                                                                            resident.status === "on_island"
+                                                                                ? "#1d4ed8"
+                                                                                : resident.status === "ordering"
+                                                                                ? "#b45309"
+                                                                                : "#15803d",
+                                                                    }}
+                                                                >
+                                                                    {resident.currentActivity}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="d-flex align-items-center justify-content-between mt-3 pt-2 border-top">
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-xs btn-outline-secondary rounded-pill px-2"
+                                                            onClick={() => {
+                                                                playChimeClick();
+                                                                setProfileWaveNote(`You waved at ${resident.displayName}! 👋`);
+                                                                setTimeout(() => setProfileWaveNote(null), 3000);
+                                                            }}
+                                                        >
+                                                            👋 Wave
+                                                        </button>
+
+                                                        {resident.hasPublicPassport ? (
+                                                            <Link
+                                                                to={`/u/${resident.username}`}
+                                                                className="btn btn-xs btn-outline-success rounded-pill px-2.5 fw-bold text-decoration-none"
+                                                            >
+                                                                View Passport <i className="fa-solid fa-arrow-up-right-from-square ms-0.5"></i>
+                                                            </Link>
+                                                        ) : (
+                                                            <span className="tiny-text text-muted fst-italic">Private Passport</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── SUB-TAB 2: ISLAND OCCUPANCY ── */}
+                            {communitySubTab === "islands" && (
+                                <div className="pf-card">
+                                    <div className="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+                                        <div>
+                                            <h3 className="h5 ac-font text-dark mb-1">
+                                                All In The Islands ({liveOccupancy.totalVisitors} Active Players)
+                                            </h3>
+                                            <p className="tiny-text text-muted mb-0">
+                                                Real-time passenger counts and available gates across all public and subscriber islands.
+                                            </p>
+                                        </div>
+
+                                        <Link to="/islands" className="btn btn-sm btn-nook rounded-pill px-3 fw-bold">
+                                            View Flight Board <i className="fa-solid fa-arrow-right ms-1"></i>
+                                        </Link>
+                                    </div>
+
+                                    {/* Occupancy Progress Meter */}
+                                    <div className="bg-light p-3.5 rounded-4 border mb-4">
+                                        <div className="d-flex align-items-center justify-content-between mb-2">
+                                            <span className="small fw-bold text-dark">
+                                                Overall Island Capacity ({liveOccupancy.totalVisitors} / {liveOccupancy.maxCapacity} Seats Occupied)
+                                            </span>
+                                            <span className="badge bg-primary text-white rounded-pill px-2.5 py-0.5 fw-bold">
+                                                {liveOccupancy.percentFull}% Capacity
+                                            </span>
+                                        </div>
+                                        <div className="progress rounded-pill overflow-hidden" style={{ height: 10 }}>
+                                            <div
+                                                className="progress-bar bg-success progress-bar-striped progress-bar-animated"
+                                                role="progressbar"
+                                                style={{ width: `${liveOccupancy.percentFull}%` }}
+                                                aria-valuenow={liveOccupancy.percentFull}
+                                                aria-valuemin={0}
+                                                aria-valuemax={100}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Island Breakdown Rows */}
+                                    <div className="vstack gap-2.5">
+                                        {liveOccupancy.busiestIslands.map((island) => (
+                                            <div
+                                                key={island.name}
+                                                className="p-3 rounded-4 bg-white border shadow-2xs d-flex align-items-center justify-content-between flex-wrap gap-2"
+                                            >
+                                                <div className="d-flex align-items-center gap-3">
+                                                    <div
+                                                        className="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0"
+                                                        style={{
+                                                            width: 40,
+                                                            height: 40,
+                                                            backgroundColor: island.visitors >= 7 ? '#ef4444' : '#16a34a',
+                                                            fontSize: '1rem',
+                                                        }}
+                                                    >
+                                                        <i className="fa-solid fa-plane"></i>
+                                                    </div>
+                                                    <div>
+                                                        <div className="d-flex align-items-center gap-2">
+                                                            <strong className="text-dark ac-font">{island.name}</strong>
+                                                            <span className="badge bg-light text-muted border rounded-pill tiny-text">
+                                                                {island.cat === 'member' ? 'Subscriber Only' : 'Public Access'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="tiny-text text-muted">
+                                                            Status: <strong>{island.status || 'ONLINE'}</strong> · Passengers: {island.visitors}/7 seats
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="d-flex align-items-center gap-3">
+                                                    <div className="d-flex align-items-center gap-1">
+                                                        {Array.from({ length: 7 }).map((_, i) => (
+                                                            <span
+                                                                key={i}
+                                                                style={{
+                                                                    width: 12,
+                                                                    height: 12,
+                                                                    borderRadius: 3,
+                                                                    backgroundColor: i < island.visitors ? '#16a34a' : '#e2e8f0',
+                                                                    display: 'inline-block',
+                                                                }}
+                                                            />
+                                                        ))}
+                                                    </div>
+
+                                                    <Link
+                                                        to="/islands"
+                                                        className="btn btn-xs btn-outline-secondary rounded-pill px-3 fw-bold"
+                                                    >
+                                                        Fly to Island
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── SUB-TAB 3: ALL-TIME WEBSITE VISITS ── */}
+                            {communitySubTab === "visits" && (
+                                <div className="pf-card text-center p-4 p-md-5">
+                                    <div className="text-muted tiny-text fw-bold text-uppercase mb-2">
+                                        NOOK INC. DAL FLIGHT DISPATCHER TELEMETRY
+                                    </div>
+                                    <h3 className="h3 ac-font text-dark mb-4">
+                                        All-Time Website Flights &amp; Resident Visits
+                                    </h3>
+
+                                    <div className="d-inline-flex align-items-center justify-content-center gap-1.5 p-3 rounded-4 bg-dark border shadow-sm mb-4">
+                                        {String(trafficStats.allTimeVisits).padStart(7, '0').split('').map((digit, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="px-3 py-2 rounded-3 text-warning fw-black fs-2 font-monospace"
+                                                style={{
+                                                    background: '#0f172a',
+                                                    border: '2px solid #334155',
+                                                    minWidth: '2.5rem',
+                                                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)',
+                                                }}
+                                            >
+                                                {digit}
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <p className="text-muted small max-w-lg mx-auto mb-4">
+                                        Recorded across every community visit, Dodo flight code retrieval, inventory catalog query, and order bot execution.
+                                    </p>
+
+                                    <div className="row g-3 max-w-xl mx-auto">
+                                        <div className="col-4">
+                                            <div className="p-3 bg-light rounded-4 border">
+                                                <div className="tiny-text text-muted fw-bold">TODAY</div>
+                                                <div className="fs-4 fw-black text-success mt-1">{trafficStats.visitsToday.toLocaleString()}</div>
+                                            </div>
+                                        </div>
+                                        <div className="col-4">
+                                            <div className="p-3 bg-light rounded-4 border">
+                                                <div className="tiny-text text-muted fw-bold">THIS WEEK</div>
+                                                <div className="fs-4 fw-black text-primary mt-1">{trafficStats.visitsThisWeek.toLocaleString()}</div>
+                                            </div>
+                                        </div>
+                                        <div className="col-4">
+                                            <div className="p-3 bg-light rounded-4 border">
+                                                <div className="tiny-text text-muted fw-bold">ONLINE NOW</div>
+                                                <div className="fs-4 fw-black text-warning mt-1">{trafficStats.activeOnlineCount}</div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>

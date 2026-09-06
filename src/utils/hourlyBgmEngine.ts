@@ -23,6 +23,7 @@ const STORAGE_HOUR_SYNC = 'chopaeng_hourly_bgm_live_sync';
 const STORAGE_WEATHER = 'chopaeng_hourly_bgm_weather';
 const STORAGE_CHIME = 'chopaeng_hourly_bgm_chime';
 const STORAGE_VOLUME = 'chopaeng_hourly_bgm_volume';
+const STORAGE_USER_PAUSED = 'chopaeng_hourly_bgm_user_paused';
 
 class HourlyBgmEngine {
     private static instance: HourlyBgmEngine | null = null;
@@ -30,6 +31,7 @@ class HourlyBgmEngine {
     private state: HourlyBgmState;
     private listeners: Set<(state: HourlyBgmState) => void> = new Set();
     private audioCtx: AudioContext | null = null;
+    private userPaused: boolean = false;
 
     private constructor() {
         const nowHour = new Date().getHours();
@@ -37,6 +39,9 @@ class HourlyBgmEngine {
         const savedWeather = (localStorage.getItem(STORAGE_WEATHER) as BgmWeather) || 'sunny';
         const savedChime = localStorage.getItem(STORAGE_CHIME);
         const savedVol = localStorage.getItem(STORAGE_VOLUME);
+        const savedPaused = localStorage.getItem(STORAGE_USER_PAUSED);
+
+        this.userPaused = savedPaused === 'true';
 
         this.state = {
             hour: nowHour,
@@ -85,7 +90,7 @@ class HourlyBgmEngine {
         if (this.audioEl.src !== url) {
             this.audioEl.src = url;
             this.audioEl.load();
-            if (wasPlaying) {
+            if (wasPlaying && !this.userPaused) {
                 this.audioEl.play().catch(() => {});
             }
         }
@@ -114,17 +119,18 @@ class HourlyBgmEngine {
 
     /**
      * Attempt autoplay on page load.
-     * 1. Try immediately — works if the browser permits autoplay (e.g. user has
-     *    interacted with the origin before, or the browser has a lenient policy).
-     * 2. Fall back to the first user gesture (click / keydown / touchstart) which
-     *    browsers always allow.
+     * 1. Try immediately if the user has not explicitly paused previously.
+     * 2. Fall back to the first user gesture (click / keydown / touchstart).
      */
     private scheduleAutostart(): void {
         if (typeof window === 'undefined') return;
 
+        // If the user previously paused, respect their choice
+        if (this.userPaused) return;
+
         const tryPlay = () => {
-            if (this.state.isPlaying) return; // already playing
-            this.play();
+            if (this.userPaused || this.state.isPlaying) return;
+            this.play().catch(() => {});
         };
 
         // Attempt 1: immediate (may be silently rejected by the browser)
@@ -133,8 +139,9 @@ class HourlyBgmEngine {
         // Attempt 2: on first user interaction
         const events = ['click', 'keydown', 'touchstart'] as const;
         const onInteraction = () => {
-            tryPlay();
             events.forEach((ev) => window.removeEventListener(ev, onInteraction, { capture: true }));
+            if (this.userPaused) return;
+            tryPlay();
         };
         events.forEach((ev) =>
             window.addEventListener(ev, onInteraction, { once: true, capture: true })
@@ -160,12 +167,22 @@ class HourlyBgmEngine {
     }
 
     public async play(): Promise<void> {
+        this.userPaused = false;
+        try {
+            localStorage.setItem(STORAGE_USER_PAUSED, 'false');
+        } catch {}
+
         if (!this.audioEl) return;
         try {
             this.state.isPlaying = true;
             this.updateAudioSource();
             this.applyVolume();
             await this.audioEl.play();
+            // If pause was requested while play was resolving
+            if (this.userPaused) {
+                this.audioEl.pause();
+                this.state.isPlaying = false;
+            }
             this.notify();
         } catch (e) {
             this.state.isPlaying = false;
@@ -174,6 +191,11 @@ class HourlyBgmEngine {
     }
 
     public pause(): void {
+        this.userPaused = true;
+        try {
+            localStorage.setItem(STORAGE_USER_PAUSED, 'true');
+        } catch {}
+
         if (this.audioEl) {
             this.audioEl.pause();
         }

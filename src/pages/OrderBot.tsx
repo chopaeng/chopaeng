@@ -34,13 +34,23 @@ import {
     cancelOrder,
     fetchOrderQueue,
     fetchUserOrderHistory,
-    requestNotificationPermission,
     saveLocalOrderBackup,
     type BotStatusResponse,
     type OrderStatusResponse,
     type QueueEntry,
     type OrderHistoryItem,
 } from '../utils/orderBotApi';
+import {
+    isNotificationSupported,
+    getNotificationPermission,
+    areNotificationsEnabled,
+    setNotificationsEnabled,
+    isNotificationBannerDismissed,
+    setNotificationBannerDismissed,
+    requestNotificationPermissionDetailed,
+    notifyOrderStatusChange,
+    type NotificationPermissionState,
+} from '../utils/orderNotifications';
 import './OrderBot.css';
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -178,20 +188,6 @@ const clearOrder = (userId?: string | null) => {
 
 const fmtEta = (m?: number) => (!m ? '--' : m < 1 ? '< 1 min' : `~${Math.round(m)} min`);
 
-const triggerBrowserNotification = (title: string, body: string) => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    if (Notification.permission === 'granted') {
-        try {
-            new Notification(title, {
-                body,
-                icon: 'https://dodo.ac/np/images/2/26/Gold_Nugget_NH_Inv_Icon.png',
-                tag: 'chopaeng-order-dodo',
-            });
-        } catch {
-            // Ignore
-        }
-    }
-};
 
 const formatDateTime = (value?: string | number | null) => {
     if (!value) return '';
@@ -758,9 +754,96 @@ const OrderBot: React.FC = () => {
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [historyOrders, setHistoryOrders] = useState<OrderHistoryItem[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
-    const [notifGranted, setNotifGranted] = useState(
-        typeof Notification !== 'undefined' && Notification.permission === 'granted'
-    );
+    const [notifPermission, setNotifPermission] = useState<NotificationPermissionState>(() => getNotificationPermission());
+    const [notifEnabled, setNotifEnabled] = useState<boolean>(() => areNotificationsEnabled());
+    const [bannerDismissed, setBannerDismissed] = useState<boolean>(() => isNotificationBannerDismissed());
+    const notifActive = notifPermission === 'granted' && notifEnabled;
+    const showNotifBanner = !bannerDismissed && isNotificationSupported() && notifPermission === 'default';
+
+    const handleAllowNotifications = async () => {
+        playSound();
+        const res = await requestNotificationPermissionDetailed();
+        setNotifPermission(res.state);
+        setBannerDismissed(true);
+        setNotificationBannerDismissed(true);
+
+        if (res.granted) {
+            setNotifEnabled(true);
+            setNotificationsEnabled(true);
+            triggerInAppToast({
+                type: 'success',
+                title: 'Desktop Notifications Enabled!',
+                message: 'You will receive alerts the second your Dodo code is ready, even if you browse other tabs.',
+            });
+            notifyOrderStatusChange(
+                '🏝️ ChoPaeng Flight Alerts',
+                'Desktop notifications are active! We will alert you when your Dodo flight is ready.',
+                'ready'
+            );
+        } else if (res.state === 'denied') {
+            setNotifEnabled(false);
+            setNotificationsEnabled(false);
+            triggerInAppToast({
+                type: 'warning',
+                title: 'Notifications Blocked',
+                message: 'Notifications are blocked in browser settings. You will still hear audio chimes and see in-app alerts!',
+            });
+        } else {
+            triggerInAppToast({
+                type: 'info',
+                title: 'Audio Alerts Active',
+                message: 'Notification prompt was closed. Audio chimes and in-app alerts are active by default!',
+            });
+        }
+    };
+
+    const handleDismissNotifBanner = () => {
+        playSound();
+        setBannerDismissed(true);
+        setNotificationBannerDismissed(true);
+    };
+
+    const handleToggleNotifications = async () => {
+        playSound();
+        if (notifActive) {
+            setNotificationsEnabled(false);
+            setNotifEnabled(false);
+            triggerInAppToast({
+                type: 'info',
+                title: 'Flight Alerts Paused',
+                message: 'Desktop flight notifications paused. Audio chimes and in-app alerts will still trigger.',
+            });
+        } else {
+            const res = await requestNotificationPermissionDetailed();
+            setNotifPermission(res.state);
+            if (res.granted) {
+                setNotificationsEnabled(true);
+                setNotifEnabled(true);
+                triggerInAppToast({
+                    type: 'success',
+                    title: 'Flight Alerts Active!',
+                    message: 'Desktop notifications are active! We will alert you when your Dodo flight is ready.',
+                });
+                notifyOrderStatusChange(
+                    '🏝️ ChoPaeng Flight Alerts',
+                    'Desktop notifications are active! We will alert you when your Dodo flight is ready.',
+                    'ready'
+                );
+            } else if (res.state === 'denied') {
+                triggerInAppToast({
+                    type: 'warning',
+                    title: 'Notifications Blocked',
+                    message: 'Notifications are blocked by your browser. Please allow notifications in your browser address bar site settings.',
+                });
+            } else {
+                triggerInAppToast({
+                    type: 'info',
+                    title: 'Alerts Status',
+                    message: 'Desktop notification prompt was not granted. Audio chimes and tab alerts will notify you.',
+                });
+            }
+        }
+    };
     const [queue, setQueue] = useState<QueueEntry[]>([]);
     const [queueLoading, setQueueLoading] = useState(false);
     const [queueLoaded, setQueueLoaded] = useState(false);
@@ -916,9 +999,10 @@ const OrderBot: React.FC = () => {
         if (d.status === 'ready' && !notifiedRef.current) {
             notifiedRef.current = true;
             playSound();
-            triggerBrowserNotification(
-                'Your Order Bot Dodo Code is Ready!',
-                `Your flight to ${d.islandName || 'the island'} is ready! Dodo Code: ${d.dodoCode}`
+            notifyOrderStatusChange(
+                '🏝️ Your Order Bot Dodo Code is Ready!',
+                `Your flight to ${d.islandName || 'the island'} is ready! Dodo Code: ${d.dodoCode}`,
+                'ready'
             );
             triggerInAppToast({
                 type: 'dodo',
@@ -1020,11 +1104,6 @@ const OrderBot: React.FC = () => {
         setSubmitError(null);
         setSubmitLoading(true);
         playSound();
-
-        if (!notifGranted) {
-            const granted = await requestNotificationPermission();
-            setNotifGranted(granted);
-        }
 
         const defaultChar = characters.find((c) => c.isDefault) || characters[0];
         const res = await submitOrderToBot(
@@ -1504,6 +1583,15 @@ const OrderBot: React.FC = () => {
                                     <i className={`fa-solid ${soundEnabled ? 'fa-volume-high text-success' : 'fa-volume-xmark text-muted'}`} />
                                     <span>{soundEnabled ? 'Sound On' : 'Muted'}</span>
                                 </button>
+                                <button
+                                    type="button"
+                                    className={`ob-sound-btn ${!notifActive ? 'muted' : ''}`}
+                                    onClick={handleToggleNotifications}
+                                    title={notifActive ? 'Flight alerts enabled (click to pause)' : 'Enable flight notifications'}
+                                >
+                                    <i className={`fa-solid ${notifActive ? 'fa-bell text-warning' : 'fa-bell-slash text-muted'}`} />
+                                    <span>{notifActive ? 'Alerts On' : 'Alerts Off'}</span>
+                                </button>
                             </div>
                             <h1 className="ac-font h2 text-dark mb-1 d-flex align-items-center justify-content-center justify-content-lg-start gap-2">
                                 <i className="fa-solid fa-box-open text-success"></i>
@@ -1621,28 +1709,39 @@ const OrderBot: React.FC = () => {
                         <StepIndicator stage={stage} />
 
                         {/* Notification Permission Banner */}
-                        {!notifGranted && 'Notification' in window && Notification.permission !== 'denied' && (
-                            <div className="ob-notify-bar mb-4 shadow-2xs animate-fade">
-                                <i
-                                    className="fa-solid fa-bell fs-5 flex-shrink-0"
-                                    style={{ color: '#f59e0b' }}
-                                    aria-hidden="true"
-                                />
-                                <div className="flex-grow-1">
-                                    <span className="fw-bold text-dark">Enable Desktop Notifications</span>
-                                    <span className="text-muted ms-1 d-none d-sm-inline">
-                                        — get alerted the instant your Dodo code is ready, even if you browse other tabs.
-                                    </span>
+                        {showNotifBanner && (
+                            <div className="ob-notify-bar mb-4 shadow-2xs animate-fade d-flex align-items-center justify-content-between gap-3">
+                                <div className="d-flex align-items-center gap-3 flex-grow-1 min-w-0">
+                                    <i
+                                        className="fa-solid fa-bell fs-5 flex-shrink-0"
+                                        style={{ color: '#f59e0b' }}
+                                        aria-hidden="true"
+                                    />
+                                    <div className="min-w-0">
+                                        <span className="fw-bold text-dark">Enable Desktop Notifications</span>
+                                        <span className="text-muted ms-1 d-none d-sm-inline">
+                                            — get alerted the instant your Dodo code is ready, even if you browse other tabs.
+                                        </span>
+                                    </div>
                                 </div>
-                                <button
-                                    className="btn btn-sm btn-warning text-dark fw-bold rounded-pill px-3 shadow-2xs"
-                                    onClick={() => {
-                                        playSound();
-                                        requestNotificationPermission().then(setNotifGranted);
-                                    }}
-                                >
-                                    Allow Notifications
-                                </button>
+                                <div className="d-flex align-items-center gap-2 flex-shrink-0">
+                                    <button
+                                        type="button"
+                                        className="btn btn-sm btn-warning text-dark fw-bold rounded-pill px-3 shadow-2xs"
+                                        onClick={handleAllowNotifications}
+                                    >
+                                        Allow Notifications
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="ob-notify-close"
+                                        onClick={handleDismissNotifBanner}
+                                        title="Don't ask again"
+                                        aria-label="Dismiss notification prompt"
+                                    >
+                                        <i className="fa-solid fa-xmark" />
+                                    </button>
+                                </div>
                             </div>
                         )}
 
@@ -2572,9 +2671,7 @@ const OrderBot: React.FC = () => {
                                                             <div className="h2 fw-black text-success mb-0 ac-font">
                                                                 {statusStr === 'preparing'
                                                                     ? 'Up Next'
-                                                                    : orderStatus.queuePosition > 0
-                                                                        ? `#${orderStatus.queuePosition}`
-                                                                        : 'Next Up'}
+                                                        : 'Next Up'}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -2596,37 +2693,41 @@ const OrderBot: React.FC = () => {
                                             </div>
                                         )}
 
-                                        {/* Browser Notification Prompt */}
-                                        {!isReady &&
-                                            !isDone &&
-                                            typeof window !== 'undefined' &&
-                                            'Notification' in window &&
-                                            Notification.permission === 'default' && (
-                                                <div className="alert alert-warning border-warning-subtle rounded-4 p-3 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2 shadow-2xs">
-                                                    <div className="d-flex align-items-center gap-2">
-                                                        <i className="fa-solid fa-bell text-warning fs-5"></i>
-                                                        <div>
-                                                            <strong className="d-block text-dark small fw-bold">
-                                                                Get notified when your Dodo is ready
-                                                            </strong>
-                                                            <span className="tiny-text text-muted">
-                                                                We'll alert your browser so you don't miss your flight.
-                                                            </span>
-                                                        </div>
+                                        {showNotifBanner && !isDone && (
+                                            <div className="alert alert-warning border-warning-subtle rounded-4 p-3 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2 shadow-2xs">
+                                                <div className="d-flex align-items-center gap-2">
+                                                    <i className="fa-solid fa-bell text-warning fs-5"></i>
+                                                    <div>
+                                                        <strong className="d-block text-dark small fw-bold">
+                                                            Get notified when your Dodo is ready
+                                                        </strong>
+                                                        <span className="tiny-text text-muted">
+                                                            We'll alert your browser so you don't miss your flight.
+                                                        </span>
                                                     </div>
+                                                </div>
+                                                <div className="d-flex align-items-center gap-2">
                                                     <button
                                                         type="button"
                                                         className="btn btn-sm btn-warning text-dark rounded-pill fw-bold px-3 shadow-2xs"
-                                                        onClick={async () => {
-                                                            playSound();
-                                                            const res = await Notification.requestPermission();
-                                                            setNotifGranted(res === 'granted');
-                                                        }}
+                                                        onClick={handleAllowNotifications}
                                                     >
                                                         <i className="fa-solid fa-bell me-1"></i>Enable Alerts
                                                     </button>
+                                                    <button
+                                                        type="button"
+                                                        className="ob-notify-close"
+                                                        onClick={handleDismissNotifBanner}
+                                                        title="Don't ask again"
+                                                        aria-label="Dismiss notification prompt"
+                                                    >
+                                                        <i className="fa-solid fa-xmark" />
+                                                    </button>
                                                 </div>
-                                            )}
+                                            </div>
+                                        )}
+
+
 
                                         {/* ── BOARDING PASS / DODO CODE REVEAL CARD ── */}
                                         {isReady && orderStatus?.dodoCode && (

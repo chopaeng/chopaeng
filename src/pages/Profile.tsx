@@ -9,7 +9,7 @@ import { useFavoriteIslands, getStoredFavoriteIslands, saveStoredFavoriteIslands
 import { useSavedCharacters, type SavedCharacter } from "../hooks/useSavedCharacters";
 import { parseItemCodes } from "../utils/itemCodeParser";
 import { parseDiscordNicknameToCharacters, formatCharactersToNickname } from "../utils/characterParser";
-import { playChimeClick } from "../utils/kkAudioSynthesizer";
+import { playChimeClick, playWaveChime, playWaveBackChime } from "../utils/kkAudioSynthesizer";
 import { fetchUserOrderHistory, type OrderHistoryItem } from "../utils/orderBotApi";
 import { getStoredPassport, savePassportToDb, fetchPublicPassportFromDb, updateDiscordNickname, type PublicPassportData } from "../utils/userProfileApi";
 import {
@@ -17,7 +17,10 @@ import {
     calculateIslandOccupancy,
     getOnlineResidentsList,
     openCommunityModal,
+    broadcastResidentWave,
     type TrafficStats,
+    type OnlineResident,
+    type WaveNotification,
 } from "../utils/communityPresenceApi";
 import { HowItWorksExplainer, PROFILE_EXPLAINER_CONFIG } from "../components/HowItWorksExplainer";
 import { ResidentPassportCard, FRUIT_ICONS, ZODIAC_SIGNS, PERSONALITY_THEMES } from "../components/passport/ResidentPassportCard";
@@ -174,6 +177,57 @@ const Profile = () => {
     const [communityFilter, setCommunityFilter] = useState<"all" | "on_island" | "ordering" | "passport">("all");
     const [communitySubTab, setCommunitySubTab] = useState<"online" | "islands" | "visits">("online");
     const [profileWaveNote, setProfileWaveNote] = useState<string | null>(null);
+    const [profileWavedMap, setProfileWavedMap] = useState<Record<string, boolean>>({});
+
+    // Listen for cross-tab or local incoming waves
+    useEffect(() => {
+        const handleIncomingWave = (e: any) => {
+            const wave = e.detail as WaveNotification | undefined;
+            if (!wave) return;
+            const currentUsername = authUser?.username?.toLowerCase() || "";
+            if (currentUsername && wave.toUsername.toLowerCase() === currentUsername) {
+                playWaveBackChime();
+                setProfileWaveNote(`👋 ${wave.fromDisplayName} waved hello at you!`);
+                setTimeout(() => setProfileWaveNote(null), 6000);
+            }
+        };
+        window.addEventListener("chopaeng_resident_wave", handleIncomingWave);
+        return () => window.removeEventListener("chopaeng_resident_wave", handleIncomingWave);
+    }, [authUser]);
+
+    const handleProfileWave = (resident: OnlineResident) => {
+        // Strict guard: do not wave self
+        if (resident.isCurrentUser || profileWavedMap[resident.id]) return;
+
+        playWaveChime();
+        setProfileWavedMap((prev) => ({ ...prev, [resident.id]: true }));
+        setTimeout(() => {
+            setProfileWavedMap((prev) => {
+                const next = { ...prev };
+                delete next[resident.id];
+                return next;
+            });
+        }, 8000);
+
+        const myUsername = authUser?.username || "Guest";
+        const myDisplayName = authUser?.nickname || authUser?.discord_name || (authUser?.username ? `@${authUser.username}` : "Island Resident");
+
+        broadcastResidentWave({
+            fromUsername: myUsername,
+            fromDisplayName: myDisplayName,
+            fromAvatarUrl: authUser?.avatar,
+            toUsername: resident.username,
+            toDisplayName: resident.displayName,
+        });
+
+        setProfileWaveNote(`You waved at ${resident.displayName}! 👋`);
+
+        setTimeout(() => {
+            playWaveBackChime();
+            setProfileWaveNote(`✨ ${resident.displayName} smiled and warmly waved back!`);
+            setTimeout(() => setProfileWaveNote(null), 4500);
+        }, 1300);
+    };
 
     const liveOccupancy = useMemo(() => calculateIslandOccupancy(allIslands), [allIslands]);
     const onlineResidents = useMemo(() => getOnlineResidentsList(authUser, "/profile"), [authUser]);
@@ -3238,6 +3292,11 @@ const Profile = () => {
                                                                         You
                                                                     </span>
                                                                 )}
+                                                                {profileWavedMap[resident.id] && (
+                                                                    <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill tiny-text fw-bold animate-bounce-gentle">
+                                                                        👋 Waved!
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                             <div className="tiny-text text-muted mt-0.5">
                                                                 IGN: <strong>{resident.ign}</strong> · 🏝️ {resident.islandName}
@@ -3267,17 +3326,34 @@ const Profile = () => {
                                                     </div>
 
                                                     <div className="d-flex align-items-center justify-content-between mt-3 pt-2 border-top">
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-xs btn-outline-secondary rounded-pill px-2"
-                                                            onClick={() => {
-                                                                playChimeClick();
-                                                                setProfileWaveNote(`You waved at ${resident.displayName}! 👋`);
-                                                                setTimeout(() => setProfileWaveNote(null), 3000);
-                                                            }}
-                                                        >
-                                                            👋 Wave
-                                                        </button>
+                                                        {!resident.isCurrentUser ? (
+                                                            <button
+                                                                type="button"
+                                                                className={`btn btn-xs rounded-pill px-2.5 py-1 border shadow-2xs fw-bold transition-all ${
+                                                                    profileWavedMap[resident.id]
+                                                                        ? "btn-success text-white"
+                                                                        : "btn-outline-secondary"
+                                                                }`}
+                                                                style={{
+                                                                    transform: profileWavedMap[resident.id] ? "scale(0.97)" : "scale(1)",
+                                                                    cursor: profileWavedMap[resident.id] ? "default" : "pointer",
+                                                                }}
+                                                                disabled={Boolean(profileWavedMap[resident.id])}
+                                                                onClick={() => handleProfileWave(resident)}
+                                                            >
+                                                                {profileWavedMap[resident.id] ? (
+                                                                    <span className="d-inline-flex align-items-center gap-1">
+                                                                        <i className="fa-solid fa-check"></i> Waved!
+                                                                    </span>
+                                                                ) : (
+                                                                    "👋 Wave"
+                                                                )}
+                                                            </button>
+                                                        ) : (
+                                                            <span className="badge bg-secondary-subtle text-secondary rounded-pill px-2.5 py-1 tiny-text fw-bold">
+                                                                ✨ That's You
+                                                            </span>
+                                                        )}
 
                                                         {resident.hasPublicPassport ? (
                                                             <Link

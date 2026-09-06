@@ -224,6 +224,18 @@ let communityChannel: BroadcastChannel | null = null;
 try {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         communityChannel = new BroadcastChannel('chopaeng_community_radar_v1');
+        communityChannel.onmessage = (event) => {
+            try {
+                const { type, payload } = event.data || {};
+                if (type === 'TRAFFIC_UPDATED' && payload) {
+                    window.dispatchEvent(new CustomEvent('chopaeng_traffic_updated', { detail: payload }));
+                } else if (type === 'RESIDENT_WAVED' && payload) {
+                    window.dispatchEvent(new CustomEvent('chopaeng_resident_wave', { detail: payload }));
+                }
+            } catch {
+                // ignore
+            }
+        };
     }
 } catch {
     // Unsupported or private mode
@@ -644,4 +656,36 @@ export const getOnlineResidentsList = (
  */
 export const openCommunityModal = (tab: 'online' | 'islands' | 'visits' = 'online') => {
     window.dispatchEvent(new CustomEvent('chopaeng_open_community_hub', { detail: { tab } }));
+};
+
+export interface WaveNotification {
+    id: string;
+    fromUsername: string;
+    fromDisplayName: string;
+    fromAvatarUrl?: string;
+    toUsername: string;
+    toDisplayName: string;
+    timestamp: number;
+}
+
+/**
+ * Broadcasts a wave event across browser tabs and locally to active components
+ */
+export const broadcastResidentWave = (
+    wave: Omit<WaveNotification, 'id' | 'timestamp'>
+): WaveNotification => {
+    const fullWave: WaveNotification = {
+        id: 'wave_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7),
+        ...wave,
+        timestamp: Date.now(),
+    };
+    try {
+        if (communityChannel) {
+            communityChannel.postMessage({ type: 'RESIDENT_WAVED', payload: fullWave });
+        }
+        window.dispatchEvent(new CustomEvent('chopaeng_resident_wave', { detail: fullWave }));
+    } catch {
+        // ignore
+    }
+    return fullWave;
 };

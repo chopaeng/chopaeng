@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useIslandData } from '../../context/useIslandData';
 import { useAuth } from '../../context/useAuth';
-import { playChimeClick } from '../../utils/kkAudioSynthesizer';
+import { playChimeClick, playWaveChime, playWaveBackChime } from '../../utils/kkAudioSynthesizer';
 import {
     getStoredTheme,
     type ThemeMode,
@@ -14,8 +14,10 @@ import {
     getOnlineResidentsList,
     fetchOnlinePresence,
     sendPresenceHeartbeat,
+    broadcastResidentWave,
     type OnlineResident,
     type TrafficStats,
+    type WaveNotification,
 } from '../../utils/communityPresenceApi';
 
 interface RadarThemeConfig {
@@ -553,7 +555,14 @@ export const OnlineCommunityModal: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [residentFilter, setResidentFilter] = useState<'all' | 'on_island' | 'ordering' | 'passport'>('all');
     const [trafficStats, setTrafficStats] = useState<TrafficStats>(getTrafficStats);
-    const [waveFeedback, setWaveFeedback] = useState<string | null>(null);
+    const [waveFeedback, setWaveFeedback] = useState<{
+        id: string;
+        message: string;
+        subMessage?: string;
+        avatarUrl?: string;
+        type: 'sent' | 'received';
+    } | null>(null);
+    const [wavedMap, setWavedMap] = useState<Record<string, boolean>>({});
     const [copiedDodo, setCopiedDodo] = useState<string | null>(null);
 
     // Active Theme State
@@ -603,6 +612,34 @@ export const OnlineCommunityModal: React.FC = () => {
         window.addEventListener('chopaeng_theme_updated', handleThemeChange);
         return () => window.removeEventListener('chopaeng_theme_updated', handleThemeChange);
     }, []);
+
+    // Listen for cross-tab or local incoming wave events
+    useEffect(() => {
+        const handleIncomingWave = (e: any) => {
+            const wave = e.detail as WaveNotification | undefined;
+            if (!wave) return;
+
+            const currentUsername = user?.username?.toLowerCase() || '';
+            const isTargetMe = currentUsername && wave.toUsername.toLowerCase() === currentUsername;
+
+            if (isTargetMe) {
+                playWaveBackChime();
+                setWaveFeedback({
+                    id: wave.id,
+                    message: `👋 ${wave.fromDisplayName} waved hello at you!`,
+                    subMessage: 'A fellow resident noticed you on the ChoPaeng Live Radar!',
+                    avatarUrl: wave.fromAvatarUrl,
+                    type: 'received',
+                });
+                setTimeout(() => {
+                    setWaveFeedback((prev) => (prev?.id === wave.id ? null : prev));
+                }, 6000);
+            }
+        };
+
+        window.addEventListener('chopaeng_resident_wave', handleIncomingWave);
+        return () => window.removeEventListener('chopaeng_resident_wave', handleIncomingWave);
+    }, [user]);
 
     // Record site visit on mount & listen for global trigger event
     useEffect(() => {
@@ -664,9 +701,67 @@ export const OnlineCommunityModal: React.FC = () => {
     }, [residents, residentFilter, searchQuery]);
 
     const handleWave = (resident: OnlineResident) => {
-        playChimeClick();
-        setWaveFeedback(`You waved at ${resident.displayName}! 👋`);
-        setTimeout(() => setWaveFeedback(null), 3000);
+        // Strict requirement: Never wave at oneself
+        if (resident.isCurrentUser) return;
+        // Prevent spamming during active cooldown
+        if (wavedMap[resident.id]) return;
+
+        // 1. Play joyful ascending wave chime
+        playWaveChime();
+
+        // 2. Mark resident as waved (cooldown for 8s)
+        setWavedMap((prev) => ({ ...prev, [resident.id]: true }));
+        setTimeout(() => {
+            setWavedMap((prev) => {
+                const next = { ...prev };
+                delete next[resident.id];
+                return next;
+            });
+        }, 8000);
+
+        // 3. User identification
+        const myUsername = user?.username || 'Guest';
+        const myDisplayName = user?.nickname || user?.discord_name || (user?.username ? `@${user.username}` : 'Island Explorer');
+        const myAvatar = user?.avatar;
+
+        // 4. Broadcast the wave across tabs & local listeners
+        const waveId = 'wave_' + Date.now();
+        broadcastResidentWave({
+            fromUsername: myUsername,
+            fromDisplayName: myDisplayName,
+            fromAvatarUrl: myAvatar,
+            toUsername: resident.username,
+            toDisplayName: resident.displayName,
+        });
+
+        // 5. Immediate outgoing wave feedback banner
+        setWaveFeedback({
+            id: waveId,
+            message: `You waved hello to ${resident.displayName}! 👋`,
+            subMessage: 'Sending friendly greetings across the island radar...',
+            avatarUrl: resident.avatarUrl,
+            type: 'sent',
+        });
+
+        // 6. Charming simulated resident reaction (villager smiles and waves back)
+        const replyTimeout = setTimeout(() => {
+            playWaveBackChime();
+            setWaveFeedback({
+                id: waveId + '_reply',
+                message: `✨ ${resident.displayName} smiled and warmly waved back!`,
+                subMessage: `${resident.displayName} noticed your friendly wave across the skies!`,
+                avatarUrl: resident.avatarUrl,
+                type: 'received',
+            });
+
+            const clearTimer = setTimeout(() => {
+                setWaveFeedback((prev) => (prev?.id === waveId + '_reply' ? null : prev));
+            }, 4500);
+
+            return () => clearTimeout(clearTimer);
+        }, 1300);
+
+        return () => clearTimeout(replyTimeout);
     };
 
     const handleCopyDodo = (dodo: string) => {
@@ -1036,21 +1131,51 @@ export const OnlineCommunityModal: React.FC = () => {
                 >
                     {waveFeedback && (
                         <div
-                            className="rounded-4 py-2.5 px-3.5 mb-3 d-flex align-items-center justify-content-between animate-bounce-gentle"
+                            className="rounded-4 py-2.5 px-3.5 mb-3.5 d-flex align-items-center justify-content-between animate-bounce-gentle"
                             style={{
                                 background: theme.cardBg,
-                                border: `1px solid ${theme.statusOnlineDot}`,
-                                boxShadow: `0 4px 12px ${theme.seatFilledGlow}`,
+                                border: `1px solid ${waveFeedback.type === 'received' ? theme.tabActiveBg : theme.statusOnlineDot}`,
+                                boxShadow: `0 6px 18px ${theme.seatFilledGlow}`,
+                                transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                             }}
                         >
-                            <span className="small fw-bold" style={{ color: theme.textColor }}>
-                                <i className="fa-solid fa-hand me-2 text-warning"></i>
-                                {waveFeedback}
-                            </span>
+                            <div className="d-flex align-items-center gap-2.5 min-w-0">
+                                {waveFeedback.avatarUrl ? (
+                                    <img
+                                        src={waveFeedback.avatarUrl}
+                                        alt="Villager"
+                                        style={{
+                                            width: 34,
+                                            height: 34,
+                                            borderRadius: '50%',
+                                            objectFit: 'cover',
+                                            border: `2px solid ${waveFeedback.type === 'received' ? theme.tabActiveBg : theme.statusOnlineDot}`,
+                                            backgroundColor: theme.modalBg,
+                                        }}
+                                        onError={(e) => {
+                                            (e.currentTarget as HTMLImageElement).src = 'https://acnhcdn.com/latest/NpcIcon/der00.png';
+                                        }}
+                                    />
+                                ) : (
+                                    <span className="fs-5">👋</span>
+                                )}
+                                <div className="min-w-0">
+                                    <div className="small fw-bold text-truncate" style={{ color: theme.textColor }}>
+                                        {waveFeedback.message}
+                                    </div>
+                                    {waveFeedback.subMessage && (
+                                        <div className="tiny-text text-truncate" style={{ color: theme.mutedColor }}>
+                                            {waveFeedback.subMessage}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                             <button
                                 type="button"
-                                className="btn-close btn-close-sm"
+                                className="btn-close btn-close-sm ms-2 flex-shrink-0"
+                                style={{ filter: currentTheme === 'roost' ? 'invert(1)' : undefined }}
                                 onClick={() => setWaveFeedback(null)}
+                                aria-label="Dismiss wave notification"
                             ></button>
                         </div>
                     )}
@@ -1224,6 +1349,18 @@ export const OnlineCommunityModal: React.FC = () => {
                                                         >
                                                             {resident.role}
                                                         </span>
+                                                        {wavedMap[resident.id] && (
+                                                            <span
+                                                                className="badge rounded-pill tiny-text px-2 py-0.5 animate-bounce-gentle fw-bold"
+                                                                style={{
+                                                                    backgroundColor: `${theme.tabActiveBg}25`,
+                                                                    color: theme.tabActiveBg,
+                                                                    border: `1px solid ${theme.tabActiveBg}40`,
+                                                                }}
+                                                            >
+                                                                👋 Waved!
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div className="tiny-text font-monospace mt-0.5" style={{ color: theme.mutedColor }}>
                                                         IGN: <strong style={{ color: theme.textColor }}>{resident.ign}</strong> · 🏝️ {resident.islandName}
@@ -1248,19 +1385,45 @@ export const OnlineCommunityModal: React.FC = () => {
                                                         {resident.joinedMinutesAgo === 0 ? 'Active now' : `${resident.joinedMinutesAgo}m ago`}
                                                     </div>
                                                     <div className="d-flex align-items-center gap-2 justify-content-end">
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-xs rounded-pill px-2.5 py-1 border shadow-2xs fw-bold"
-                                                            style={{
-                                                                backgroundColor: theme.cardBg,
-                                                                borderColor: theme.cardBorder,
-                                                                color: theme.textColor,
-                                                            }}
-                                                            title="Wave hello"
-                                                            onClick={() => handleWave(resident)}
-                                                        >
-                                                            👋 Wave
-                                                        </button>
+                                                        {!resident.isCurrentUser ? (
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-xs rounded-pill px-2.5 py-1 border shadow-2xs fw-bold transition-all"
+                                                                style={{
+                                                                    backgroundColor: wavedMap[resident.id] ? `${theme.tabActiveBg}22` : theme.cardBg,
+                                                                    borderColor: wavedMap[resident.id] ? theme.tabActiveBg : theme.cardBorder,
+                                                                    color: wavedMap[resident.id] ? theme.tabActiveBg : theme.textColor,
+                                                                    transform: wavedMap[resident.id] ? 'scale(0.97)' : 'scale(1)',
+                                                                    cursor: wavedMap[resident.id] ? 'default' : 'pointer',
+                                                                }}
+                                                                title={wavedMap[resident.id] ? `Waved at ${resident.displayName}!` : `Wave hello to ${resident.displayName}`}
+                                                                onClick={() => handleWave(resident)}
+                                                                disabled={Boolean(wavedMap[resident.id])}
+                                                            >
+                                                                {wavedMap[resident.id] ? (
+                                                                    <span className="d-inline-flex align-items-center gap-1">
+                                                                        <i className="fa-solid fa-check text-success"></i>
+                                                                        <span>Waved!</span>
+                                                                    </span>
+                                                                ) : (
+                                                                    <span>👋 Wave</span>
+                                                                )}
+                                                            </button>
+                                                        ) : (
+                                                            <span
+                                                                className="badge rounded-pill px-2.5 py-1 fw-bold"
+                                                                style={{
+                                                                    backgroundColor: `${theme.tabActiveBg}18`,
+                                                                    color: theme.tabActiveBg,
+                                                                    border: `1px solid ${theme.tabActiveBg}35`,
+                                                                    fontSize: '0.72rem',
+                                                                    letterSpacing: '0.02em',
+                                                                }}
+                                                                title="This is your own resident profile"
+                                                            >
+                                                                ✨ That's You
+                                                            </span>
+                                                        )}
                                                         {resident.hasPublicPassport ? (
                                                             <button
                                                                 type="button"

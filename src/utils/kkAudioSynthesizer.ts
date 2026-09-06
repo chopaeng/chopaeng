@@ -277,6 +277,34 @@ export const playOrderAlertChime = (type: 'preparing' | 'ready' | 'alert' = 'rea
 };
 
 /**
+ * Cheerful ascending melodic wave chime when waving hello to an online resident
+ */
+export const playWaveChime = () => {
+    try {
+        playPluckNote(523.25, 0.22, 0.14, 'triangle'); // C5
+        setTimeout(() => playPluckNote(659.25, 0.24, 0.15, 'triangle'), 80);  // E5
+        setTimeout(() => playPluckNote(783.99, 0.32, 0.16, 'sine'), 160);     // G5
+        setTimeout(() => playPluckNote(1046.50, 0.45, 0.18, 'sine'), 260);    // C6
+    } catch {
+        playChimeClick();
+    }
+};
+
+/**
+ * Delightful reciprocal chime when resident waves back
+ */
+export const playWaveBackChime = () => {
+    try {
+        playPluckNote(783.99, 0.24, 0.13, 'sine');     // G5
+        setTimeout(() => playPluckNote(987.77, 0.28, 0.15, 'triangle'), 100); // B5
+        setTimeout(() => playPluckNote(1174.66, 0.38, 0.16, 'triangle'), 200); // D6
+        setTimeout(() => playPluckNote(1567.98, 0.46, 0.17, 'sine'), 320);    // G6
+    } catch {
+        playChimeClick();
+    }
+};
+
+/**
  * Plucks an acoustic instrument note (guitar / vibraphone)
  */
 export const playPluckNote = (freq: number, duration = 0.45, volume = 0.12, type: 'triangle' | 'sine' = 'triangle') => {

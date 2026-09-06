@@ -15,6 +15,7 @@ import {
     fetchOnlinePresence,
     sendPresenceHeartbeat,
     broadcastResidentWave,
+    pollPendingWaves,
     type OnlineResident,
     type TrafficStats,
     type WaveNotification,
@@ -561,6 +562,9 @@ export const OnlineCommunityModal: React.FC = () => {
         subMessage?: string;
         avatarUrl?: string;
         type: 'sent' | 'received';
+        fromUsername?: string;
+        fromDisplayName?: string;
+        fromSessionId?: string;
     } | null>(null);
     const [wavedMap, setWavedMap] = useState<Record<string, boolean>>({});
     const [copiedDodo, setCopiedDodo] = useState<string | null>(null);
@@ -596,11 +600,15 @@ export const OnlineCommunityModal: React.FC = () => {
         }
     }, [location.pathname, user]);
 
-    // Refresh presence when modal is open
+    // Refresh presence & poll pending waves when modal is open
     useEffect(() => {
         if (!isOpen) return;
         refreshPresence();
-        const interval = setInterval(refreshPresence, 10_000);
+        pollPendingWaves();
+        const interval = setInterval(() => {
+            refreshPresence();
+            pollPendingWaves();
+        }, 6_000);
         return () => clearInterval(interval);
     }, [isOpen, refreshPresence]);
 
@@ -613,33 +621,31 @@ export const OnlineCommunityModal: React.FC = () => {
         return () => window.removeEventListener('chopaeng_theme_updated', handleThemeChange);
     }, []);
 
-    // Listen for cross-tab or local incoming wave events
+    // Listen for incoming wave events directed to this user/session
     useEffect(() => {
         const handleIncomingWave = (e: any) => {
             const wave = e.detail as WaveNotification | undefined;
             if (!wave) return;
 
-            const currentUsername = user?.username?.toLowerCase() || '';
-            const isTargetMe = currentUsername && wave.toUsername.toLowerCase() === currentUsername;
-
-            if (isTargetMe) {
-                playWaveBackChime();
-                setWaveFeedback({
-                    id: wave.id,
-                    message: `👋 ${wave.fromDisplayName} waved hello at you!`,
-                    subMessage: 'A fellow resident noticed you on the ChoPaeng Live Radar!',
-                    avatarUrl: wave.fromAvatarUrl,
-                    type: 'received',
-                });
-                setTimeout(() => {
-                    setWaveFeedback((prev) => (prev?.id === wave.id ? null : prev));
-                }, 6000);
-            }
+            playWaveBackChime();
+            setWaveFeedback({
+                id: wave.id,
+                message: `👋 ${wave.fromDisplayName} waved hello at you!`,
+                subMessage: 'A fellow resident sent greetings on the ChoPaeng Live Radar!',
+                avatarUrl: wave.fromAvatarUrl,
+                type: 'received',
+                fromUsername: wave.fromUsername,
+                fromDisplayName: wave.fromDisplayName,
+                fromSessionId: wave.fromSessionId,
+            });
+            setTimeout(() => {
+                setWaveFeedback((prev) => (prev?.id === wave.id ? null : prev));
+            }, 8000);
         };
 
         window.addEventListener('chopaeng_resident_wave', handleIncomingWave);
         return () => window.removeEventListener('chopaeng_resident_wave', handleIncomingWave);
-    }, [user]);
+    }, []);
 
     // Record site visit on mount & listen for global trigger event
     useEffect(() => {
@@ -724,7 +730,7 @@ export const OnlineCommunityModal: React.FC = () => {
         const myDisplayName = user?.nickname || user?.discord_name || (user?.username ? `@${user.username}` : 'Island Explorer');
         const myAvatar = user?.avatar;
 
-        // 4. Broadcast the wave across tabs & local listeners
+        // 4. Broadcast the wave across network, tabs & local listeners
         const waveId = 'wave_' + Date.now();
         broadcastResidentWave({
             fromUsername: myUsername,
@@ -732,36 +738,22 @@ export const OnlineCommunityModal: React.FC = () => {
             fromAvatarUrl: myAvatar,
             toUsername: resident.username,
             toDisplayName: resident.displayName,
+            toSessionId: resident.id,
         });
 
         // 5. Immediate outgoing wave feedback banner
         setWaveFeedback({
             id: waveId,
             message: `You waved hello to ${resident.displayName}! 👋`,
-            subMessage: 'Sending friendly greetings across the island radar...',
+            subMessage: 'Friendly greetings delivered across the skies!',
             avatarUrl: resident.avatarUrl,
             type: 'sent',
         });
 
-        // 6. Charming simulated resident reaction (villager smiles and waves back)
-        const replyTimeout = setTimeout(() => {
-            playWaveBackChime();
-            setWaveFeedback({
-                id: waveId + '_reply',
-                message: `✨ ${resident.displayName} smiled and warmly waved back!`,
-                subMessage: `${resident.displayName} noticed your friendly wave across the skies!`,
-                avatarUrl: resident.avatarUrl,
-                type: 'received',
-            });
-
-            const clearTimer = setTimeout(() => {
-                setWaveFeedback((prev) => (prev?.id === waveId + '_reply' ? null : prev));
-            }, 4500);
-
-            return () => clearTimeout(clearTimer);
-        }, 1300);
-
-        return () => clearTimeout(replyTimeout);
+        // Auto-dismiss sent confirmation banner after 5 seconds
+        setTimeout(() => {
+            setWaveFeedback((prev) => (prev?.id === waveId ? null : prev));
+        }, 5000);
     };
 
     const handleCopyDodo = (dodo: string) => {
@@ -791,13 +783,12 @@ export const OnlineCommunityModal: React.FC = () => {
 
     return (
         <div
-            className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+            className="radar-modal-overlay position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
             style={{
                 backgroundColor: theme.overlayBg,
                 backdropFilter: 'blur(8px)',
                 WebkitBackdropFilter: 'blur(8px)',
                 zIndex: 1060,
-                padding: '1rem',
                 transition: 'background-color 0.3s ease',
             }}
             onClick={() => setIsOpen(false)}
@@ -806,17 +797,54 @@ export const OnlineCommunityModal: React.FC = () => {
             aria-labelledby="communityRadarTitle"
         >
             <style>{`
+                /* --- BASE RADAR STYLES --- */
+                .radar-modal-overlay {
+                    padding: 1rem;
+                }
+                .radar-modal-dialog {
+                    width: 100%;
+                    max-width: 880px;
+                    max-height: 92vh;
+                }
+                .radar-modal-header {
+                    padding: 0.85rem 1.25rem;
+                }
+                .radar-header-icon {
+                    width: 42px;
+                    height: 42px;
+                    font-size: 1.2rem;
+                }
+                .radar-header-title {
+                    font-size: 1.15rem;
+                }
+                .radar-modal-tabs-bar {
+                    padding: 0.65rem 1.25rem;
+                }
+                .radar-modal-body {
+                    padding: 1.25rem;
+                }
+                .radar-modal-footer {
+                    padding: 0.65rem 1.25rem;
+                }
+
                 .radar-pulse-ring {
                     position: relative;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 10px;
+                    height: 10px;
+                    flex-shrink: 0;
                 }
                 .radar-pulse-ring::after {
                     content: '';
                     position: absolute;
-                    inset: -4px;
+                    inset: -3px;
                     border-radius: 50%;
                     border: 2px solid currentColor;
                     opacity: 0.6;
                     animation: radarPulse 2s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+                    pointer-events: none;
                 }
                 @keyframes radarPulse {
                     0% { transform: scale(0.85); opacity: 0.8; }
@@ -824,31 +852,60 @@ export const OnlineCommunityModal: React.FC = () => {
                 }
 
                 .radar-tab-btn-themed {
-                    padding: 0.55rem 1.1rem;
+                    padding: 0.5rem 1rem;
                     border-radius: 999px;
                     border: 2px solid transparent;
                     background: transparent;
                     font-weight: 800;
-                    font-size: 0.85rem;
+                    font-size: 0.82rem;
                     display: inline-flex;
                     align-items: center;
-                    gap: 0.5rem;
+                    gap: 0.45rem;
+                    white-space: nowrap;
                     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
                 }
                 .radar-tab-btn-themed:hover {
                     transform: translateY(-1px);
                 }
 
+                .radar-tab-count-pill {
+                    border-radius: 999px;
+                    padding: 0.1rem 0.5rem;
+                    font-size: 0.72rem;
+                    font-weight: 800;
+                }
+
+                .radar-tab-label-full {
+                    display: inline;
+                }
+                .radar-tab-label-short {
+                    display: none;
+                }
+
+                .radar-filters-scroll {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.35rem;
+                    overflow-x: auto;
+                    -webkit-overflow-scrolling: touch;
+                    scrollbar-width: none;
+                    padding-bottom: 2px;
+                }
+                .radar-filters-scroll::-webkit-scrollbar {
+                    display: none;
+                }
+
                 .radar-filter-chip-themed {
                     background: transparent;
                     border: 2px solid transparent;
                     border-radius: 50px;
-                    padding: 0.35rem 0.9rem;
+                    padding: 0.35rem 0.85rem;
                     font-weight: 800;
                     font-size: 0.78rem;
                     display: inline-flex;
                     align-items: center;
                     gap: 0.35rem;
+                    white-space: nowrap;
                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                     cursor: pointer;
                 }
@@ -859,8 +916,8 @@ export const OnlineCommunityModal: React.FC = () => {
                 .radar-resident-row-themed {
                     display: flex;
                     align-items: center;
-                    gap: 0.9rem;
-                    padding: 0.85rem 1rem;
+                    gap: 0.75rem;
+                    padding: 0.75rem 0.85rem;
                     border-bottom: 1px solid ${theme.residentRowBorder};
                     transition: background-color 0.2s ease;
                 }
@@ -871,9 +928,14 @@ export const OnlineCommunityModal: React.FC = () => {
                     background-color: ${theme.residentRowHover};
                 }
 
+                .radar-avatar-img {
+                    width: 44px;
+                    height: 44px;
+                }
+
                 .radar-status-dot-themed {
-                    width: 12px;
-                    height: 12px;
+                    width: 11px;
+                    height: 11px;
                     border-radius: 50%;
                     border: 2px solid ${theme.statusDotRing};
                     box-shadow: 0 0 8px rgba(0,0,0,0.25);
@@ -883,10 +945,9 @@ export const OnlineCommunityModal: React.FC = () => {
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
-                    gap: 1rem;
-                    padding: 0.85rem 0.5rem;
+                    gap: 0.75rem;
+                    padding: 0.75rem 0.65rem;
                     border-bottom: 1px solid ${theme.residentRowBorder};
-                    flex-wrap: wrap;
                     transition: background-color 0.2s ease;
                 }
                 .radar-gate-row-themed:last-child {
@@ -896,11 +957,20 @@ export const OnlineCommunityModal: React.FC = () => {
                 .radar-seat-dot-themed {
                     width: 9px;
                     height: 9px;
-                    border-radius: 2.5px;
+                    border-radius: 2px;
                     display: inline-block;
                     transition: all 0.2s ease;
                 }
 
+                .radar-digit-boxes-container {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.35rem;
+                    flex-wrap: nowrap;
+                    overflow-x: auto;
+                    padding: 0.25rem 0;
+                }
                 .radar-digit-box-themed {
                     font-family: 'Courier New', Courier, monospace;
                     font-weight: 800;
@@ -912,22 +982,113 @@ export const OnlineCommunityModal: React.FC = () => {
                     border-radius: 8px;
                     box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.2);
                     transition: all 0.3s ease;
+                    flex-shrink: 0;
                 }
+
+                /* --- RESPONSIVE MOBILE OVERRIDES (< 576px) --- */
                 @media (max-width: 576px) {
+                    .radar-modal-overlay {
+                        padding: 0.4rem !important;
+                    }
+                    .radar-modal-dialog {
+                        max-height: 96vh !important;
+                        border-radius: 1.25rem !important;
+                    }
+                    .radar-modal-header {
+                        padding: 0.65rem 0.85rem !important;
+                    }
+                    .radar-header-icon {
+                        width: 34px !important;
+                        height: 34px !important;
+                        font-size: 1rem !important;
+                    }
+                    .radar-header-title {
+                        font-size: 1.02rem !important;
+                    }
+                    .radar-modal-tabs-bar {
+                        padding: 0.45rem 0.65rem !important;
+                    }
+                    .radar-modal-body {
+                        padding: 0.75rem !important;
+                    }
+                    .radar-modal-footer {
+                        padding: 0.5rem 0.75rem !important;
+                    }
+
+                    .radar-tabs-nav {
+                        display: grid !important;
+                        grid-template-columns: repeat(3, 1fr) !important;
+                        width: 100% !important;
+                        gap: 0.25rem !important;
+                    }
+                    .radar-tab-btn-themed {
+                        padding: 0.42rem 0.2rem !important;
+                        font-size: 0.74rem !important;
+                        justify-content: center !important;
+                        gap: 0.25rem !important;
+                    }
+                    .radar-tab-btn-themed i {
+                        font-size: 0.75rem !important;
+                    }
+                    .radar-tab-label-full {
+                        display: none !important;
+                    }
+                    .radar-tab-label-short {
+                        display: inline !important;
+                    }
+                    .radar-tab-count-pill {
+                        padding: 0.05rem 0.35rem !important;
+                        font-size: 0.66rem !important;
+                    }
+
+                    .radar-avatar-img {
+                        width: 38px !important;
+                        height: 38px !important;
+                    }
+                    .radar-resident-row-themed {
+                        padding: 0.6rem 0.5rem !important;
+                        gap: 0.55rem !important;
+                    }
+                    .radar-gate-row-themed {
+                        padding: 0.6rem 0.35rem !important;
+                        gap: 0.45rem !important;
+                    }
+                    .radar-seat-dot-themed {
+                        width: 7px !important;
+                        height: 7px !important;
+                    }
+
+                    .radar-digit-boxes-container {
+                        gap: 0.2rem !important;
+                    }
                     .radar-digit-box-themed {
-                        font-size: 1.35rem;
-                        padding: 0.35rem 0.4rem;
-                        min-width: 1.65rem;
+                        font-size: 1.25rem !important;
+                        padding: 0.3rem 0.3rem !important;
+                        min-width: 1.55rem !important;
+                        border-radius: 6px !important;
+                    }
+                }
+
+                @media (max-width: 380px) {
+                    .radar-tab-btn-themed {
+                        font-size: 0.7rem !important;
+                        padding: 0.38rem 0.15rem !important;
+                    }
+                    .radar-digit-boxes-container {
+                        gap: 0.15rem !important;
+                    }
+                    .radar-digit-box-themed {
+                        font-size: 1.05rem !important;
+                        padding: 0.25rem 0.2rem !important;
+                        min-width: 1.35rem !important;
+                        border-radius: 5px !important;
                     }
                 }
             `}</style>
 
             <div
-                className="rounded-4 overflow-hidden d-flex flex-column animate-fade-in"
+                className="radar-modal-dialog rounded-4 overflow-hidden d-flex flex-column animate-fade-in"
                 style={{
-                    width: '100%',
-                    maxWidth: '880px',
-                    maxHeight: '92vh',
                     backgroundColor: theme.modalBg,
                     border: `1px solid ${theme.modalBorder}`,
                     boxShadow: theme.modalShadow,
@@ -937,43 +1098,38 @@ export const OnlineCommunityModal: React.FC = () => {
             >
                 {/* ── MODAL HEADER ── */}
                 <div
-                    className="d-flex align-items-center justify-content-between px-4 py-3 position-relative"
+                    className="radar-modal-header d-flex align-items-center justify-content-between position-relative"
                     style={{
                         background: theme.headerGradient,
                         borderBottom: theme.headerBorder,
                         transition: 'background 0.3s ease, border-bottom 0.3s ease',
+                        flexShrink: 0,
                     }}
                 >
-                    <div className="d-flex align-items-center gap-3">
+                    <div className="d-flex align-items-center gap-2.5 min-w-0">
                         <div
-                            className="d-flex align-items-center justify-content-center flex-shrink-0 rounded-3 text-white shadow-xs"
+                            className="radar-header-icon d-flex align-items-center justify-content-center flex-shrink-0 rounded-3 text-white shadow-xs"
                             style={{
-                                width: 44,
-                                height: 44,
                                 background: theme.headerIconBg,
-                                fontSize: '1.25rem',
                                 border: '1px solid rgba(255,255,255,0.25)',
                             }}
                         >
                             <i className="fa-solid fa-tower-broadcast"></i>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                             <div className="d-flex align-items-center gap-2">
-                                <span className="radar-pulse-ring text-warning d-inline-block">
+                                <span className="radar-pulse-ring text-warning flex-shrink-0">
                                     <span className="live-dot" style={{ width: 8, height: 8 }} />
                                 </span>
-                                <h3 id="communityRadarTitle" className="h5 ac-font text-white mb-0">
+                                <h3 id="communityRadarTitle" className="radar-header-title ac-font text-white mb-0 text-truncate">
                                     ChoPaeng Live Radar
                                 </h3>
-
                             </div>
-
                         </div>
                     </div>
 
                     {/* Header Controls: Close Button */}
-                    <div className="d-flex align-items-center gap-2">
-                        {/* Close Modal Button */}
+                    <div className="d-flex align-items-center gap-2 flex-shrink-0">
                         <button
                             type="button"
                             onClick={() => setIsOpen(false)}
@@ -993,14 +1149,15 @@ export const OnlineCommunityModal: React.FC = () => {
 
                 {/* ── TAB SELECTOR ── */}
                 <div
-                    className="px-4 py-3 d-flex align-items-center justify-content-between flex-wrap gap-2"
+                    className="radar-modal-tabs-bar d-flex align-items-center justify-content-between gap-2"
                     style={{
                         backgroundColor: theme.navBg,
                         borderBottom: `1px solid ${theme.navBorder}`,
                         transition: 'background-color 0.3s ease, border-color 0.3s ease',
+                        flexShrink: 0,
                     }}
                 >
-                    <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <div className="radar-tabs-nav d-flex align-items-center gap-1.5 gap-sm-2 flex-grow-1 min-w-0">
                         {/* Tab 1: Who's Online */}
                         <button
                             type="button"
@@ -1015,16 +1172,14 @@ export const OnlineCommunityModal: React.FC = () => {
                                 setActiveTab('online');
                             }}
                         >
-                            <i className="fa-solid fa-users"></i>
-                            <span>Who's online</span>
+                            <i className="fa-solid fa-users flex-shrink-0"></i>
+                            <span className="radar-tab-label-full">Who's online</span>
+                            <span className="radar-tab-label-short">Online</span>
                             <span
+                                className="radar-tab-count-pill"
                                 style={{
-                                    borderRadius: 999,
-                                    padding: '0.1rem 0.55rem',
-                                    fontSize: '0.72rem',
                                     backgroundColor: activeTab === 'online' ? 'rgba(255, 255, 255, 0.25)' : theme.countPillInactiveBg,
                                     color: activeTab === 'online' ? '#ffffff' : theme.countPillInactiveColor,
-                                    fontWeight: 800,
                                 }}
                             >
                                 {trafficStats.activeOnlineCount}
@@ -1045,16 +1200,14 @@ export const OnlineCommunityModal: React.FC = () => {
                                 setActiveTab('islands');
                             }}
                         >
-                            <i className="fa-solid fa-plane-arrival"></i>
-                            <span>Island occupancy</span>
+                            <i className="fa-solid fa-plane-arrival flex-shrink-0"></i>
+                            <span className="radar-tab-label-full">Island occupancy</span>
+                            <span className="radar-tab-label-short">Islands</span>
                             <span
+                                className="radar-tab-count-pill"
                                 style={{
-                                    borderRadius: 999,
-                                    padding: '0.1rem 0.55rem',
-                                    fontSize: '0.72rem',
                                     backgroundColor: activeTab === 'islands' ? 'rgba(255, 255, 255, 0.25)' : theme.countPillInactiveBg,
                                     color: activeTab === 'islands' ? '#ffffff' : theme.countPillInactiveColor,
-                                    fontWeight: 800,
                                 }}
                             >
                                 {occupancy.totalVisitors}
@@ -1075,16 +1228,14 @@ export const OnlineCommunityModal: React.FC = () => {
                                 setActiveTab('visits');
                             }}
                         >
-                            <i className="fa-solid fa-chart-line"></i>
-                            <span>All-time visits</span>
+                            <i className="fa-solid fa-chart-line flex-shrink-0"></i>
+                            <span className="radar-tab-label-full">All-time visits</span>
+                            <span className="radar-tab-label-short">Visits</span>
                             <span
+                                className="radar-tab-count-pill"
                                 style={{
-                                    borderRadius: 999,
-                                    padding: '0.1rem 0.55rem',
-                                    fontSize: '0.72rem',
                                     backgroundColor: activeTab === 'visits' ? 'rgba(255, 255, 255, 0.25)' : theme.countPillInactiveBg,
                                     color: activeTab === 'visits' ? '#ffffff' : theme.countPillInactiveColor,
-                                    fontWeight: 800,
                                 }}
                             >
                                 2.8M+
@@ -1093,14 +1244,14 @@ export const OnlineCommunityModal: React.FC = () => {
                     </div>
 
                     {/* Server status & Refresh beacon */}
-                    <div className="d-flex align-items-center gap-2 tiny-text" style={{ color: theme.mutedColor }}>
+                    <div className="d-flex align-items-center gap-1.5 tiny-text flex-shrink-0" style={{ color: theme.mutedColor }}>
                         {isServerLive ? (
-                            <span className="d-inline-flex align-items-center gap-1.5 fw-bold" style={{ color: theme.statusOnlineDot }}>
+                            <span className="d-inline-flex align-items-center gap-1 fw-bold" style={{ color: theme.statusOnlineDot }}>
                                 <span className="live-dot" style={{ width: 7, height: 7, backgroundColor: theme.statusOnlineDot }} />
-                                Live presence
+                                <span className="d-none d-md-inline">Live presence</span>
                             </span>
                         ) : (
-                            <span className="badge rounded-pill border" style={{ backgroundColor: theme.cardBg, borderColor: theme.cardBorder, color: theme.mutedColor }}>
+                            <span className="badge rounded-pill border d-none d-md-inline" style={{ backgroundColor: theme.cardBg, borderColor: theme.cardBorder, color: theme.mutedColor }}>
                                 Local roster
                             </span>
                         )}
@@ -1122,16 +1273,16 @@ export const OnlineCommunityModal: React.FC = () => {
 
                 {/* ── MODAL BODY SCROLLABLE ── */}
                 <div
-                    className="p-4 overflow-y-auto"
+                    className="radar-modal-body overflow-y-auto flex-grow-1"
                     style={{
                         backgroundColor: theme.bodyBg,
-                        maxHeight: 'calc(92vh - 165px)',
+                        minHeight: 0,
                         transition: 'background-color 0.3s ease',
                     }}
                 >
                     {waveFeedback && (
                         <div
-                            className="rounded-4 py-2.5 px-3.5 mb-3.5 d-flex align-items-center justify-content-between animate-bounce-gentle"
+                            className="rounded-4 py-2 px-3 mb-3 d-flex align-items-center justify-content-between animate-bounce-gentle"
                             style={{
                                 background: theme.cardBg,
                                 border: `1px solid ${waveFeedback.type === 'received' ? theme.tabActiveBg : theme.statusOnlineDot}`,
@@ -1139,14 +1290,14 @@ export const OnlineCommunityModal: React.FC = () => {
                                 transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                             }}
                         >
-                            <div className="d-flex align-items-center gap-2.5 min-w-0">
+                            <div className="d-flex align-items-center gap-2 min-w-0">
                                 {waveFeedback.avatarUrl ? (
                                     <img
                                         src={waveFeedback.avatarUrl}
                                         alt="Villager"
                                         style={{
-                                            width: 34,
-                                            height: 34,
+                                            width: 32,
+                                            height: 32,
                                             borderRadius: '50%',
                                             objectFit: 'cover',
                                             border: `2px solid ${waveFeedback.type === 'received' ? theme.tabActiveBg : theme.statusOnlineDot}`,
@@ -1170,13 +1321,50 @@ export const OnlineCommunityModal: React.FC = () => {
                                     )}
                                 </div>
                             </div>
-                            <button
-                                type="button"
-                                className="btn-close btn-close-sm ms-2 flex-shrink-0"
-                                style={{ filter: currentTheme === 'roost' ? 'invert(1)' : undefined }}
-                                onClick={() => setWaveFeedback(null)}
-                                aria-label="Dismiss wave notification"
-                            ></button>
+                            <div className="d-flex align-items-center gap-2 flex-shrink-0 ms-2">
+                                {waveFeedback.type === 'received' && waveFeedback.fromUsername && (
+                                    <button
+                                        type="button"
+                                        className="btn btn-sm rounded-pill px-3 py-1 fw-bold text-white d-inline-flex align-items-center gap-1.5 shadow-sm"
+                                        style={{
+                                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                            fontSize: '0.78rem',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                        }}
+                                        onClick={() => {
+                                            playWaveBackChime();
+                                            const myUsername = user?.username || 'Guest';
+                                            const myDisplayName = user?.nickname || user?.discord_name || (user?.username ? `@${user.username}` : 'Island Explorer');
+                                            broadcastResidentWave({
+                                                fromUsername: myUsername,
+                                                fromDisplayName: myDisplayName,
+                                                fromAvatarUrl: user?.avatar,
+                                                toUsername: waveFeedback.fromUsername!,
+                                                toDisplayName: waveFeedback.fromDisplayName || waveFeedback.fromUsername!,
+                                                toSessionId: waveFeedback.fromSessionId,
+                                            });
+                                            setWaveFeedback({
+                                                id: 'wave_back_' + Date.now(),
+                                                message: `✨ You waved back to ${waveFeedback.fromDisplayName || waveFeedback.fromUsername}!`,
+                                                subMessage: 'Friendly greetings returned across the skies!',
+                                                avatarUrl: waveFeedback.avatarUrl,
+                                                type: 'sent',
+                                            });
+                                            setTimeout(() => setWaveFeedback(null), 4500);
+                                        }}
+                                    >
+                                        Wave Back 👋
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    className="btn-close btn-close-sm flex-shrink-0"
+                                    style={{ filter: currentTheme === 'roost' ? 'invert(1)' : undefined }}
+                                    onClick={() => setWaveFeedback(null)}
+                                    aria-label="Dismiss wave notification"
+                                ></button>
+                            </div>
                         </div>
                     )}
 
@@ -1184,8 +1372,8 @@ export const OnlineCommunityModal: React.FC = () => {
                     {activeTab === 'online' && (
                         <div className="animate-fade-in">
                             {/* Filter & Search Bar */}
-                            <div className="row g-2 mb-3.5 align-items-center">
-                                <div className="col-md-5">
+                            <div className="row g-2 mb-3 align-items-center">
+                                <div className="col-12 col-md-5">
                                     <div className="position-relative">
                                         <i
                                             className="fa-solid fa-magnifying-glass position-absolute top-50 start-0 translate-middle-y ms-3"
@@ -1193,13 +1381,14 @@ export const OnlineCommunityModal: React.FC = () => {
                                         ></i>
                                         <input
                                             type="text"
-                                            className="form-control rounded-pill ps-5 pe-4 py-2 small shadow-2xs"
+                                            className="form-control rounded-pill ps-5 pe-4 py-1.5 small shadow-2xs"
                                             style={{
                                                 backgroundColor: theme.inputBg,
                                                 borderColor: theme.inputBorder,
                                                 color: theme.inputColor,
+                                                fontSize: '0.85rem',
                                             }}
-                                            placeholder="Search by name, IGN, or island..."
+                                            placeholder="Search name, IGN, or island..."
                                             value={searchQuery}
                                             onChange={(e) => setSearchQuery(e.target.value)}
                                         />
@@ -1216,53 +1405,55 @@ export const OnlineCommunityModal: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="col-md-7 d-flex align-items-center gap-1.5 justify-content-md-end flex-wrap">
-                                    {filterOptions.map((opt) => {
-                                        const isFilterActive = residentFilter === opt.key;
-                                        return (
-                                            <button
-                                                key={opt.key}
-                                                type="button"
-                                                className="radar-filter-chip-themed"
-                                                style={{
-                                                    backgroundColor: isFilterActive ? theme.filterActiveBg : 'transparent',
-                                                    color: isFilterActive ? theme.filterActiveColor : theme.filterInactiveColor,
-                                                    border: `1.5px solid ${isFilterActive ? theme.filterActiveBorder : 'transparent'}`,
-                                                    boxShadow: isFilterActive ? theme.filterActiveGlow : 'none',
-                                                }}
-                                                onClick={() => {
-                                                    playChimeClick();
-                                                    setResidentFilter(opt.key);
-                                                }}
-                                            >
-                                                <span>{opt.label}</span>
-                                                <span
-                                                    className="badge rounded-pill px-1.5 py-0.5 tiny-text"
+                                <div className="col-12 col-md-7">
+                                    <div className="radar-filters-scroll justify-content-start justify-content-md-end">
+                                        {filterOptions.map((opt) => {
+                                            const isFilterActive = residentFilter === opt.key;
+                                            return (
+                                                <button
+                                                    key={opt.key}
+                                                    type="button"
+                                                    className="radar-filter-chip-themed flex-shrink-0"
                                                     style={{
-                                                        background: isFilterActive ? theme.tabActiveBg : theme.countPillInactiveBg,
-                                                        color: isFilterActive ? '#ffffff' : theme.countPillInactiveColor,
+                                                        backgroundColor: isFilterActive ? theme.filterActiveBg : 'transparent',
+                                                        color: isFilterActive ? theme.filterActiveColor : theme.filterInactiveColor,
+                                                        border: `1.5px solid ${isFilterActive ? theme.filterActiveBorder : 'transparent'}`,
+                                                        boxShadow: isFilterActive ? theme.filterActiveGlow : 'none',
+                                                    }}
+                                                    onClick={() => {
+                                                        playChimeClick();
+                                                        setResidentFilter(opt.key);
                                                     }}
                                                 >
-                                                    {opt.count}
-                                                </span>
-                                            </button>
-                                        );
-                                    })}
+                                                    <span>{opt.label}</span>
+                                                    <span
+                                                        className="badge rounded-pill px-1.5 py-0.5 tiny-text"
+                                                        style={{
+                                                            background: isFilterActive ? theme.tabActiveBg : theme.countPillInactiveBg,
+                                                            color: isFilterActive ? '#ffffff' : theme.countPillInactiveColor,
+                                                        }}
+                                                    >
+                                                        {opt.count}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             </div>
 
                             {/* Residents Manifest */}
                             {filteredResidents.length === 0 ? (
                                 <div
-                                    className="p-5 text-center rounded-4 border"
+                                    className="p-4 p-sm-5 text-center rounded-4 border"
                                     style={{
                                         backgroundColor: theme.cardBg,
                                         borderColor: theme.cardBorder,
                                         color: theme.mutedColor,
                                     }}
                                 >
-                                    <i className="fa-solid fa-user-slash fs-1 mb-2 opacity-50 d-block"></i>
-                                    <div className="fw-bold mb-2">No online residents match your search.</div>
+                                    <i className="fa-solid fa-user-slash fs-2 mb-2 opacity-50 d-block"></i>
+                                    <div className="fw-bold mb-2 small">No online residents match your search.</div>
                                     <button
                                         type="button"
                                         className="btn btn-sm rounded-pill px-3 fw-bold"
@@ -1302,9 +1493,8 @@ export const OnlineCommunityModal: React.FC = () => {
                                                     <img
                                                         src={resident.avatarUrl}
                                                         alt={resident.displayName}
+                                                        className="radar-avatar-img"
                                                         style={{
-                                                            width: 46,
-                                                            height: 46,
                                                             borderRadius: '50%',
                                                             objectFit: 'cover',
                                                             border: `1px solid ${theme.cardBorder}`,
@@ -1324,77 +1514,81 @@ export const OnlineCommunityModal: React.FC = () => {
 
                                                 {/* Resident Identity & Action Details */}
                                                 <div className="flex-grow-1 min-w-0">
-                                                    <div className="d-flex align-items-center gap-2 flex-wrap">
-                                                        <span className="fw-bold" style={{ color: theme.textColor }}>
+                                                    <div className="d-flex align-items-center gap-1.5 flex-wrap">
+                                                        <span className="fw-bold text-truncate" style={{ color: theme.textColor, maxWidth: 160 }}>
                                                             {resident.displayName}
                                                         </span>
                                                         {resident.isCurrentUser && (
                                                             <span
-                                                                className="badge rounded-pill tiny-text px-2 py-0.5 fw-bold"
+                                                                className="badge rounded-pill tiny-text px-1.5 py-0.5 fw-bold"
                                                                 style={{
                                                                     backgroundColor: theme.tabActiveBg,
                                                                     color: '#ffffff',
+                                                                    fontSize: '0.66rem',
                                                                 }}
                                                             >
                                                                 YOU
                                                             </span>
                                                         )}
                                                         <span
-                                                            className="badge rounded-pill tiny-text px-2 py-0.5 font-monospace text-uppercase"
+                                                            className="badge rounded-pill tiny-text px-1.5 py-0.5 font-monospace text-uppercase"
                                                             style={{
                                                                 backgroundColor: theme.countPillInactiveBg,
                                                                 color: theme.mutedColor,
                                                                 border: `1px solid ${theme.cardBorder}`,
+                                                                fontSize: '0.66rem',
                                                             }}
                                                         >
                                                             {resident.role}
                                                         </span>
                                                         {wavedMap[resident.id] && (
                                                             <span
-                                                                className="badge rounded-pill tiny-text px-2 py-0.5 animate-bounce-gentle fw-bold"
+                                                                className="badge rounded-pill tiny-text px-1.5 py-0.5 animate-bounce-gentle fw-bold"
                                                                 style={{
                                                                     backgroundColor: `${theme.tabActiveBg}25`,
                                                                     color: theme.tabActiveBg,
                                                                     border: `1px solid ${theme.tabActiveBg}40`,
+                                                                    fontSize: '0.66rem',
                                                                 }}
                                                             >
                                                                 👋 Waved!
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="tiny-text font-monospace mt-0.5" style={{ color: theme.mutedColor }}>
+                                                    <div className="tiny-text font-monospace mt-0.5 text-truncate" style={{ color: theme.mutedColor }}>
                                                         IGN: <strong style={{ color: theme.textColor }}>{resident.ign}</strong> · 🏝️ {resident.islandName}
                                                     </div>
-                                                    <div className="tiny-text mt-0.5 d-flex align-items-center gap-1.5" style={{ color: dotColor }}>
+                                                    <div className="tiny-text mt-0.5 d-flex align-items-center gap-1 text-truncate" style={{ color: dotColor }}>
                                                         <i
-                                                            className={`fa-solid ${resident.status === 'on_island'
+                                                            className={`fa-solid flex-shrink-0 ${resident.status === 'on_island'
                                                                 ? 'fa-plane-departure'
                                                                 : resident.status === 'ordering'
                                                                     ? 'fa-box'
                                                                     : 'fa-circle-dot'
                                                                 }`}
-                                                            style={{ fontSize: '0.65rem' }}
+                                                            style={{ fontSize: '0.62rem' }}
                                                         ></i>
-                                                        <span>{resident.currentActivity}</span>
+                                                        <span className="text-truncate">{resident.currentActivity}</span>
                                                     </div>
                                                 </div>
 
                                                 {/* Right: Last active & Actions */}
-                                                <div className="text-end flex-shrink-0">
-                                                    <div className="tiny-text mb-1" style={{ color: theme.mutedColor }}>
+                                                <div className="text-end flex-shrink-0 d-flex flex-column align-items-end justify-content-center gap-1">
+                                                    <div className="tiny-text" style={{ color: theme.mutedColor, fontSize: '0.7rem' }}>
                                                         {resident.joinedMinutesAgo === 0 ? 'Active now' : `${resident.joinedMinutesAgo}m ago`}
                                                     </div>
-                                                    <div className="d-flex align-items-center gap-2 justify-content-end">
+                                                    <div className="d-flex align-items-center gap-1.5 justify-content-end">
                                                         {!resident.isCurrentUser ? (
                                                             <button
                                                                 type="button"
-                                                                className="btn btn-xs rounded-pill px-2.5 py-1 border shadow-2xs fw-bold transition-all"
+                                                                className="btn btn-xs rounded-pill px-2.5 py-0.5 border shadow-2xs fw-bold transition-all"
                                                                 style={{
                                                                     backgroundColor: wavedMap[resident.id] ? `${theme.tabActiveBg}22` : theme.cardBg,
                                                                     borderColor: wavedMap[resident.id] ? theme.tabActiveBg : theme.cardBorder,
                                                                     color: wavedMap[resident.id] ? theme.tabActiveBg : theme.textColor,
                                                                     transform: wavedMap[resident.id] ? 'scale(0.97)' : 'scale(1)',
                                                                     cursor: wavedMap[resident.id] ? 'default' : 'pointer',
+                                                                    fontSize: '0.72rem',
                                                                 }}
                                                                 title={wavedMap[resident.id] ? `Waved at ${resident.displayName}!` : `Wave hello to ${resident.displayName}`}
                                                                 onClick={() => handleWave(resident)}
@@ -1403,34 +1597,35 @@ export const OnlineCommunityModal: React.FC = () => {
                                                                 {wavedMap[resident.id] ? (
                                                                     <span className="d-inline-flex align-items-center gap-1">
                                                                         <i className="fa-solid fa-check text-success"></i>
-                                                                        <span>Waved!</span>
+                                                                        <span className="d-none d-sm-inline">Waved</span>
                                                                     </span>
                                                                 ) : (
-                                                                    <span>👋 Wave</span>
+                                                                    <span>👋 <span className="d-none d-sm-inline">Wave</span></span>
                                                                 )}
                                                             </button>
                                                         ) : (
                                                             <span
-                                                                className="badge rounded-pill px-2.5 py-1 fw-bold"
+                                                                className="badge rounded-pill px-2 py-0.5 fw-bold"
                                                                 style={{
                                                                     backgroundColor: `${theme.tabActiveBg}18`,
                                                                     color: theme.tabActiveBg,
                                                                     border: `1px solid ${theme.tabActiveBg}35`,
-                                                                    fontSize: '0.72rem',
+                                                                    fontSize: '0.7rem',
                                                                     letterSpacing: '0.02em',
                                                                 }}
                                                                 title="This is your own resident profile"
                                                             >
-                                                                ✨ That's You
+                                                                ✨ You
                                                             </span>
                                                         )}
                                                         {resident.hasPublicPassport ? (
                                                             <button
                                                                 type="button"
-                                                                className="btn btn-xs rounded-pill px-2.5 py-1 fw-bold text-white shadow-2xs"
+                                                                className="btn btn-xs rounded-pill px-2 py-0.5 fw-bold text-white shadow-2xs"
                                                                 style={{
                                                                     backgroundColor: theme.tabActiveBg,
                                                                     border: 'none',
+                                                                    fontSize: '0.72rem',
                                                                 }}
                                                                 onClick={() => {
                                                                     playChimeClick();
@@ -1441,7 +1636,7 @@ export const OnlineCommunityModal: React.FC = () => {
                                                                 Passport
                                                             </button>
                                                         ) : (
-                                                            <span className="tiny-text fst-italic" style={{ color: theme.mutedColor }}>
+                                                            <span className="tiny-text fst-italic d-none d-sm-inline" style={{ color: theme.mutedColor }}>
                                                                 Private
                                                             </span>
                                                         )}
@@ -1454,7 +1649,7 @@ export const OnlineCommunityModal: React.FC = () => {
                             )}
 
                             <p className="tiny-text mt-3 mb-0 text-center" style={{ color: theme.mutedColor }}>
-                                Showing residents registered on ChoPaeng · Live presence heartbeat synced via {theme.telemetryTag}.
+                                Showing residents registered on ChoPaeng · Synced via {theme.telemetryTag}.
                             </p>
                         </div>
                     )}
@@ -1464,45 +1659,45 @@ export const OnlineCommunityModal: React.FC = () => {
                         <div className="animate-fade-in">
                             {/* Hero Island Occupancy — reuses DAL flight-card aesthetics with theme styling */}
                             <div
-                                className="rounded-4 overflow-hidden mb-4 border shadow-sm"
+                                className="rounded-4 overflow-hidden mb-3 mb-sm-4 border shadow-sm"
                                 style={{
                                     backgroundColor: theme.cardBg,
                                     borderColor: theme.cardBorder,
                                 }}
                             >
                                 <div
-                                    className="px-4 py-2.5 fw-bold text-white d-flex align-items-center justify-content-between text-uppercase font-monospace"
+                                    className="px-3 px-sm-4 py-2 py-sm-2.5 fw-bold text-white d-flex align-items-center justify-content-between text-uppercase font-monospace flex-wrap gap-1"
                                     style={{
                                         background: theme.flightCardHeader,
                                         borderBottom: `3px solid ${theme.flightCardHeaderBorder}`,
-                                        fontSize: '0.82rem',
-                                        letterSpacing: '0.08em',
+                                        fontSize: '0.76rem',
+                                        letterSpacing: '0.06em',
                                     }}
                                 >
-                                    <span>
-                                        <i className="fa-solid fa-plane-departure me-2" />
-                                        LIVE ISLAND OCCUPANCY &amp; GATE MONITOR
+                                    <span className="text-truncate">
+                                        <i className="fa-solid fa-plane-departure me-1.5" />
+                                        LIVE ISLAND OCCUPANCY
                                     </span>
                                     <span className="badge rounded-pill bg-white text-dark py-0.5 px-2 tiny-text fw-bold">
                                         RADAR SYNC
                                     </span>
                                 </div>
 
-                                <div className="p-4" style={{ backgroundColor: theme.flightCardBody }}>
-                                    <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                <div className="p-3 p-sm-4" style={{ backgroundColor: theme.flightCardBody }}>
+                                    <div className="d-flex align-items-center justify-content-between gap-2 mb-2.5">
                                         <div>
                                             <div className="tiny-text text-uppercase fw-bold font-monospace" style={{ color: theme.flightLabelColor }}>
                                                 PLAYERS ON ISLANDS
                                             </div>
-                                            <div className="h2 ac-font mb-0" style={{ color: theme.flightValueColor }}>
+                                            <div className="fs-3 fs-sm-2 ac-font mb-0" style={{ color: theme.flightValueColor }}>
                                                 {occupancy.totalVisitors} Passengers
                                             </div>
                                         </div>
                                         <div className="text-end">
                                             <div className="tiny-text text-uppercase fw-bold font-monospace" style={{ color: theme.flightLabelColor }}>
-                                                TOTAL CAPACITY
+                                                CAPACITY
                                             </div>
-                                            <div className="h2 ac-font mb-0" style={{ color: theme.flightValueColor }}>
+                                            <div className="fs-3 fs-sm-2 ac-font mb-0" style={{ color: theme.flightValueColor }}>
                                                 {occupancy.percentFull}%
                                             </div>
                                         </div>
@@ -1511,7 +1706,7 @@ export const OnlineCommunityModal: React.FC = () => {
                                     {/* Runway Progress Meter */}
                                     <div
                                         className="progress rounded-pill overflow-hidden shadow-inset"
-                                        style={{ height: 12, backgroundColor: theme.progressTrackBg }}
+                                        style={{ height: 10, backgroundColor: theme.progressTrackBg }}
                                     >
                                         <div
                                             className="progress-bar progress-bar-striped progress-bar-animated"
@@ -1526,98 +1721,99 @@ export const OnlineCommunityModal: React.FC = () => {
                                         ></div>
                                     </div>
 
-                                    <div className="d-flex justify-content-between tiny-text font-monospace mt-2" style={{ color: theme.flightLabelColor }}>
-                                        <span>0 Passengers</span>
-                                        <span>{occupancy.totalVisitors} / {occupancy.maxCapacity} Seats Occupied</span>
-                                        <span>Full ({occupancy.maxCapacity})</span>
+                                    <div className="d-flex justify-content-between tiny-text font-monospace mt-1.5" style={{ color: theme.flightLabelColor, fontSize: '0.72rem' }}>
+                                        <span>0</span>
+                                        <span>{occupancy.totalVisitors} / {occupancy.maxCapacity} Seats</span>
+                                        <span>{occupancy.maxCapacity} Full</span>
                                     </div>
                                 </div>
 
                                 <div
-                                    className="px-4 py-2 tiny-text text-white d-flex align-items-center justify-content-between font-monospace"
-                                    style={{ background: theme.flightFooterBg }}
+                                    className="px-3 px-sm-4 py-1.5 tiny-text text-white d-flex align-items-center justify-content-between font-monospace"
+                                    style={{ background: theme.flightFooterBg, fontSize: '0.72rem' }}
                                 >
                                     <span>{occupancy.onlineIslandCount} GATES ACTIVE</span>
-                                    <span>{occupancy.maxCapacity} SLOTS ACROSS ALL ISLANDS</span>
+                                    <span>{occupancy.maxCapacity} SLOTS TOTAL</span>
                                 </div>
                             </div>
 
                             {/* 4 Stat Metric Highlight Cards */}
-                            <div className="row g-3 mb-4">
+                            <div className="row g-2 g-sm-3 mb-3 mb-sm-4">
                                 <div className="col-6 col-md-3">
                                     <div
-                                        className="p-3 rounded-4 border text-center shadow-xs"
+                                        className="p-2.5 p-sm-3 rounded-4 border text-center shadow-xs"
                                         style={{ backgroundColor: theme.statCardBg, borderColor: theme.statCardBorder }}
                                     >
-                                        <div className="tiny-text fw-bold text-uppercase font-monospace" style={{ color: theme.statLabelColor }}>
+                                        <div className="tiny-text fw-bold text-uppercase font-monospace text-truncate" style={{ color: theme.statLabelColor }}>
                                             Online Gates
                                         </div>
-                                        <div className="fs-3 fw-black mt-1" style={{ color: theme.statusOnlineDot }}>
+                                        <div className="fs-4 fs-sm-3 fw-black mt-0.5 mt-sm-1" style={{ color: theme.statusOnlineDot }}>
                                             {occupancy.onlineIslandCount}
                                         </div>
-                                        <div className="tiny-text" style={{ color: theme.mutedColor }}>Islands active</div>
+                                        <div className="tiny-text text-truncate" style={{ color: theme.mutedColor }}>Islands active</div>
                                     </div>
                                 </div>
 
                                 <div className="col-6 col-md-3">
                                     <div
-                                        className="p-3 rounded-4 border text-center shadow-xs"
+                                        className="p-2.5 p-sm-3 rounded-4 border text-center shadow-xs"
                                         style={{ backgroundColor: theme.statCardBg, borderColor: theme.statCardBorder }}
                                     >
-                                        <div className="tiny-text fw-bold text-uppercase font-monospace" style={{ color: theme.statLabelColor }}>
+                                        <div className="tiny-text fw-bold text-uppercase font-monospace text-truncate" style={{ color: theme.statLabelColor }}>
                                             Public Visitors
                                         </div>
-                                        <div className="fs-3 fw-black mt-1" style={{ color: '#38bdf8' }}>
+                                        <div className="fs-4 fs-sm-3 fw-black mt-0.5 mt-sm-1" style={{ color: '#38bdf8' }}>
                                             {occupancy.publicVisitors}
                                         </div>
-                                        <div className="tiny-text" style={{ color: theme.mutedColor }}>Free public gates</div>
+                                        <div className="tiny-text text-truncate" style={{ color: theme.mutedColor }}>Free public gates</div>
                                     </div>
                                 </div>
 
                                 <div className="col-6 col-md-3">
                                     <div
-                                        className="p-3 rounded-4 border text-center shadow-xs"
+                                        className="p-2.5 p-sm-3 rounded-4 border text-center shadow-xs"
                                         style={{ backgroundColor: theme.statCardBg, borderColor: theme.statCardBorder }}
                                     >
-                                        <div className="tiny-text fw-bold text-uppercase font-monospace" style={{ color: theme.statLabelColor }}>
+                                        <div className="tiny-text fw-bold text-uppercase font-monospace text-truncate" style={{ color: theme.statLabelColor }}>
                                             Sub Travelers
                                         </div>
-                                        <div className="fs-3 fw-black mt-1" style={{ color: '#fbbf24' }}>
+                                        <div className="fs-4 fs-sm-3 fw-black mt-0.5 mt-sm-1" style={{ color: '#fbbf24' }}>
                                             {occupancy.memberVisitors}
                                         </div>
-                                        <div className="tiny-text" style={{ color: theme.mutedColor }}>Sub member islands</div>
+                                        <div className="tiny-text text-truncate" style={{ color: theme.mutedColor }}>Sub member islands</div>
                                     </div>
                                 </div>
 
                                 <div className="col-6 col-md-3">
                                     <div
-                                        className="p-3 rounded-4 border text-center shadow-xs"
+                                        className="p-2.5 p-sm-3 rounded-4 border text-center shadow-xs"
                                         style={{ backgroundColor: theme.statCardBg, borderColor: theme.statCardBorder }}
                                     >
-                                        <div className="tiny-text fw-bold text-uppercase font-monospace" style={{ color: theme.statLabelColor }}>
+                                        <div className="tiny-text fw-bold text-uppercase font-monospace text-truncate" style={{ color: theme.statLabelColor }}>
                                             Refreshing
                                         </div>
-                                        <div className="fs-3 fw-black mt-1" style={{ color: theme.mutedColor }}>
+                                        <div className="fs-4 fs-sm-3 fw-black mt-0.5 mt-sm-1" style={{ color: theme.mutedColor }}>
                                             {occupancy.refreshingCount}
                                         </div>
-                                        <div className="tiny-text" style={{ color: theme.mutedColor }}>Resetting Dodo</div>
+                                        <div className="tiny-text text-truncate" style={{ color: theme.mutedColor }}>Resetting Dodo</div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Island-by-Island Passenger Roster */}
-                            <div className="d-flex align-items-center justify-content-between mb-2.5">
+                            <div className="d-flex align-items-center justify-content-between mb-2.5 flex-wrap gap-2">
                                 <h5 className="h6 ac-font mb-0" style={{ color: theme.textColor }}>
                                     <i className="fa-solid fa-list-check me-2" style={{ color: theme.statusOnlineDot }}></i>
                                     Island Flight Roster &amp; Gate Occupancy
                                 </h5>
                                 <button
                                     type="button"
-                                    className="btn btn-sm rounded-pill px-3 fw-bold border shadow-2xs"
+                                    className="btn btn-xs btn-sm rounded-pill px-2.5 py-1 fw-bold border shadow-2xs"
                                     style={{
                                         backgroundColor: theme.cardBg,
                                         borderColor: theme.cardBorder,
                                         color: theme.textColor,
+                                        fontSize: '0.74rem',
                                     }}
                                     onClick={() => {
                                         playChimeClick();
@@ -1625,12 +1821,12 @@ export const OnlineCommunityModal: React.FC = () => {
                                         navigate('/islands');
                                     }}
                                 >
-                                    Open Full Board <i className="fa-solid fa-arrow-right ms-1"></i>
+                                    Open Board <i className="fa-solid fa-arrow-right ms-1"></i>
                                 </button>
                             </div>
 
                             <div
-                                className="rounded-4 p-3 border shadow-xs"
+                                className="rounded-4 p-2.5 p-sm-3 border shadow-xs"
                                 style={{
                                     backgroundColor: theme.cardBg,
                                     borderColor: theme.cardBorder,
@@ -1646,9 +1842,9 @@ export const OnlineCommunityModal: React.FC = () => {
 
                                         return (
                                             <div key={island.name} className="radar-gate-row-themed">
-                                                <div className="d-flex align-items-center gap-3 min-w-0">
+                                                <div className="d-flex align-items-center gap-2.5 min-w-0 flex-grow-1">
                                                     <span
-                                                        className="badge rounded-pill px-2.5 py-1 tiny-text fw-bold font-monospace"
+                                                        className="badge rounded-pill px-2 py-0.5 tiny-text fw-bold font-monospace flex-shrink-0"
                                                         style={{
                                                             backgroundColor: isFull
                                                                 ? 'rgba(239, 68, 68, 0.18)'
@@ -1662,19 +1858,20 @@ export const OnlineCommunityModal: React.FC = () => {
                                                                     : theme.statusOnlineDot,
                                                             border: `1px solid ${isFull ? '#ef4444' : island.cat === 'member' ? '#f59e0b' : theme.statusOnlineDot
                                                                 }`,
+                                                            fontSize: '0.68rem',
                                                         }}
                                                     >
-                                                        {isFull ? 'FULL' : island.cat === 'member' ? 'SUB' : 'PUBLIC'}
+                                                        {isFull ? 'FULL' : island.cat === 'member' ? 'SUB' : 'PUB'}
                                                     </span>
-                                                    <div>
-                                                        <strong style={{ color: theme.textColor }}>{island.name}</strong>
-                                                        <div className="tiny-text font-monospace" style={{ color: theme.mutedColor }}>
+                                                    <div className="min-w-0">
+                                                        <strong className="text-truncate d-block" style={{ color: theme.textColor, fontSize: '0.86rem' }}>{island.name}</strong>
+                                                        <div className="tiny-text font-monospace text-truncate" style={{ color: theme.mutedColor, fontSize: '0.7rem' }}>
                                                             {isFull ? 'Gate full (7/7 seats)' : `${island.visitors}/7 seats taken`}
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                <div className="d-flex align-items-center gap-3">
+                                                <div className="d-flex align-items-center gap-2 flex-shrink-0">
                                                     {/* 7 Passenger Seat Indicator Dots */}
                                                     <div className="d-flex align-items-center gap-1" title={`${island.visitors}/7 Passengers`}>
                                                         {Array.from({ length: 7 }).map((_, i) => (
@@ -1693,11 +1890,12 @@ export const OnlineCommunityModal: React.FC = () => {
                                                     {island.dodoCode && island.dodoCode !== "GETTIN'" && (
                                                         <button
                                                             type="button"
-                                                            className="btn btn-xs rounded-pill px-3 py-1 fw-bold font-monospace border shadow-2xs"
+                                                            className="btn btn-xs rounded-pill px-2.5 py-0.5 fw-bold font-monospace border shadow-2xs"
                                                             style={{
                                                                 backgroundColor: copiedDodo === island.dodoCode ? theme.tabActiveBg : theme.dodoTicketBg,
                                                                 borderColor: copiedDodo === island.dodoCode ? theme.tabActiveBg : theme.dodoTicketBorder,
                                                                 color: copiedDodo === island.dodoCode ? '#ffffff' : theme.dodoTicketCode,
+                                                                fontSize: '0.74rem',
                                                             }}
                                                             onClick={() => handleCopyDodo(island.dodoCode!)}
                                                         >
@@ -1727,7 +1925,7 @@ export const OnlineCommunityModal: React.FC = () => {
                         <div className="animate-fade-in text-center">
                             {/* Odometer Window styled as a retro flight terminal readout */}
                             <div
-                                className="rounded-4 overflow-hidden border shadow-sm mb-4 text-start"
+                                className="rounded-4 overflow-hidden border shadow-sm mb-3 mb-sm-4 text-start"
                                 style={{
                                     backgroundColor: theme.terminalBodyBg,
                                     borderColor: theme.terminalHeaderBg,
@@ -1740,28 +1938,28 @@ export const OnlineCommunityModal: React.FC = () => {
                                         borderColor: 'rgba(255,255,255,0.08)',
                                     }}
                                 >
-                                    <span className="rounded-circle d-inline-block" style={{ width: 10, height: 10, backgroundColor: '#ef4444' }} />
-                                    <span className="rounded-circle d-inline-block" style={{ width: 10, height: 10, backgroundColor: '#f59e0b' }} />
-                                    <span className="rounded-circle d-inline-block" style={{ width: 10, height: 10, backgroundColor: '#22c55e' }} />
-                                    <span className="tiny-text font-monospace text-white-50 ms-2">
-                                        all_time_community_flights.log &middot; {theme.telemetryTag}
+                                    <span className="rounded-circle d-inline-block flex-shrink-0" style={{ width: 9, height: 9, backgroundColor: '#ef4444' }} />
+                                    <span className="rounded-circle d-inline-block flex-shrink-0" style={{ width: 9, height: 9, backgroundColor: '#f59e0b' }} />
+                                    <span className="rounded-circle d-inline-block flex-shrink-0" style={{ width: 9, height: 9, backgroundColor: '#22c55e' }} />
+                                    <span className="tiny-text font-monospace text-white-50 ms-1 text-truncate">
+                                        flights.log &middot; {theme.telemetryTag}
                                     </span>
                                 </div>
 
-                                <div className="p-4 p-md-5 text-center">
+                                <div className="p-3 p-sm-4 p-md-5 text-center">
                                     <div
-                                        className="tiny-text fw-bold text-uppercase mb-2 font-monospace"
-                                        style={{ color: theme.digitBoxColor, letterSpacing: '0.12em' }}
+                                        className="tiny-text fw-bold text-uppercase mb-1.5 font-monospace"
+                                        style={{ color: theme.digitBoxColor, letterSpacing: '0.1em' }}
                                     >
                                         <i className="fa-solid fa-satellite-dish me-1.5"></i>
                                         LIFETIME FLIGHT DISPATCH TELEMETRY
                                     </div>
-                                    <h4 className="h3 ac-font text-white mb-4">
-                                        All-Time Community Flights &amp; Site Visits
+                                    <h4 className="fs-4 fs-sm-3 ac-font text-white mb-3">
+                                        All-Time Community Flights &amp; Visits
                                     </h4>
 
                                     {/* Themed Odometer Digit Boxes */}
-                                    <div className="d-flex align-items-center justify-content-center gap-1.5 flex-wrap mb-4">
+                                    <div className="radar-digit-boxes-container mb-3 mb-sm-4">
                                         {visitDigits.map((digit, idx) => (
                                             <div
                                                 key={idx}
@@ -1778,65 +1976,65 @@ export const OnlineCommunityModal: React.FC = () => {
                                         ))}
                                     </div>
 
-                                    <p className="small mb-0 mx-auto" style={{ color: 'rgba(255,255,255,0.7)', maxWidth: 460 }}>
-                                        Every flight, inventory search, catalog lookup, and bot order across all Animal Crossing players worldwide.
+                                    <p className="tiny-text mb-0 mx-auto" style={{ color: 'rgba(255,255,255,0.7)', maxWidth: 460 }}>
+                                        Every flight, inventory search, catalog lookup, and bot order worldwide.
                                     </p>
                                 </div>
                             </div>
 
-                            {/* Secondary Metrics */}
-                            <div className="row g-3 mb-4">
-                                <div className="col-md-4">
+                            {/* Secondary Metrics: 3-column on all viewports */}
+                            <div className="row g-2 g-sm-3 mb-3 mb-sm-4">
+                                <div className="col-4">
                                     <div
-                                        className="p-3.5 rounded-4 border text-center shadow-xs"
+                                        className="p-2.5 p-sm-3.5 rounded-4 border text-center shadow-xs"
                                         style={{ backgroundColor: theme.statCardBg, borderColor: theme.statCardBorder }}
                                     >
-                                        <div className="tiny-text fw-bold text-uppercase font-monospace" style={{ color: theme.statLabelColor }}>
-                                            Visits Today
+                                        <div className="tiny-text fw-bold text-uppercase font-monospace text-truncate" style={{ color: theme.statLabelColor }}>
+                                            Today
                                         </div>
-                                        <div className="fs-3 fw-black mt-1" style={{ color: theme.statusOnlineDot }}>
+                                        <div className="fs-4 fs-sm-3 fw-black mt-0.5 mt-sm-1" style={{ color: theme.statusOnlineDot }}>
                                             {trafficStats.visitsToday.toLocaleString()}
                                         </div>
-                                        <div className="tiny-text" style={{ color: theme.mutedColor }}>Logged today</div>
+                                        <div className="tiny-text text-truncate d-none d-sm-block" style={{ color: theme.mutedColor }}>Logged today</div>
                                     </div>
                                 </div>
 
-                                <div className="col-md-4">
+                                <div className="col-4">
                                     <div
-                                        className="p-3.5 rounded-4 border text-center shadow-xs"
+                                        className="p-2.5 p-sm-3.5 rounded-4 border text-center shadow-xs"
                                         style={{ backgroundColor: theme.statCardBg, borderColor: theme.statCardBorder }}
                                     >
-                                        <div className="tiny-text fw-bold text-uppercase font-monospace" style={{ color: theme.statLabelColor }}>
-                                            Visits This Week
+                                        <div className="tiny-text fw-bold text-uppercase font-monospace text-truncate" style={{ color: theme.statLabelColor }}>
+                                            This Week
                                         </div>
-                                        <div className="fs-3 fw-black mt-1" style={{ color: '#38bdf8' }}>
+                                        <div className="fs-4 fs-sm-3 fw-black mt-0.5 mt-sm-1" style={{ color: '#38bdf8' }}>
                                             {trafficStats.visitsThisWeek.toLocaleString()}
                                         </div>
-                                        <div className="tiny-text" style={{ color: theme.mutedColor }}>7-day traffic</div>
+                                        <div className="tiny-text text-truncate d-none d-sm-block" style={{ color: theme.mutedColor }}>7-day traffic</div>
                                     </div>
                                 </div>
 
-                                <div className="col-md-4">
+                                <div className="col-4">
                                     <div
-                                        className="p-3.5 rounded-4 border text-center shadow-xs"
+                                        className="p-2.5 p-sm-3.5 rounded-4 border text-center shadow-xs"
                                         style={{ backgroundColor: theme.statCardBg, borderColor: theme.statCardBorder }}
                                     >
-                                        <div className="tiny-text fw-bold text-uppercase font-monospace" style={{ color: theme.statLabelColor }}>
-                                            Active Online
+                                        <div className="tiny-text fw-bold text-uppercase font-monospace text-truncate" style={{ color: theme.statLabelColor }}>
+                                            Active
                                         </div>
-                                        <div className="fs-3 fw-black mt-1" style={{ color: theme.digitBoxColor }}>
+                                        <div className="fs-4 fs-sm-3 fw-black mt-0.5 mt-sm-1" style={{ color: theme.digitBoxColor }}>
                                             {trafficStats.activeOnlineCount}
                                         </div>
-                                        <div className="tiny-text" style={{ color: theme.mutedColor }}>Residents active now</div>
+                                        <div className="tiny-text text-truncate d-none d-sm-block" style={{ color: theme.mutedColor }}>Online now</div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Community Achievements */}
-                            <div className="row g-3 text-start">
-                                <div className="col-md-6">
+                            <div className="row g-2 g-sm-3 text-start">
+                                <div className="col-12 col-md-6">
                                     <div
-                                        className="p-3.5 rounded-4 border shadow-xs d-flex align-items-start gap-3"
+                                        className="p-3 rounded-4 border shadow-xs d-flex align-items-start gap-2.5"
                                         style={{
                                             backgroundColor: theme.milestoneCardBg,
                                             borderColor: theme.milestoneCardBorder,
@@ -1845,29 +2043,29 @@ export const OnlineCommunityModal: React.FC = () => {
                                         <div
                                             className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
                                             style={{
-                                                width: 40,
-                                                height: 40,
+                                                width: 36,
+                                                height: 36,
                                                 backgroundColor: 'rgba(245, 158, 11, 0.18)',
                                                 color: '#f59e0b',
-                                                fontSize: '1.2rem',
+                                                fontSize: '1.05rem',
                                             }}
                                         >
                                             <i className="fa-solid fa-trophy"></i>
                                         </div>
-                                        <div>
-                                            <div className="fw-bold" style={{ color: theme.milestoneTitleColor }}>
-                                                Over 2.8 Million Visits Milestone
+                                        <div className="min-w-0">
+                                            <div className="fw-bold small text-truncate" style={{ color: theme.milestoneTitleColor }}>
+                                                Over 2.8 Million Visits
                                             </div>
                                             <div className="tiny-text" style={{ color: theme.milestoneTextColor }}>
-                                                ChoPaeng has served over 2.8 million animal crossing flights, item searches, and orders!
+                                                ChoPaeng has served over 2.8 million flights, item searches, and orders!
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="col-md-6">
+                                <div className="col-12 col-md-6">
                                     <div
-                                        className="p-3.5 rounded-4 border shadow-xs d-flex align-items-start gap-3"
+                                        className="p-3 rounded-4 border shadow-xs d-flex align-items-start gap-2.5"
                                         style={{
                                             backgroundColor: theme.milestoneCardBg,
                                             borderColor: theme.milestoneCardBorder,
@@ -1876,21 +2074,21 @@ export const OnlineCommunityModal: React.FC = () => {
                                         <div
                                             className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
                                             style={{
-                                                width: 40,
-                                                height: 40,
+                                                width: 36,
+                                                height: 36,
                                                 backgroundColor: 'rgba(56, 189, 248, 0.18)',
                                                 color: '#38bdf8',
-                                                fontSize: '1.2rem',
+                                                fontSize: '1.05rem',
                                             }}
                                         >
                                             <i className="fa-solid fa-plane-departure"></i>
                                         </div>
-                                        <div>
-                                            <div className="fw-bold" style={{ color: theme.milestoneTitleColor }}>
-                                                24/7 Flight Gate Uptime
+                                        <div className="min-w-0">
+                                            <div className="fw-bold small text-truncate" style={{ color: theme.milestoneTitleColor }}>
+                                                24/7 Gate Telemetry
                                             </div>
                                             <div className="tiny-text" style={{ color: theme.milestoneTextColor }}>
-                                                Near-zero airport delays with continuous automated Dodo code refreshing and live telemetry.
+                                                Near-zero delays with continuous automated Dodo code refreshing.
                                             </div>
                                         </div>
                                     </div>
@@ -1902,21 +2100,22 @@ export const OnlineCommunityModal: React.FC = () => {
 
                 {/* ── MODAL FOOTER ── */}
                 <div
-                    className="px-4 py-2.5 d-flex align-items-center justify-content-between flex-wrap gap-2"
+                    className="radar-modal-footer d-flex align-items-center justify-content-between flex-wrap gap-2"
                     style={{
                         backgroundColor: theme.footerBg,
                         borderTop: `1px solid ${theme.footerBorder}`,
                         color: theme.footerText,
                         transition: 'background-color 0.3s ease, border-color 0.3s ease',
+                        flexShrink: 0,
                     }}
                 >
-                    <span className="tiny-text font-monospace d-flex align-items-center gap-2">
+                    <span className="tiny-text font-monospace d-flex align-items-center gap-1.5 text-truncate">
                         <span className="live-dot" style={{ width: 7, height: 7, backgroundColor: theme.statusOnlineDot }}></span>
-                        {theme.telemetryTag} &middot; Live telemetry feed
+                        <span className="text-truncate">{theme.telemetryTag} &middot; Live feed</span>
                     </span>
                     <button
                         type="button"
-                        className="btn btn-sm rounded-pill px-3.5 py-1 tiny-text fw-bold border-0 shadow-2xs"
+                        className="btn btn-sm rounded-pill px-3 py-1 tiny-text fw-bold border-0 shadow-2xs"
                         style={{
                             background: 'rgba(255,255,255,0.15)',
                             color: '#ffffff',

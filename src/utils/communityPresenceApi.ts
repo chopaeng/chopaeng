@@ -219,26 +219,17 @@ const MOCK_ONLINE_RESIDENTS: Omit<OnlineResident, 'id'>[] = [
     },
 ];
 
-// Broadcast channel for real-time multi-tab cross-communication
-let communityChannel: BroadcastChannel | null = null;
-try {
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-        communityChannel = new BroadcastChannel('chopaeng_community_radar_v1');
-        communityChannel.onmessage = (event) => {
-            try {
-                const { type, payload } = event.data || {};
-                if (type === 'TRAFFIC_UPDATED' && payload) {
-                    window.dispatchEvent(new CustomEvent('chopaeng_traffic_updated', { detail: payload }));
-                } else if (type === 'RESIDENT_WAVED' && payload) {
-                    window.dispatchEvent(new CustomEvent('chopaeng_resident_wave', { detail: payload }));
-                }
-            } catch {
-                // ignore
-            }
-        };
-    }
-} catch {
-    // Unsupported or private mode
+export interface WaveNotification {
+    id: string;
+    fromUsername: string;
+    fromDisplayName: string;
+    fromAvatarUrl?: string;
+    fromSessionId?: string;
+    toUsername: string;
+    toDisplayName: string;
+    toSessionId?: string;
+    timestamp: number;
+    isIncoming?: boolean;
 }
 
 /**
@@ -256,6 +247,95 @@ export const getPresenceSessionId = (): string => {
         return 'sess_temp_' + Date.now().toString(36);
     }
 };
+
+let activePresenceUser: { username?: string; name?: string; avatar?: string } | null = null;
+export const setActivePresenceUser = (u: { username?: string; name?: string; avatar?: string } | null) => {
+    activePresenceUser = u;
+};
+export const getActivePresenceUser = () => activePresenceUser;
+
+/**
+ * Evaluates whether an incoming wave is addressed to this local user/session
+ */
+export const isWaveForMe = (wave: WaveNotification): boolean => {
+    if (!wave) return false;
+    const currentSessionId = getPresenceSessionId();
+    const myUsername = (activePresenceUser?.username || getStoredPassport()?.username || '').toLowerCase().trim();
+
+    if (wave.toUsername && myUsername && wave.toUsername.toLowerCase().trim() === myUsername) {
+        return true;
+    }
+    if (wave.toSessionId && wave.toSessionId === currentSessionId) {
+        return true;
+    }
+    return false;
+};
+
+const seenWaveIds = new Set<string>();
+
+/**
+ * Dispatches an incoming wave event locally if not already seen
+ */
+export const dispatchIncomingWave = (wave: WaveNotification) => {
+    if (!wave || !wave.id || seenWaveIds.has(wave.id)) return;
+    seenWaveIds.add(wave.id);
+    if (seenWaveIds.size > 200) {
+        const first = seenWaveIds.values().next().value;
+        if (first) seenWaveIds.delete(first);
+    }
+    const full: WaveNotification = {
+        ...wave,
+        isIncoming: true,
+    };
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('chopaeng_resident_wave', { detail: full }));
+    }
+};
+
+// Broadcast channel for real-time multi-tab cross-communication
+let communityChannel: BroadcastChannel | null = null;
+try {
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        communityChannel = new BroadcastChannel('chopaeng_community_radar_v1');
+        communityChannel.onmessage = (event) => {
+            try {
+                const { type, payload } = event.data || {};
+                if (type === 'TRAFFIC_UPDATED' && payload) {
+                    window.dispatchEvent(new CustomEvent('chopaeng_traffic_updated', { detail: payload }));
+                } else if (type === 'RESIDENT_WAVED' && payload) {
+                    const mySessionId = getPresenceSessionId();
+                    if (payload.fromSessionId === mySessionId) return;
+                    if (isWaveForMe(payload)) {
+                        dispatchIncomingWave(payload);
+                    }
+                }
+            } catch {
+                // ignore
+            }
+        };
+    }
+} catch {
+    // Unsupported or private mode
+}
+
+// Storage event listener for multi-window / multi-tab synchronization fallback
+if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (event) => {
+        if (event.key === 'chopaeng_resident_wave_bus' && event.newValue) {
+            try {
+                const payload = JSON.parse(event.newValue) as WaveNotification;
+                if (!payload || !payload.id) return;
+                const mySessionId = getPresenceSessionId();
+                if (payload.fromSessionId === mySessionId) return;
+                if (isWaveForMe(payload)) {
+                    dispatchIncomingWave(payload);
+                }
+            } catch {
+                // ignore
+            }
+        }
+    });
+}
 
 /**
  * Determine activity description and status from current route path
@@ -416,6 +496,11 @@ export const sendPresenceHeartbeat = async (
             const data = await res.json();
             if (typeof data.online_count === 'number') {
                 updateTrafficStats({ activeOnlineCount: data.online_count });
+            }
+            if (Array.isArray(data.pending_waves) && data.pending_waves.length > 0) {
+                for (const pw of data.pending_waves) {
+                    dispatchIncomingWave(pw);
+                }
             }
             return { success: true, onlineCount: data.online_count };
         }
@@ -658,34 +743,102 @@ export const openCommunityModal = (tab: 'online' | 'islands' | 'visits' = 'onlin
     window.dispatchEvent(new CustomEvent('chopaeng_open_community_hub', { detail: { tab } }));
 };
 
-export interface WaveNotification {
-    id: string;
-    fromUsername: string;
-    fromDisplayName: string;
-    fromAvatarUrl?: string;
-    toUsername: string;
-    toDisplayName: string;
-    timestamp: number;
-}
+/**
+ * Polls backend for any pending waves queued for this user/session
+ */
+export const pollPendingWaves = async (): Promise<WaveNotification[]> => {
+    if (typeof window === 'undefined') return [];
+    const sessionId = getPresenceSessionId();
+    const token = getAuthToken();
+    try {
+        const headers: Record<string, string> = {
+            'x-session-id': sessionId,
+        };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch(`${API_BASE}/api/presence/waves?sessionId=${encodeURIComponent(sessionId)}`, {
+            headers,
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.ok && Array.isArray(data.waves) && data.waves.length > 0) {
+                for (const w of data.waves) {
+                    dispatchIncomingWave(w);
+                }
+                return data.waves;
+            }
+        }
+    } catch {
+        // Backend offline
+    }
+    return [];
+};
 
 /**
- * Broadcasts a wave event across browser tabs and locally to active components
+ * Broadcasts a wave event across browser tabs, local windows, and network API to reach the other user
  */
-export const broadcastResidentWave = (
-    wave: Omit<WaveNotification, 'id' | 'timestamp'>
-): WaveNotification => {
+export const broadcastResidentWave = async (
+    wave: Omit<WaveNotification, 'id' | 'timestamp'> & { toSessionId?: string }
+): Promise<WaveNotification> => {
+    const fromSessionId = getPresenceSessionId();
     const fullWave: WaveNotification = {
         id: 'wave_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7),
         ...wave,
+        fromSessionId,
         timestamp: Date.now(),
     };
+
+    // Mark own wave as seen so this sender never triggers incoming notification for own wave
+    seenWaveIds.add(fullWave.id);
+
+    // 1. Post to BroadcastChannel (tabs within same browser)
     try {
         if (communityChannel) {
             communityChannel.postMessage({ type: 'RESIDENT_WAVED', payload: fullWave });
         }
-        window.dispatchEvent(new CustomEvent('chopaeng_resident_wave', { detail: fullWave }));
     } catch {
         // ignore
     }
+
+    // 2. Post to localStorage bus (cross-window/browser instance fallback)
+    try {
+        localStorage.setItem('chopaeng_resident_wave_bus', JSON.stringify(fullWave));
+    } catch {
+        // ignore
+    }
+
+    // 3. Dispatch locally that this user initiated a wave (for sender confirmation)
+    try {
+        window.dispatchEvent(new CustomEvent('chopaeng_wave_sent', { detail: fullWave }));
+    } catch {
+        // ignore
+    }
+
+    // 4. Send to backend server so other users across different devices receive it
+    try {
+        const token = getAuthToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'x-session-id': fromSessionId,
+        };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        await fetch(`${API_BASE}/api/presence/wave`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                toUsername: wave.toUsername,
+                toDisplayName: wave.toDisplayName,
+                toSessionId: wave.toSessionId,
+                fromUsername: wave.fromUsername,
+                fromDisplayName: wave.fromDisplayName,
+                fromAvatarUrl: wave.fromAvatarUrl,
+                sessionId: fromSessionId,
+            }),
+        });
+    } catch {
+        // Offline / dev fallback
+    }
+
     return fullWave;
 };

@@ -278,8 +278,6 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
     if (!isOpen) return null;
 
     const totalItemsCount = mapData?.stats?.total_items ?? mapData?.items?.length ?? 0;
-    const isLive = mapData?.status === 'live_nhl' || mapData?.status === 'live_nhl_v2';
-    const isV2 = mapData?.status === 'live_nhl_v2';
 
     return (
         <div

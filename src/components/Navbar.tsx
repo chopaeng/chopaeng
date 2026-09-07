@@ -640,6 +640,46 @@ export const Navbar: React.FC = () => {
                     gap: 6px;
                 }
 
+                /* Mobile theme selector grid (3x2) */
+                .mobile-theme-grid {
+                    display: grid;
+                    grid-template-columns: repeat(3, 1fr);
+                    gap: 6px;
+                }
+
+                .mobile-theme-btn {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 5px;
+                    padding: 8px 4px;
+                    border-radius: 12px;
+                    font-size: 0.74rem;
+                    font-weight: 700;
+                    cursor: pointer;
+                    border: 1px solid var(--card-border, rgba(0,0,0,0.08));
+                    background: var(--bg-cream, #f8faf6);
+                    color: var(--text-dark, #1e293b);
+                    transition: all 0.18s ease;
+                    text-align: center;
+                }
+
+                .mobile-theme-btn:hover {
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+                }
+
+                .mobile-theme-btn.active {
+                    background: linear-gradient(135deg, #16a34a, #15803d);
+                    color: #ffffff;
+                    border-color: #16a34a;
+                    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25);
+                }
+
+                .mobile-theme-btn.active i {
+                    color: #ffffff !important;
+                }
+
                 .mobile-quick-link {
                     display: flex;
                     flex-direction: column;
@@ -803,6 +843,16 @@ export const Navbar: React.FC = () => {
                     background: #2b3658;
                     color: #fcd34d;
                 }
+                [data-theme="celeste"] .mobile-theme-btn {
+                    background: #0f172a;
+                    border-color: rgba(167, 139, 250, 0.25);
+                    color: #f8fafc;
+                }
+                [data-theme="celeste"] .mobile-theme-btn.active {
+                    background: #7c3aed;
+                    border-color: #a78bfa;
+                    color: #ffffff;
+                }
 
                 /* ═══════════════════════════════════════════════════════════
                    ROOST THEME OVERRIDES (Navbar.tsx)
@@ -907,6 +957,16 @@ export const Navbar: React.FC = () => {
                 [data-theme="roost"] .mobile-quick-link:hover {
                     background: #40362f;
                     color: #e6be94;
+                }
+                [data-theme="roost"] .mobile-theme-btn {
+                    background: #1c1917;
+                    border-color: rgba(217, 119, 6, 0.25);
+                    color: #fef3c7;
+                }
+                [data-theme="roost"] .mobile-theme-btn.active {
+                    background: #b45309;
+                    border-color: #f59e0b;
+                    color: #ffffff;
                 }
 
                 /* ═══════════════════════════════════════════════════════════
@@ -1013,6 +1073,16 @@ export const Navbar: React.FC = () => {
                     background: #fce7f3;
                     color: #ec4899;
                 }
+                [data-theme="sakura"] .mobile-theme-btn {
+                    background: #fff1f2;
+                    border-color: rgba(236, 72, 153, 0.2);
+                    color: #881337;
+                }
+                [data-theme="sakura"] .mobile-theme-btn.active {
+                    background: #ec4899;
+                    border-color: #f472b6;
+                    color: #ffffff;
+                }
 
                 [data-theme="dal"] .chopaeng-navbar.scrolled {
                     background-color: rgba(15, 23, 42, 0.95);
@@ -1115,6 +1185,16 @@ export const Navbar: React.FC = () => {
                     background: #162033;
                     color: #38bdf8;
                 }
+                [data-theme="dal"] .mobile-theme-btn {
+                    background: #0f172a;
+                    border-color: rgba(56, 189, 248, 0.25);
+                    color: #f8fafc;
+                }
+                [data-theme="dal"] .mobile-theme-btn.active {
+                    background: #0284c7;
+                    border-color: #38bdf8;
+                    color: #ffffff;
+                }
 
                 [data-theme="nooklink"] .chopaeng-navbar.scrolled {
                     background-color: rgba(9, 13, 22, 0.95);
@@ -1216,6 +1296,16 @@ export const Navbar: React.FC = () => {
                 [data-theme="nooklink"] .mobile-quick-link:hover {
                     background: #1f2937;
                     color: #34d399;
+                }
+                [data-theme="nooklink"] .mobile-theme-btn {
+                    background: #090d16;
+                    border-color: rgba(16, 185, 129, 0.25);
+                    color: #f8fafc;
+                }
+                [data-theme="nooklink"] .mobile-theme-btn.active {
+                    background: #10b981;
+                    border-color: #34d399;
+                    color: #ffffff;
                 }
 
                 /* Preserve Action Button & Nav Icons Across All Themes */
@@ -1499,9 +1589,9 @@ export const Navbar: React.FC = () => {
                         </button>
 
                         {/* Secondary actions toolbar — jukebox / theme / discord grouped into one pill
-                            instead of three separate floating circles. Tablet/desktop only; on phones
-                            these live in the drawer where there's room. */}
-                        <div className="chopaeng-toolbar d-none d-md-inline-flex">
+                            instead of three separate floating circles. Desktop only (lg+); on mobile & tablet
+                            these live in the drawer where there's ample room without overcrowding. */}
+                        <div className="chopaeng-toolbar d-none d-lg-inline-flex">
                             <button
                                 type="button"
                                 onClick={() => openCommunityModal('online')}
@@ -1777,11 +1867,11 @@ export const Navbar: React.FC = () => {
                             ))}
                         </div>
 
-                        {/* Theme Selector (mobile) */}
+                        {/* Theme Selector (mobile) — 3x2 tactile grid */}
                         <div className="fw-bold text-muted text-uppercase mb-2" style={{ letterSpacing: '0.06em', fontSize: '0.62rem' }}>
-                            Theme
+                            Island Theme
                         </div>
-                        <div className="d-flex gap-1">
+                        <div className="mobile-theme-grid">
                             {THEME_OPTIONS.map((opt) => (
                                 <button
                                     key={opt.id}
@@ -1792,11 +1882,9 @@ export const Navbar: React.FC = () => {
                                         setStoredTheme(opt.id);
                                         setCurrentTheme(opt.id);
                                     }}
-                                    className={`btn btn-xs rounded-pill flex-grow-1 py-1.5 fw-bold transition-all d-flex align-items-center justify-content-center gap-1 ${currentTheme === opt.id ? 'btn-success text-white shadow-2xs' : 'btn-light text-dark border'
-                                        }`}
-                                    style={{ fontSize: '0.72rem' }}
+                                    className={`mobile-theme-btn ${currentTheme === opt.id ? 'active' : ''}`}
                                 >
-                                    <i className={`fa-solid ${opt.icon}`} style={{ fontSize: '0.65rem' }} aria-hidden="true" />
+                                    <i className={`fa-solid ${opt.icon}`} style={{ color: currentTheme === opt.id ? '#ffffff' : opt.badgeColor, fontSize: '0.72rem' }} aria-hidden="true" />
                                     <span>{THEME_SHORT_LABEL[opt.id] ?? opt.name}</span>
                                 </button>
                             ))}

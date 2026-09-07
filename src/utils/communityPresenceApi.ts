@@ -18,6 +18,7 @@ export interface OnlineResident {
     isCurrentUser?: boolean;
     hasPublicPassport: boolean;
     joinedMinutesAgo: number;
+    joinedAt?: string;
 }
 
 export interface TrafficStats {
@@ -409,6 +410,7 @@ export const fetchOnlinePresence = async (
                         hasPublicPassport: Boolean(r.hasPublicPassport),
                         isCurrentUser: isCurrent,
                         joinedMinutesAgo: r.joinedMinutesAgo ?? 0,
+                        joinedAt: r.joinedAt || r.joined_at || (typeof r.timestamp === 'number' ? new Date(r.timestamp).toISOString() : r.timestamp) || (r.joinedMinutesAgo !== undefined ? new Date(Date.now() - r.joinedMinutesAgo * 60000).toISOString() : new Date().toISOString()),
                     };
                 });
 
@@ -554,6 +556,7 @@ export const getOnlineResidentsList = (
             isCurrentUser: true,
             hasPublicPassport: Boolean(userPassport?.isPublic),
             joinedMinutesAgo: 0,
+            joinedAt: new Date().toISOString(),
         });
     }
 

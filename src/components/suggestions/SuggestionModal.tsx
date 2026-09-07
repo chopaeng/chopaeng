@@ -203,8 +203,9 @@ export const SuggestionModal = ({
                                     className="rounded-3 p-3 bg-light border border-light-subtle shadow-2xs mb-4 text-start position-relative"
                                     style={{ maxWidth: '480px', margin: '0 auto' }}
                                 >
-                                    <div className="fw-black text-dark font-monospace mb-1" style={{ fontSize: '0.95rem' }}>
-                                        💡 {title}
+                                    <div className="fw-black text-dark font-monospace mb-1 d-flex align-items-center" style={{ fontSize: '0.95rem' }}>
+                                        <i className="fa-solid fa-lightbulb text-warning me-1.5" aria-hidden="true" />
+                                        <span>{title}</span>
                                     </div>
 
                                     <p className="text-muted mb-2 small text-truncate-3" style={{ fontSize: '0.85rem' }}>

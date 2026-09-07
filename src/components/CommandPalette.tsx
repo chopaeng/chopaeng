@@ -20,7 +20,7 @@ interface NavItem {
 const STATIC_NAV_ITEMS: NavItem[] = [
     { id: 'nav-home', title: 'Home', subtitle: 'Live departure board, streams, and latest updates', icon: 'fa-house', color: '#16a34a', path: '/', category: 'Pages & Tools' },
     { id: 'nav-order', title: 'Order Bot', subtitle: 'Interactive 3-step in-island drop bot & live flight pass', icon: 'fa-paper-plane', color: '#3b82f6', path: '/order', category: 'Pages & Tools' },
-    { id: 'nav-islands', title: 'Treasure Islands', subtitle: 'Live server gate statuses, Dodo codes, and visitor counts', icon: 'fa-island-tropical', color: '#059669', path: '/islands', category: 'Pages & Tools' },
+    { id: 'nav-islands', title: 'Treasure Islands', subtitle: 'Live server gate statuses, Dodo codes, and visitor counts', icon: 'fa-umbrella-beach', color: '#059669', path: '/islands', category: 'Pages & Tools' },
     { id: 'nav-builder', title: 'Command Builder', subtitle: 'Visual 40-slot pocket loadout builder and $order generator', icon: 'fa-terminal', color: '#10b981', path: '/command-builder', category: 'Pages & Tools' },
     { id: 'nav-planner', title: 'Island Trip Planner', subtitle: 'Multi-island flight route optimization engine', icon: 'fa-route', color: '#8b5cf6', path: '/trip-planner', category: 'Pages & Tools' },
     { id: 'nav-catalog', title: 'ACNH Catalogue', subtitle: 'Search 4,000+ items, variations, recipes, and villagers', icon: 'fa-boxes-stacked', color: '#f59e0b', path: '/catalog', category: 'Pages & Tools' },
@@ -312,7 +312,7 @@ export const CommandPalette: React.FC = () => {
                                                         className="command-palette-item-icon text-white"
                                                         style={{ backgroundColor: isl.cat === 'member' ? '#8b5cf6' : '#10b981' }}
                                                     >
-                                                        <i className="fa-solid fa-island-tropical" />
+                                                        <i className="fa-solid fa-umbrella-beach" />
                                                     </div>
                                                     <div>
                                                         <div className="fw-bold small d-flex align-items-center gap-2">

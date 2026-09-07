@@ -30,7 +30,7 @@ const FALLBACK_IMAGE =
 
 const POPULAR_SEARCH_PRESETS = [
     { name: 'Ironwood DIY Set', icon: 'fa-couch', tags: ['Ironwood', 'Kitchenette', 'Bed', 'Clock'] },
-    { name: 'Golden Tools DIYs', icon: 'fa-axe', tags: ['Golden Axe', 'Golden Shovel', 'Golden Net', 'Golden Rod'] },
+    { name: 'Golden Tools DIYs', icon: 'fa-hammer', tags: ['Golden Axe', 'Golden Shovel', 'Golden Net', 'Golden Rod'] },
     { name: 'Sanrio Collection', icon: 'fa-heart', tags: ['Cinnamoroll', 'Pompompurin', 'Keroppi', 'My Melody'] },
     { name: 'Popular Villagers', icon: 'fa-paw', tags: ['Raymond', 'Shino', 'Sasha', 'Marshal', 'Ankha'] },
     { name: 'Island Essentials', icon: 'fa-gem', tags: ['Nook Miles Ticket', 'Gold Nugget', '99,000 Bells', 'Crown'] },

@@ -364,7 +364,14 @@ export const NookOsTerminal: React.FC<NookOsTerminalProps> = ({
                                 style={{ fontSize: '0.62rem' }}
                                 title={`Theme: ${t}`}
                             >
-                                {t === 'green' ? '🟢' : t === 'celeste' ? '🟣' : t === 'amber' ? '🟠' : '🔵'}
+                                <i
+                                    className="fa-solid fa-circle"
+                                    style={{
+                                        color: t === 'green' ? '#22c55e' : t === 'celeste' ? '#a855f7' : t === 'amber' ? '#f59e0b' : '#38bdf8',
+                                        fontSize: '0.62rem',
+                                    }}
+                                    aria-hidden="true"
+                                />
                             </button>
                         ))}
                     </div>
@@ -459,9 +466,18 @@ export const NookOsTerminal: React.FC<NookOsTerminalProps> = ({
                     </div>
 
                     {/* Discord Safety Token */}
-                    <span className="nook-terminal-badge">
-                        <i className="fa-solid fa-shield-check text-success" />
-                        {activeFormattedCode.length <= 2000 ? '✓ Discord Safe (<2000c)' : '⚠️ Exceeds 2000 chars'}
+                    <span className="nook-terminal-badge d-inline-flex align-items-center gap-1">
+                        {activeFormattedCode.length <= 2000 ? (
+                            <>
+                                <i className="fa-solid fa-shield-check text-success" aria-hidden="true" />
+                                <span>Discord Safe (&lt;2000c)</span>
+                            </>
+                        ) : (
+                            <>
+                                <i className="fa-solid fa-triangle-exclamation text-warning" aria-hidden="true" />
+                                <span>Exceeds 2000 chars</span>
+                            </>
+                        )}
                     </span>
                 </div>
 

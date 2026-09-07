@@ -360,22 +360,19 @@ export const NookPhoneDock: React.FC = () => {
             icon: 'fa-paper-plane',
             bg: 'linear-gradient(135deg, #0284c7, #0369a1)',
             action: () => navigate('/order'),
+            badge: hasActiveOrder,
         },
         {
-            name: 'K.K. Slider',
-            icon: 'fa-guitar',
-            bg: 'linear-gradient(135deg, #f59e0b, #d97706)',
-            action: () => {
-                window.dispatchEvent(new CustomEvent('chopaeng_open_jukebox'));
-            },
+            name: 'Find Items',
+            icon: 'fa-magnifying-glass',
+            bg: 'linear-gradient(135deg, #10b981, #059669)',
+            action: () => navigate('/find'),
         },
         {
-            name: 'Island BGM',
-            icon: 'fa-radio',
-            bg: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-            action: () => {
-                window.dispatchEvent(new CustomEvent('chopaeng_open_jukebox', { detail: { mode: 'hourly' } }));
-            },
+            name: 'Trip Planner',
+            icon: 'fa-route',
+            bg: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+            action: () => navigate('/planner'),
         },
         {
             name: 'Passport',
@@ -390,6 +387,33 @@ export const NookPhoneDock: React.FC = () => {
             action: () => navigate('/pockets'),
         },
         {
+            name: 'Catalogue',
+            icon: 'fa-boxes-stacked',
+            bg: 'linear-gradient(135deg, #0d9488, #0f766e)',
+            action: () => navigate('/catalog'),
+        },
+        {
+            name: 'Destinations',
+            icon: 'fa-plane-departure',
+            bg: 'linear-gradient(135deg, #06b6d4, #0891b2)',
+            action: () => navigate('/islands'),
+        },
+        {
+            name: 'Island Radar',
+            icon: 'fa-satellite-dish',
+            bg: 'linear-gradient(135deg, #059669, #047857)',
+            action: () => openCommunityModal('online'),
+            badge: occupancy.totalVisitors > 0,
+        },
+        {
+            name: 'K.K. Jukebox',
+            icon: 'fa-guitar',
+            bg: 'linear-gradient(135deg, #f59e0b, #d97706)',
+            action: () => {
+                window.dispatchEvent(new CustomEvent('chopaeng_open_jukebox'));
+            },
+        },
+        {
             name: 'Voice Studio',
             icon: 'fa-comment-dots',
             bg: 'linear-gradient(135deg, #ec4899, #db2777)',
@@ -398,42 +422,16 @@ export const NookPhoneDock: React.FC = () => {
             },
         },
         {
-            name: 'Catalogue',
-            icon: 'fa-boxes-stacked',
-            bg: 'linear-gradient(135deg, #10b981, #059669)',
-            action: () => navigate('/catalog'),
-        },
-        {
             name: 'Wishlist',
             icon: 'fa-heart',
             bg: 'linear-gradient(135deg, #ef4444, #dc2626)',
             action: () => navigate('/wishlist'),
         },
         {
-            name: 'Destinations',
-            icon: 'fa-map-location-dot',
-            bg: 'linear-gradient(135deg, #06b6d4, #0891b2)',
-            action: () => navigate('/islands'),
-        },
-        {
             name: 'Suggest',
             icon: 'fa-lightbulb',
-            bg: 'linear-gradient(135deg, #f59e0b, #d97706)',
+            bg: 'linear-gradient(135deg, #e11d48, #be123c)',
             action: () => openSuggestionModal(),
-        },
-        {
-            name: 'Sound FX',
-            icon: 'fa-bell',
-            bg: 'linear-gradient(135deg, #14b8a6, #0d9488)',
-            action: () => {
-                window.dispatchEvent(new CustomEvent('chopaeng_open_jukebox', { detail: { mode: 'sfx' } }));
-            },
-        },
-        {
-            name: 'Island Radar',
-            icon: 'fa-satellite-dish',
-            bg: 'linear-gradient(135deg, #059669, #047857)',
-            action: () => openCommunityModal('online'),
         },
     ];
 
@@ -459,6 +457,36 @@ export const NookPhoneDock: React.FC = () => {
                 .nookphone-eq-bar.bar-1 { animation-delay: 0s; }
                 .nookphone-eq-bar.bar-2 { animation-delay: 0.25s; }
                 .nookphone-eq-bar.bar-3 { animation-delay: 0.5s; }
+
+                /* NookPhone Squircle App Icon Aesthetics */
+                .nook-app-icon-squircle {
+                    position: relative;
+                    width: 52px;
+                    height: 52px;
+                    border-radius: 16px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+                    border: 1px solid rgba(255, 255, 255, 0.22);
+                    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+                }
+                .nook-app-icon-squircle:hover {
+                    transform: translateY(-3px) scale(1.06);
+                    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24), inset 0 1px 1px rgba(255, 255, 255, 0.45);
+                }
+                .nook-app-icon-squircle:active {
+                    transform: scale(0.94);
+                }
+
+                @media (max-width: 575px) {
+                    .nookphone-container {
+                        right: 12px !important;
+                        left: 12px !important;
+                        margin: 0 auto !important;
+                        bottom: 84px !important;
+                    }
+                }
             `}</style>
 
             {/* Floating NookPhone Button with Live Order Notification Badge */}
@@ -499,7 +527,7 @@ export const NookPhoneDock: React.FC = () => {
                     {/* Active Order Radar Beacon / Badge */}
                     {hasActiveOrder && location.pathname !== '/order' && (
                         <span
-                            className="position-absolute top-0 start-100 translate-middle badge rounded-pill border border-white shadow-sm"
+                            className="position-absolute top-0 start-100 translate-middle badge rounded-pill border border-white shadow-sm d-inline-flex align-items-center"
                             style={{
                                 backgroundColor: isOrderReady ? '#22c55e' : isOrderPreparing ? '#f59e0b' : '#3b82f6',
                                 fontSize: '0.68rem',
@@ -507,7 +535,19 @@ export const NookPhoneDock: React.FC = () => {
                                 animation: isOrderReady ? 'pulse 1.5s infinite' : 'none',
                             }}
                         >
-                            {isOrderReady ? '✈️ DODO' : isOrderPreparing ? '⚡ PREP' : `#${queuePos || 1}`}
+                            {isOrderReady ? (
+                                <>
+                                    <i className="fa-solid fa-plane-departure me-1" aria-hidden="true" />
+                                    DODO
+                                </>
+                            ) : isOrderPreparing ? (
+                                <>
+                                    <i className="fa-solid fa-bolt me-1" aria-hidden="true" />
+                                    PREP
+                                </>
+                            ) : (
+                                `#${queuePos || 1}`
+                            )}
                         </span>
                     )}
                 </button>
@@ -524,12 +564,12 @@ export const NookPhoneDock: React.FC = () => {
                         bottom: '90px',
                         right: '24px',
                         zIndex: 1055,
-                        width: '340px',
-                        maxWidth: 'calc(100vw - 32px)',
-                        maxHeight: 'min(600px, calc(100dvh - 130px))',
+                        width: '350px',
+                        maxWidth: 'calc(100vw - 24px)',
+                        maxHeight: 'min(620px, calc(100dvh - 110px))',
                         background: currentStyle.caseBg,
                         borderRadius: '42px',
-                        padding: '14px 12px 18px 12px',
+                        padding: '14px 12px 14px 12px',
                         border: `4px solid ${currentStyle.bezelBorder}`,
                         boxShadow: `0 24px 50px rgba(0,0,0,0.4), 0 0 24px ${currentStyle.accentGlow}`,
                     }}
@@ -552,29 +592,42 @@ export const NookPhoneDock: React.FC = () => {
                             boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.06)',
                         }}
                     >
-                        {/* Fixed header: clock, notification toggle, title */}
-                        <div className="flex-shrink-0 p-3 pb-2">
+                        {/* Authentic Animal Crossing Status Bar */}
+                        <div className="flex-shrink-0 px-3 pt-2.5 pb-2">
                             <div
-                                className="d-flex align-items-center justify-content-between pb-2 mb-2 border-bottom"
-                                style={{ borderColor: currentStyle.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }}
+                                className="d-flex align-items-center justify-content-between pb-2 mb-2 border-bottom font-monospace"
+                                style={{
+                                    borderColor: currentStyle.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+                                    fontSize: '0.72rem',
+                                }}
                             >
-                                <span className="d-flex align-items-center gap-2 fw-black" style={{ fontSize: '0.82rem' }}>
+                                {/* Left: Signal & WiFi */}
+                                <div className="d-flex align-items-center gap-1.5 opacity-75">
+                                    <i className="fa-solid fa-signal" style={{ fontSize: '0.62rem' }} title="NookLink Signal 5G" />
+                                    <i className="fa-solid fa-wifi" style={{ fontSize: '0.62rem' }} title="Island Wi-Fi Connected" />
+                                </div>
+
+                                {/* Center: Leaf Brand */}
+                                <div className="d-flex align-items-center gap-1 fw-black ac-font" style={{ fontSize: '0.78rem' }}>
                                     <i className="fa-solid fa-leaf" style={{ color: currentStyle.accentColor }} />
-                                    ChoPaeng Apps
-                                </span>
-                                <div className="d-flex align-items-center gap-2">
-                                    <span className="fw-bold opacity-75" style={{ fontSize: '0.78rem' }}>
+                                    <span style={{ letterSpacing: '0.02em' }}>NookPhone</span>
+                                </div>
+
+                                {/* Right: Clock, Notification Toggle, Battery */}
+                                <div className="d-flex align-items-center gap-1.5">
+                                    <span className="fw-bold opacity-80" style={{ fontSize: '0.72rem' }}>
                                         {currentTimeStr || '12:00 PM'}
                                     </span>
                                     <button
                                         type="button"
                                         onClick={handleToggleNotifications}
                                         className="btn btn-link p-0 border-0 text-decoration-none lh-1"
-                                        style={{ color: notificationsOn ? '#22c55e' : (currentStyle.isDark ? '#94a3b8' : '#64748b') }}
+                                        style={{ color: notificationsOn ? '#22c55e' : (currentStyle.isDark ? '#94a3b8' : '#64748b'), fontSize: '0.68rem' }}
                                         title={notificationsOn ? 'Flight Alerts Active' : 'Enable Flight Alerts'}
                                     >
                                         <i className={`fa-solid ${notificationsOn ? 'fa-bell' : 'fa-bell-slash'}`} />
                                     </button>
+                                    <i className="fa-solid fa-battery-full text-success" style={{ fontSize: '0.75rem' }} title="Battery 100%" />
                                 </div>
                             </div>
                         </div>
@@ -604,14 +657,23 @@ export const NookPhoneDock: React.FC = () => {
                                             Island Radar &amp; Traffic
                                         </span>
                                     </div>
-                                    <span className="tiny-text fw-bold text-success">
-                                        Live →
+                                    <span className="tiny-text fw-bold text-success d-inline-flex align-items-center gap-1">
+                                        Live <i className="fa-solid fa-arrow-right" style={{ fontSize: '0.65rem' }} aria-hidden="true" />
                                     </span>
                                 </div>
                                 <div className="d-flex align-items-center justify-content-between text-muted" style={{ fontSize: '0.74rem' }}>
-                                    <span>🏝️ <strong>{occupancy.totalVisitors}</strong> on Islands</span>
-                                    <span>👥 <strong>{trafficStats.activeOnlineCount}</strong> Online</span>
-                                    <span>✈️ <strong>2.8M</strong> Visits</span>
+                                    <span className="d-inline-flex align-items-center gap-1">
+                                        <i className="fa-solid fa-umbrella-beach text-success" aria-hidden="true" />
+                                        <span><strong>{occupancy.totalVisitors}</strong> on Islands</span>
+                                    </span>
+                                    <span className="d-inline-flex align-items-center gap-1">
+                                        <i className="fa-solid fa-users text-primary" aria-hidden="true" />
+                                        <span><strong>{trafficStats.activeOnlineCount}</strong> Online</span>
+                                    </span>
+                                    <span className="d-inline-flex align-items-center gap-1">
+                                        <i className="fa-solid fa-plane-departure text-info" aria-hidden="true" />
+                                        <span><strong>2.8M</strong> Visits</span>
+                                    </span>
                                 </div>
                             </div>
 
@@ -640,8 +702,23 @@ export const NookPhoneDock: React.FC = () => {
                                                 role="status"
                                                 style={{ width: '10px', height: '10px' }}
                                             />
-                                            <span className="fw-black x-small text-uppercase tracking-wider">
-                                                {isOrderReady ? '✈️ Flight Ready' : isOrderPreparing ? '🔨 Preparing Items' : `⏳ Queue #${queuePos || 1}`}
+                                            <span className="fw-black x-small text-uppercase tracking-wider d-inline-flex align-items-center gap-1">
+                                                {isOrderReady ? (
+                                                    <>
+                                                        <i className="fa-solid fa-plane-departure text-success" aria-hidden="true" />
+                                                        Flight Ready
+                                                    </>
+                                                ) : isOrderPreparing ? (
+                                                    <>
+                                                        <i className="fa-solid fa-hammer text-warning" aria-hidden="true" />
+                                                        Preparing Items
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <i className="fa-solid fa-hourglass-half text-primary" aria-hidden="true" />
+                                                        Queue #{queuePos || 1}
+                                                    </>
+                                                )}
                                             </span>
                                         </div>
                                         <button
@@ -705,8 +782,24 @@ export const NookPhoneDock: React.FC = () => {
                                         </div>
                                         <div className="overflow-hidden">
                                             <div className="d-flex align-items-center gap-1.5">
-                                                <span className="fw-black text-truncate" style={{ fontSize: '0.78rem' }}>
-                                                    {hourlyState.currentTrack.period} • {hourlyState.weather === 'snowy' ? 'Snow ❄️' : hourlyState.weather === 'rainy' ? 'Rain 🌧️' : 'Sunny ☀️'}
+                                                <span className="fw-black text-truncate d-inline-flex align-items-center gap-1" style={{ fontSize: '0.78rem' }}>
+                                                    <span>{hourlyState.currentTrack.period} •</span>
+                                                    {hourlyState.weather === 'snowy' ? (
+                                                        <>
+                                                            <span>Snow</span>
+                                                            <i className="fa-solid fa-snowflake text-info ms-0.5" style={{ fontSize: '0.72rem' }} aria-hidden="true" />
+                                                        </>
+                                                    ) : hourlyState.weather === 'rainy' ? (
+                                                        <>
+                                                            <span>Rain</span>
+                                                            <i className="fa-solid fa-cloud-showers-heavy text-primary ms-0.5" style={{ fontSize: '0.72rem' }} aria-hidden="true" />
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span>Sunny</span>
+                                                            <i className="fa-solid fa-sun text-warning ms-0.5" style={{ fontSize: '0.72rem' }} aria-hidden="true" />
+                                                        </>
+                                                    )}
                                                 </span>
                                                 {hourlyState.isPlaying && (
                                                     <div className="d-flex align-items-end gap-0.5" style={{ height: '10px' }}>
@@ -746,23 +839,30 @@ export const NookPhoneDock: React.FC = () => {
                                         <span className="opacity-60 me-1" style={{ fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase' }}>
                                             Weather
                                         </span>
-                                        {(['sunny', 'rainy', 'snowy'] as BgmWeather[]).map((w) => {
-                                            const isActive = hourlyState.weather === w;
-                                            const icon = w === 'sunny' ? '☀️' : w === 'rainy' ? '🌧️' : '❄️';
+                                        {([
+                                            { key: 'sunny' as const, icon: 'fa-sun', color: '#eab308', label: 'Sunny' },
+                                            { key: 'rainy' as const, icon: 'fa-cloud-showers-heavy', color: '#38bdf8', label: 'Rainy' },
+                                            { key: 'snowy' as const, icon: 'fa-snowflake', color: '#a5f3fc', label: 'Snowy' },
+                                        ]).map(({ key, icon, color, label }) => {
+                                            const isActive = hourlyState.weather === key;
                                             return (
                                                 <button
-                                                    key={w}
+                                                    key={key}
                                                     type="button"
-                                                    onClick={() => handleWeatherChange(w)}
-                                                    className={`btn btn-xs py-0 px-1.5 rounded-pill fw-bold border-0 transition-all ${
+                                                    onClick={() => handleWeatherChange(key)}
+                                                    className={`btn btn-xs py-0 px-2 rounded-pill fw-bold border-0 transition-all d-inline-flex align-items-center justify-content-center ${
                                                         isActive ? 'shadow-xs' : 'opacity-60 hover-opacity-100'
                                                     }`}
                                                     style={{
-                                                        fontSize: '0.65rem',
+                                                        height: '22px',
+                                                        fontSize: '0.72rem',
                                                         backgroundColor: isActive ? (currentStyle.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.08)') : 'transparent',
+                                                        color: isActive ? color : (currentStyle.isDark ? '#e2e8f0' : '#475569'),
                                                     }}
+                                                    title={label}
+                                                    aria-label={label}
                                                 >
-                                                    {icon}
+                                                    <i className={`fa-solid ${icon}`} aria-hidden="true" />
                                                 </button>
                                             );
                                         })}
@@ -780,31 +880,37 @@ export const NookPhoneDock: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Apps Grid (3x3) */}
+                            {/* Apps Grid (3x4) */}
                             <div className="row g-2 mb-3">
                                 {apps.map((app, idx) => (
                                     <div className="col-4 text-center" key={idx}>
                                         <button
                                             type="button"
                                             onClick={() => handleAppClick(app.action)}
-                                            className="btn p-0 border-0 d-flex flex-column align-items-center gap-1 w-100 transition-all hover-scale"
+                                            className="btn p-0 border-0 d-flex flex-column align-items-center gap-1 w-100"
                                         >
                                             <div
-                                                className="rounded-4 d-flex align-items-center justify-content-center text-white shadow-sm"
+                                                className="nook-app-icon-squircle text-white"
                                                 style={{
-                                                    width: '50px',
-                                                    height: '50px',
                                                     background: app.bg,
-                                                    fontSize: '1.2rem',
+                                                    fontSize: '1.25rem',
                                                 }}
                                             >
                                                 <i className={`fa-solid ${app.icon}`} />
+                                                {app.badge && (
+                                                    <span
+                                                        className="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle shadow-xs"
+                                                        style={{ width: '10px', height: '10px' }}
+                                                    >
+                                                        <span className="visually-hidden">Notification</span>
+                                                    </span>
+                                                )}
                                             </div>
                                             <span
                                                 className="fw-bold text-truncate"
                                                 style={{
                                                     fontSize: '0.68rem',
-                                                    maxWidth: '68px',
+                                                    maxWidth: '72px',
                                                     color: currentStyle.isDark ? '#e2e8f0' : '#334155',
                                                 }}
                                             >
@@ -913,9 +1019,9 @@ export const NookPhoneDock: React.FC = () => {
                                                         {isSelected && (
                                                             <span
                                                                 className="rounded-circle d-flex align-items-center justify-content-center bg-white text-dark shadow-xs"
-                                                                style={{ width: '12px', height: '12px', fontSize: '0.5rem', fontWeight: 900 }}
+                                                                style={{ width: '13px', height: '13px' }}
                                                             >
-                                                                ✓
+                                                                <i className="fa-solid fa-check" style={{ fontSize: '0.52rem', color: '#0f172a' }} aria-hidden="true" />
                                                             </span>
                                                         )}
                                                     </div>
@@ -946,6 +1052,19 @@ export const NookPhoneDock: React.FC = () => {
                                     })}
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Bottom Home Indicator Bar */}
+                        <div className="d-flex align-items-center justify-content-center pt-2 pb-1 flex-shrink-0">
+                            <div
+                                className="rounded-pill"
+                                style={{
+                                    width: '84px',
+                                    height: '4px',
+                                    backgroundColor: currentStyle.isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.22)',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+                                }}
+                            />
                         </div>
                     </div>
                 </div>

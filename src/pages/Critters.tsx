@@ -22,8 +22,13 @@ interface CreatureEntry {
 
 type CritterTab = 'now' | 'leaving' | 'coming' | 'calendar';
 
+const CATEGORY_ICONS: Record<string, string> = {
+    'Fish': 'fa-fish',
+    'Bugs': 'fa-bug',
+    'Sea Creatures': 'fa-shrimp',
+};
+
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const MONTH_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const FALLBACK_IMAGE = 'https://acnhcdn.com/latest/FtrIcon/FtrLeaf.png';
 
@@ -38,7 +43,7 @@ const Critters: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('All');
     const [sortBy, setSortBy] = useState<'name' | 'sell'>('sell');
-    const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth()); // 0-indexed
+    const [calendarMonth] = useState(new Date().getMonth()); // 0-indexed (kept for calendarCreatures derived list)
 
     const now = useMemo(() => new Date(), []);
     const currentMonth = now.getMonth() + 1; // 1-indexed
@@ -279,27 +284,6 @@ const Critters: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Calendar Month Selector (only in calendar tab) */}
-                    {activeTab === 'calendar' && (
-                        <div className="ac-filter-bar text-center mb-4 animate-fade-in">
-                            <div className="ac-nav-tabs-pill d-inline-flex flex-wrap justify-content-center mb-2">
-                                {MONTH_NAMES.map((month, idx) => (
-                                    <button
-                                        key={month}
-                                        type="button"
-                                        className={`ac-tab-btn ${calendarMonth === idx ? 'active' : ''}`}
-                                        style={calendarMonth !== idx && idx === currentMonth - 1 ? { border: '1.5px solid var(--nook-green)', color: 'var(--nook-green)' } : undefined}
-                                        onClick={() => { playChimeClick(); setCalendarMonth(idx); }}
-                                    >
-                                        {month}
-                                    </button>
-                                ))}
-                            </div>
-                            <div className="tiny-text fw-bold text-muted">
-                                Showing critters available in <strong>{MONTH_FULL[calendarMonth]}</strong> ({isNorth ? 'Northern' : 'Southern'} Hemisphere)
-                            </div>
-                        </div>
-                    )}
 
                     {/* Filter Bar */}
                     <div className="ac-filter-bar mb-4">
@@ -358,14 +342,99 @@ const Critters: React.FC = () => {
                             <div className="spinner-border text-success mb-2" aria-hidden="true" />
                             <div className="fw-bold text-muted">Loading critter data...</div>
                         </div>
+                    ) : activeTab === 'calendar' ? (
+                        /* ── CALENDAR GRID VIEW ── */
+                        <div className="critter-cal-wrapper animate-fade-in">
+                            <div className="critter-cal-legend">
+                                <span className="critter-cal-legend-item">
+                                    <span className="critter-cal-dot critter-cal-dot--active" /> Available
+                                </span>
+                                <span className="critter-cal-legend-item">
+                                    <span className="critter-cal-dot critter-cal-dot--current" /> This Month
+                                </span>
+                                <span className="critter-cal-legend-item">
+                                    <span className="critter-cal-dot critter-cal-dot--leaving" /> Leaving Next Month
+                                </span>
+                                <span className="critter-cal-legend-item">
+                                    <span className="critter-cal-dot critter-cal-dot--none" /> Unavailable
+                                </span>
+                                <span className="ms-auto tiny-text text-muted fw-bold">
+                                    {creatures.filter(c => categoryFilter === 'All' || c.category === categoryFilter).length} critters &bull; {isNorth ? 'Northern' : 'Southern'} Hemisphere
+                                </span>
+                            </div>
+                            <div className="critter-cal-table-wrap">
+                                <table className="critter-cal-table">
+                                    <thead>
+                                        <tr>
+                                            <th className="critter-cal-th-name">Critter</th>
+                                            {MONTH_NAMES.map((m, mi) => (
+                                                <th key={m} className={`critter-cal-th-month ${mi + 1 === currentMonth ? 'critter-cal-th-current' : ''}`}>
+                                                    {m}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {creatures
+                                            .filter(c => {
+                                                if (categoryFilter !== 'All' && c.category !== categoryFilter) return false;
+                                                if (searchQuery.trim()) {
+                                                    const q = searchQuery.toLowerCase();
+                                                    return c.name.toLowerCase().includes(q) || c.whereHow.toLowerCase().includes(q) || c.category.toLowerCase().includes(q);
+                                                }
+                                                return true;
+                                            })
+                                            .sort((a, b) => sortBy === 'name' ? a.name.localeCompare(b.name) : b.sell - a.sell)
+                                            .map((creature, idx) => (
+                                                <tr key={`${creature.name}-${idx}`} className="critter-cal-row">
+                                                    <td className="critter-cal-td-name">
+                                                        <img
+                                                            src={creature.icon}
+                                                            alt={creature.name}
+                                                            className="critter-cal-icon"
+                                                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE; }}
+                                                        />
+                                                        <div className="critter-cal-name-info">
+                                                            <span className="critter-cal-name">{creature.name}</span>
+                                                            <span className="critter-cal-category">
+                                                                <i className={`fa-solid ${CATEGORY_ICONS[creature.category] || 'fa-paw'} me-1`} aria-hidden="true" />
+                                                                {creature.category}
+                                                            </span>
+                                                        </div>
+                                                        <span className="critter-cal-price">
+                                                            <i className="fa-solid fa-coins me-1" aria-hidden="true" />
+                                                            {creature.sell.toLocaleString()}
+                                                        </span>
+                                                    </td>
+                                                    {MONTH_NAMES.map((m, mi) => {
+                                                        const avail = creature.months.includes(mi + 1);
+                                                        const isCur = mi + 1 === currentMonth;
+                                                        const isLeaving = avail && !creature.months.includes(mi + 2 > 12 ? 1 : mi + 2);
+                                                        let cls = 'critter-cal-cell';
+                                                        if (avail && isCur) cls += ' critter-cal-cell--current';
+                                                        else if (avail && isLeaving) cls += ' critter-cal-cell--leaving';
+                                                        else if (avail) cls += ' critter-cal-cell--active';
+                                                        else cls += ' critter-cal-cell--none';
+                                                        return (
+                                                            <td key={m} className={cls} title={avail ? `${creature.name} available in ${m}` : undefined}>
+                                                                {avail && <span className="critter-cal-pip" />}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            ))
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     ) : activeList.length === 0 ? (
                         <div className="ac-filter-bar text-center py-5 text-muted animate-fade-in" role="status" aria-live="polite">
                             <i className="fa-solid fa-fish-fins fs-1 mb-2 opacity-50 text-info" aria-hidden="true" />
                             <p className="fw-bold mb-0">
                                 {activeTab === 'now' ? 'No critters available right now at this hour.' :
                                  activeTab === 'leaving' ? 'No critters are leaving after this month.' :
-                                 activeTab === 'coming' ? `No new critters arriving in ${MONTH_NAMES[nextMonth - 1]}.` :
-                                 `No critters found in ${MONTH_FULL[calendarMonth]}.`}
+                                 `No new critters arriving in ${MONTH_NAMES[nextMonth - 1]}.`}
                             </p>
                         </div>
                     ) : (

@@ -550,6 +550,17 @@ const THEME_CONFIGS: Record<ThemeMode, RadarThemeConfig> = {
     },
 };
 
+const timeAgo = (dateStr?: string) => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const diffSec = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (diffSec < 60) return 'just now';
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)} min ago`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} hr ago`;
+    return `${Math.floor(diffSec / 86400)} days ago`;
+};
+
 export const OnlineCommunityModal: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'online' | 'islands' | 'visits'>('online');
@@ -1308,7 +1319,7 @@ export const OnlineCommunityModal: React.FC = () => {
                                         }}
                                     />
                                 ) : (
-                                    <span className="fs-5">👋</span>
+                                    <i className="fa-solid fa-hand fs-5 text-warning" aria-hidden="true" />
                                 )}
                                 <div className="min-w-0">
                                     <div className="small fw-bold text-truncate" style={{ color: theme.textColor }}>
@@ -1346,7 +1357,7 @@ export const OnlineCommunityModal: React.FC = () => {
                                             });
                                             setWaveFeedback({
                                                 id: 'wave_back_' + Date.now(),
-                                                message: `✨ You waved back to ${waveFeedback.fromDisplayName || waveFeedback.fromUsername}!`,
+                                                message: `You waved back to ${waveFeedback.fromDisplayName || waveFeedback.fromUsername}!`,
                                                 subMessage: 'Friendly greetings returned across the skies!',
                                                 avatarUrl: waveFeedback.avatarUrl,
                                                 type: 'sent',
@@ -1354,7 +1365,8 @@ export const OnlineCommunityModal: React.FC = () => {
                                             setTimeout(() => setWaveFeedback(null), 4500);
                                         }}
                                     >
-                                        Wave Back 👋
+                                        <span>Wave Back</span>
+                                        <i className="fa-solid fa-hand ms-1" aria-hidden="true" />
                                     </button>
                                 )}
                                 <button
@@ -1551,12 +1563,12 @@ export const OnlineCommunityModal: React.FC = () => {
                                                                     fontSize: '0.66rem',
                                                                 }}
                                                             >
-                                                                👋 Waved!
+                                                                <i className="fa-solid fa-hand me-1" aria-hidden="true" />Waved!
                                                             </span>
                                                         )}
                                                     </div>
                                                     <div className="tiny-text font-monospace mt-0.5 text-truncate" style={{ color: theme.mutedColor }}>
-                                                        IGN: <strong style={{ color: theme.textColor }}>{resident.ign}</strong> · 🏝️ {resident.islandName}
+                                                        IGN: <strong style={{ color: theme.textColor }}>{resident.ign}</strong> · <i className="fa-solid fa-umbrella-beach text-success me-1" aria-hidden="true" />{resident.islandName}
                                                     </div>
                                                     <div className="tiny-text mt-0.5 d-flex align-items-center gap-1 text-truncate" style={{ color: dotColor }}>
                                                         <i
@@ -1575,7 +1587,7 @@ export const OnlineCommunityModal: React.FC = () => {
                                                 {/* Right: Last active & Actions */}
                                                 <div className="text-end flex-shrink-0 d-flex flex-column align-items-end justify-content-center gap-1">
                                                     <div className="tiny-text" style={{ color: theme.mutedColor, fontSize: '0.7rem' }}>
-                                                        {resident.joinedMinutesAgo === 0 ? 'Active now' : `${resident.joinedMinutesAgo}m ago`}
+                                                        {timeAgo(resident.joinedAt || (resident.joinedMinutesAgo !== undefined ? new Date(Date.now() - resident.joinedMinutesAgo * 60000).toISOString() : ''))}
                                                     </div>
                                                     <div className="d-flex align-items-center gap-1.5 justify-content-end">
                                                         {!resident.isCurrentUser ? (
@@ -1600,7 +1612,7 @@ export const OnlineCommunityModal: React.FC = () => {
                                                                         <span className="d-none d-sm-inline">Waved</span>
                                                                     </span>
                                                                 ) : (
-                                                                    <span>👋 <span className="d-none d-sm-inline">Wave</span></span>
+                                                                    <span><i className="fa-solid fa-hand me-1" aria-hidden="true" /><span className="d-none d-sm-inline">Wave</span></span>
                                                                 )}
                                                             </button>
                                                         ) : (
@@ -1615,7 +1627,7 @@ export const OnlineCommunityModal: React.FC = () => {
                                                                 }}
                                                                 title="This is your own resident profile"
                                                             >
-                                                                ✨ You
+                                                                <i className="fa-solid fa-star me-1" aria-hidden="true" />You
                                                             </span>
                                                         )}
                                                         {resident.hasPublicPassport ? (

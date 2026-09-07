@@ -673,8 +673,9 @@ export const CommandBuilderSummary = ({
                                     {canIncreaseOrder && (onFillTickets || onFillCrowns || onFillBells) && (
                                         <div className="mt-2 pt-2 border-top">
                                             <div className="d-flex justify-content-between align-items-center mb-1">
-                                                <span className="tiny-text fw-bold text-muted text-uppercase tracking-wider">
-                                                    ⚡ Fill remaining ({remainingOrderSlots} slots)
+                                                <span className="tiny-text fw-bold text-muted text-uppercase tracking-wider d-inline-flex align-items-center">
+                                                    <i className="fa-solid fa-bolt text-warning me-1" aria-hidden="true" />
+                                                    <span>Fill remaining ({remainingOrderSlots} slots)</span>
                                                 </span>
                                             </div>
                                             <div className="d-flex gap-1">

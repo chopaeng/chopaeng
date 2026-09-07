@@ -271,6 +271,7 @@
     background: #f1f5f9;
     border-bottom: 1px solid #e2e8f0;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
     flex-shrink: 0;
 }
 
@@ -1177,3 +1178,31 @@
     flex-direction: column;
     gap: 0.5rem;
 }
+
+/* ─── EXTRA MOBILE RESPONSIVE POLISH (< 576px) ─── */
+@media (max-width: 575px) {
+    .island-radar-modal-backdrop {
+        padding: 0;
+    }
+    .island-radar-modal-dialog {
+        height: 100dvh;
+        max-height: 100dvh;
+        border-radius: 0;
+        border: none;
+    }
+    .island-radar-search-box {
+        max-width: 100%;
+        min-width: 100%;
+    }
+    .island-radar-minimap-hud {
+        width: 86px;
+        height: 74px;
+        bottom: 0.75rem;
+        left: 0.75rem;
+    }
+    .island-radar-inspect-card {
+        max-width: 95vw;
+        border-radius: 1rem;
+    }
+}
+

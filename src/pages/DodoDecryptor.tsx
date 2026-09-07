@@ -182,12 +182,10 @@ const DodoDecryptor: React.FC = () => {
                                     {resultCode}
                                 </h2>
                             </div>
-                            <button
-                                className="btn btn-link text-muted fw-bold small text-decoration-none mt-4 transform-active"
-                                onClick={() => {navigator.clipboard.writeText(resultCode)}}
-                            >
-                                <i className="fa-regular fa-copy me-1"></i> Copy to Clipboard
-                            </button>
+                            <div className="small text-muted fw-bold mt-3 d-flex align-items-center justify-content-center gap-1.5">
+                                <i className="fa-solid fa-plane-departure text-nook"></i>
+                                <span>Enter code at DAL Airport on your Nintendo Switch</span>
+                            </div>
                         </div>
                     )}
                 </div>

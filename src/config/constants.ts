@@ -54,18 +54,18 @@ export const DODO_UI_CONFIG: Record<
 > = {
     copied: { icon: "fa-check", label: "Copied!", code: () => "✓ Copied" },
     "free-available": {
-        icon: "fa-copy",
-        label: "Copy Dodo Code™",
+        icon: "fa-plane-departure",
+        label: "Dodo Code™",
         code: ({ freeLiveCode }) => freeLiveCode ?? "",
     },
     revealed: {
-        icon: "fa-copy",
-        label: "Copy Code",
+        icon: "fa-plane-departure",
+        label: "Dodo Code™",
         code: ({ revealedCode }) => revealedCode ?? "",
     },
     revealing: { icon: "fa-spinner fa-spin", label: "Loading...", code: () => "..." },
     revealable: { icon: "fa-eye", label: "Reveal Code", code: () => "Tap to Reveal" },
-    "needs-login": { icon: "fa-lock", label: "Subscribers Only", code: () => "Login to Access" },
-    "needs-membership": { icon: "fa-lock", label: "Subscribers Only", code: () => "Join Discord" },
+    "needs-login": { icon: "fa-lock", label: "Subscribers Only", code: () => "Login with Discord" },
+    "needs-membership": { icon: "fa-lock", label: "No Island Access", code: () => "Upgrade to Access" },
     "gate-closed": { icon: "fa-power-off", label: "Gate Closed", code: () => "Offline" },
 };

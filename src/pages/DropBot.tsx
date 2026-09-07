@@ -108,7 +108,6 @@ export const DropBot: React.FC = () => {
     const [selectedDropIsland, setSelectedDropIsland] = useState<IslandData | null>(null);
     const [dropDodoCode, setDropDodoCode] = useState<string | null>(null);
     const [dropDodoLoading, setDropDodoLoading] = useState(false);
-    const [dropDodoCopied, setDropDodoCopied] = useState(false);
     const [dropDodoError, setDropDodoError] = useState<string | null>(null);
     const [alreadyOnIsland, setAlreadyOnIsland] = useState(false);
 
@@ -259,9 +258,6 @@ export const DropBot: React.FC = () => {
             const rawCode = String(data.dodo_code || '');
             const code = rawCode.split(': ').pop() || rawCode;
             setDropDodoCode(code);
-            navigator.clipboard.writeText(code).catch(() => {});
-            setDropDodoCopied(true);
-            setTimeout(() => setDropDodoCopied(false), 2500);
         } catch (e) {
             console.error(e);
             setDropDodoError('Network error while retrieving Dodo code. Please try again.');
@@ -1065,21 +1061,14 @@ export const DropBot: React.FC = () => {
                             {/* Dodo / Presence Actions */}
                             {selectedDropIsland && (
                                 <div className="d-flex align-items-center gap-2 flex-wrap">
-                                    {dropDodoCode ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                navigator.clipboard.writeText(dropDodoCode).catch(() => {});
-                                                setDropDodoCopied(true);
-                                                setTimeout(() => setDropDodoCopied(false), 2000);
-                                                playSound();
-                                            }}
-                                            className="btn btn-sm btn-success rounded-pill fw-bold px-3 py-1 shadow-2xs d-flex align-items-center gap-1"
-                                            style={{ fontSize: '0.78rem' }}
+                                    {dropDodoCode || (selectedDropIsland.dodoCode && selectedDropIsland.dodoCode !== "SUB ONLY" && selectedDropIsland.dodoCode !== "GETTIN'") ? (
+                                        <div
+                                            className="badge bg-success text-white rounded-pill fw-bold px-3 py-1.5 shadow-2xs d-inline-flex align-items-center gap-1.5 font-monospace"
+                                            style={{ fontSize: '0.82rem' }}
                                         >
-                                            <i className="fa-solid fa-check" />
-                                            <span>{dropDodoCopied ? 'Copied!' : `Dodo: ${dropDodoCode}`}</span>
-                                        </button>
+                                            <i className="fa-solid fa-plane-departure" />
+                                            <span>Dodo: {dropDodoCode || selectedDropIsland.dodoCode}</span>
+                                        </div>
                                     ) : (
                                         <button
                                             type="button"
@@ -1094,7 +1083,7 @@ export const DropBot: React.FC = () => {
                                                 </>
                                             ) : (
                                                 <>
-                                                    <i className="fa-solid fa-key me-1" /> Get Dodo Code
+                                                    <i className="fa-solid fa-eye me-1" /> Reveal Dodo Code
                                                 </>
                                             )}
                                         </button>

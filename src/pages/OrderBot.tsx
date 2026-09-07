@@ -734,7 +734,6 @@ const OrderBot: React.FC = () => {
     const [submitLoading, setSubmitLoading] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [cancelLoading, setCancelLoading] = useState(false);
-    const [dodoCopied, setDodoCopied] = useState(false);
     const [commandCopied, setCommandCopied] = useState(false);
     const [showTerminal, setShowTerminal] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -935,20 +934,6 @@ const OrderBot: React.FC = () => {
         };
     }, [refreshStatus]);
 
-    // ── Copy Dodo ──
-    const handleCopyDodo = useCallback(async () => {
-        const code = orderStatus?.dodoCode;
-        if (!code) return;
-        try {
-            await navigator.clipboard.writeText(code);
-        } catch {
-            /**/
-        }
-        playSound();
-        setDodoCopied(true);
-        setTimeout(() => setDodoCopied(false), 2500);
-    }, [orderStatus?.dodoCode, playSound]);
-
     // ── Order status polling ──
     const pollStatus = useCallback(async () => {
         if (!activeOrderId) return;
@@ -989,8 +974,6 @@ const OrderBot: React.FC = () => {
                 type: 'dodo',
                 title: 'Dodo Code Ready!',
                 message: `Your flight to ${d.islandName || 'the island'} is ready! Dodo Code: ${d.dodoCode}`,
-                actionLabel: 'Copy Dodo Code',
-                onAction: handleCopyDodo,
             });
         }
         if (['completed', 'cancelled'].includes(d.status)) {
@@ -1000,7 +983,7 @@ const OrderBot: React.FC = () => {
             // Transient network error: pause polling loop but do NOT delete saved order on refresh
             if (pollTimerRef.current) clearInterval(pollTimerRef.current);
         }
-    }, [activeOrderId, orderCommandText, token, triggerInAppToast, handleCopyDodo, playSound]);
+    }, [activeOrderId, orderCommandText, token, triggerInAppToast, playSound]);
 
     useEffect(() => {
         if (stage !== 'tracker' || !activeOrderId) return;
@@ -1168,7 +1151,6 @@ const OrderBot: React.FC = () => {
         setOrderStatus(null);
         notifiedRef.current = false;
         preparingNotifiedRef.current = false;
-        setDodoCopied(false);
         setStage('submit');
         playSound();
 
@@ -2731,30 +2713,10 @@ const OrderBot: React.FC = () => {
                                                     <div className="ob-pass-dodo-display">{orderStatus.dodoCode}</div>
 
                                                     <div className="d-flex justify-content-center gap-2 mt-3">
-                                                        <button
-                                                            id="ob-copy-dodo-btn"
-                                                            className={`btn btn-lg rounded-pill fw-black px-5 py-3 shadow-sm d-inline-flex align-items-center gap-2 ${dodoCopied
-                                                                    ? 'btn-success text-white'
-                                                                    : 'btn-warning text-dark'
-                                                                }`}
-                                                            onClick={handleCopyDodo}
-                                                            aria-label={
-                                                                dodoCopied
-                                                                    ? 'Dodo code copied'
-                                                                    : `Copy Dodo code ${orderStatus.dodoCode}`
-                                                            }
-                                                        >
-                                                            <i
-                                                                className={`fa-solid ${dodoCopied ? 'fa-check' : 'fa-copy'
-                                                                    }`}
-                                                                aria-hidden="true"
-                                                            />
-                                                            <span>
-                                                                {dodoCopied
-                                                                    ? 'Copied to Clipboard!'
-                                                                    : 'Copy Dodo Code'}
-                                                            </span>
-                                                        </button>
+                                                        <div className="badge bg-warning text-dark rounded-pill fw-black px-4 py-2.5 shadow-sm d-inline-flex align-items-center gap-2 fs-6">
+                                                            <i className="fa-solid fa-plane-departure" aria-hidden="true" />
+                                                            <span>Enter code at airport on your Nintendo Switch</span>
+                                                        </div>
                                                     </div>
                                                 </div>
 

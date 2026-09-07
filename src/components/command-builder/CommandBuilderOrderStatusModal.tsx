@@ -23,7 +23,6 @@ export const CommandBuilderOrderStatusModal = ({
         estimatedMinutes: initialEstimatedMinutes,
         islandName: 'Sinta',
     });
-    const [dodoCopied, setDodoCopied] = useState(false);
 
     useEffect(() => {
         if (!isOpen || !orderId) return;
@@ -49,15 +48,6 @@ export const CommandBuilderOrderStatusModal = ({
             window.clearInterval(timer);
         };
     }, [isOpen, orderId]);
-
-    const handleCopyDodo = async () => {
-        if (!statusData.dodoCode) return;
-        try {
-            await navigator.clipboard.writeText(statusData.dodoCode);
-            setDodoCopied(true);
-            setTimeout(() => setDodoCopied(false), 2000);
-        } catch { /* ignore */ }
-    };
 
     if (!isOpen) return null;
 
@@ -130,16 +120,10 @@ export const CommandBuilderOrderStatusModal = ({
                                             {statusData.dodoCode}
                                         </span>
                                     </div>
-                                    <button
-                                        type="button"
-                                        className={`btn rounded-pill px-4 fw-bold btn-sm transition-all ${
-                                            dodoCopied ? 'btn-success text-white' : 'btn-nook text-white'
-                                        }`}
-                                        onClick={handleCopyDodo}
-                                    >
-                                        <i className={`fa-solid ${dodoCopied ? 'fa-check' : 'fa-copy'} me-1`} />
-                                        {dodoCopied ? 'Dodo Copied!' : 'Copy Dodo Code'}
-                                    </button>
+                                    <div className="tiny-text text-muted fw-bold d-flex align-items-center justify-content-center gap-1">
+                                        <i className="fa-solid fa-plane-departure text-success"></i>
+                                        <span>Enter code at DAL Airport on your Nintendo Switch</span>
+                                    </div>
                                 </div>
 
                                 <div className="alert alert-warning-subtle border border-warning-subtle rounded-3 py-2 px-3 small text-start">

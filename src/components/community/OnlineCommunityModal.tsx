@@ -578,7 +578,6 @@ export const OnlineCommunityModal: React.FC = () => {
         fromSessionId?: string;
     } | null>(null);
     const [wavedMap, setWavedMap] = useState<Record<string, boolean>>({});
-    const [copiedDodo, setCopiedDodo] = useState<string | null>(null);
 
     // Active Theme State
     const [currentTheme, setCurrentTheme] = useState<ThemeMode>(getStoredTheme);
@@ -765,13 +764,6 @@ export const OnlineCommunityModal: React.FC = () => {
         setTimeout(() => {
             setWaveFeedback((prev) => (prev?.id === waveId ? null : prev));
         }, 5000);
-    };
-
-    const handleCopyDodo = (dodo: string) => {
-        playChimeClick();
-        navigator.clipboard.writeText(dodo);
-        setCopiedDodo(dodo);
-        setTimeout(() => setCopiedDodo(null), 2000);
     };
 
     if (!isOpen) return null;
@@ -1900,28 +1892,18 @@ export const OnlineCommunityModal: React.FC = () => {
 
                                                     {/* Dodo Boarding Pass Ticket */}
                                                     {island.dodoCode && island.dodoCode !== "GETTIN'" && (
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-xs rounded-pill px-2.5 py-0.5 fw-bold font-monospace border shadow-2xs"
+                                                        <span
+                                                            className="badge rounded-pill px-2.5 py-1 fw-bold font-monospace border shadow-2xs d-inline-flex align-items-center"
                                                             style={{
-                                                                backgroundColor: copiedDodo === island.dodoCode ? theme.tabActiveBg : theme.dodoTicketBg,
-                                                                borderColor: copiedDodo === island.dodoCode ? theme.tabActiveBg : theme.dodoTicketBorder,
-                                                                color: copiedDodo === island.dodoCode ? '#ffffff' : theme.dodoTicketCode,
+                                                                backgroundColor: theme.dodoTicketBg,
+                                                                borderColor: theme.dodoTicketBorder,
+                                                                color: theme.dodoTicketCode,
                                                                 fontSize: '0.74rem',
                                                             }}
-                                                            onClick={() => handleCopyDodo(island.dodoCode!)}
                                                         >
-                                                            {copiedDodo === island.dodoCode ? (
-                                                                <>
-                                                                    <i className="fa-solid fa-check me-1"></i>COPIED
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <i className="fa-solid fa-copy me-1" style={{ opacity: 0.7 }}></i>
-                                                                    {island.dodoCode}
-                                                                </>
-                                                            )}
-                                                        </button>
+                                                            <i className="fa-solid fa-plane-departure me-1" style={{ opacity: 0.7 }}></i>
+                                                            {island.dodoCode}
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>

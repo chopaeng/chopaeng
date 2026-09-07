@@ -11,11 +11,14 @@ interface IslandActionAreaProps {
     needsAuth: boolean;
     onRevealCode: () => void;
     dodoUiConfig: any;
-    isRevealableState: boolean;
     user: any;
     login: () => void;
     botStatus?: BotStatusResponse | null;
     botLoading?: boolean;
+    onRefreshRoles?: () => void;
+    isRefreshingRoles?: boolean;
+    freeLiveCode?: string | null;
+    revealedCode?: string | null;
 }
 
 const FALLBACK_IMG =
@@ -28,11 +31,14 @@ export const IslandActionArea: React.FC<IslandActionAreaProps> = ({
     needsAuth,
     onRevealCode,
     dodoUiConfig,
-    isRevealableState,
     user,
     login,
     botStatus,
     botLoading,
+    onRefreshRoles,
+    isRefreshingRoles = false,
+    freeLiveCode,
+    revealedCode,
 }) => {
     const { totalOrderCount, orderItems } = useCommandBuilderPockets();
 
@@ -192,12 +198,16 @@ export const IslandActionArea: React.FC<IslandActionAreaProps> = ({
         );
     }
 
+    const isCodeShowing = Boolean(freeLiveCode || revealedCode);
+
     return (
         <>
             <button
+                type="button"
                 disabled={!canShowDodo && !needsAuth}
-                className={`btn-dodo-3d ${canShowDodo || needsAuth ? "" : "disabled"}`}
-                onClick={onRevealCode}
+                className={`btn-dodo-3d ${canShowDodo || needsAuth ? "" : "disabled"} ${user && needsAuth ? "btn-dodo-upgrade" : ""} ${isCodeShowing ? "btn-dodo-revealed" : ""}`}
+                onClick={isCodeShowing ? undefined : onRevealCode}
+                style={isCodeShowing ? { cursor: 'default' } : undefined}
             >
                 <div className="content">
                     <div className="icon-box">
@@ -206,34 +216,97 @@ export const IslandActionArea: React.FC<IslandActionAreaProps> = ({
                     <div className="text-group">
                         <span className="action-label">{dodoUiConfig.label}</span>
                         <span className="action-code">
-                            {dodoUiConfig.code({ freeLiveCode: null, revealedCode: null })}
+                            {dodoUiConfig.code({ freeLiveCode: freeLiveCode ?? null, revealedCode: revealedCode ?? null })}
                         </span>
                     </div>
                 </div>
             </button>
 
-            {needsAuth && isRevealableState && (
-                <a
-                    href={user ? "https://www.patreon.com/cw/chopaeng/membership" : "#"}
-                    onClick={(e) => {
-                        if (!user) {
-                            e.preventDefault();
-                            login();
-                        }
-                    }}
-                    target={user ? "_blank" : undefined}
-                    rel={user ? "noopener noreferrer" : undefined}
-                    className="patreon-link"
-                >
-                    <div className="icon-wrap">
-                        <i className="fa-brands fa-patreon"></i>
+            {/* When user is logged in, but has no access to this island -> Upgrade / No Access card */}
+            {user && needsAuth && (
+                <div className="card rounded-4 p-3.5 p-md-4 mt-3 shadow-2xs island-no-access-card">
+                    <div className="d-flex align-items-start gap-3">
+                        <div
+                            className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 text-white shadow-2xs"
+                            style={{ width: 42, height: 42, background: 'linear-gradient(135deg, #d97706, #b45309)', fontSize: '1.15rem' }}
+                        >
+                            <i className="fa-solid fa-lock" />
+                        </div>
+                        <div className="flex-grow-1 min-w-0">
+                            <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+                                <strong className="text-dark ac-font" style={{ fontSize: '0.98rem' }}>
+                                    No Access to {islandName || "This Island"}
+                                </strong>
+                                <span
+                                    className="badge rounded-pill fw-bold"
+                                    style={{
+                                        background: 'rgba(217, 119, 6, 0.14)',
+                                        color: '#b45309',
+                                        border: '1px solid rgba(217, 119, 6, 0.3)',
+                                        fontSize: '0.68rem',
+                                    }}
+                                >
+                                    Subscribers Only
+                                </span>
+                            </div>
+                            <p className="text-muted small mb-3 lh-sm" style={{ fontSize: '0.82rem' }}>
+                                You are signed in as <strong className="text-dark">{user.username}</strong>, but your Discord account doesn't have the subscriber tier required for this VIP island. Upgrade your membership or sync your Discord roles to get instant Dodo code access!
+                            </p>
+                            <div className="d-flex align-items-center gap-2 flex-wrap">
+                                <Link
+                                    to="/membership"
+                                    className="btn btn-sm btn-warning text-dark rounded-pill fw-bold px-3 py-1.5 shadow-2xs d-inline-flex align-items-center gap-1.5"
+                                    style={{ fontSize: '0.82rem' }}
+                                >
+                                    <i className="fa-solid fa-gem text-dark" /> Upgrade Membership
+                                </Link>
+                                <a
+                                    href="https://www.patreon.com/cw/chopaeng/membership"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn btn-sm btn-outline-dark rounded-pill fw-bold px-3 py-1.5 d-inline-flex align-items-center gap-1.5"
+                                    style={{ fontSize: '0.82rem' }}
+                                >
+                                    <i className="fa-brands fa-patreon" style={{ color: '#ff424d' }} /> Patreon Plans
+                                </a>
+                                {onRefreshRoles && (
+                                    <button
+                                        type="button"
+                                        disabled={isRefreshingRoles}
+                                        onClick={onRefreshRoles}
+                                        className="btn btn-sm btn-light border rounded-pill px-2.5 py-1.5 tiny-text fw-bold d-inline-flex align-items-center gap-1"
+                                        title="Re-check Discord roles"
+                                    >
+                                        <i className={`fa-solid fa-arrows-rotate ${isRefreshingRoles ? "fa-spin text-warning" : "text-muted"}`} />
+                                        <span>{isRefreshingRoles ? "Checking..." : "Sync Roles"}</span>
+                                    </button>
+                                )}
+                                <a
+                                    href="https://discord.gg/chopaeng"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn btn-sm btn-link text-muted text-decoration-none fw-semibold px-2 py-1 tiny-text d-inline-flex align-items-center gap-1 ms-sm-auto"
+                                >
+                                    <i className="fa-brands fa-discord text-primary" /> Role Help
+                                </a>
+                            </div>
+                        </div>
                     </div>
-                    <span className="text-wrap">
-                        <span className="fw-bold">Patreon Subscriber Exclusive</span>
-                        <span className="small opacity-75 d-block">Join our Patreon to unlock access</span>
-                    </span>
-                    <i className="fa-solid fa-chevron-right ms-auto opacity-50"></i>
-                </a>
+                </div>
+            )}
+
+            {/* When user is NOT logged in and island requires auth */}
+            {!user && needsAuth && (
+                <div className="text-center mt-3">
+                    <button
+                        type="button"
+                        onClick={login}
+                        className="btn btn-link text-muted text-decoration-none small fw-bold d-inline-flex align-items-center gap-1.5"
+                    >
+                        <i className="fa-brands fa-discord text-primary" />
+                        <span>Login with Discord to check your island access</span>
+                    </button>
+                </div>
             )}
         </>
     );

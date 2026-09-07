@@ -105,7 +105,6 @@ export const NookPhoneDock: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [currentTheme, setCurrentTheme] = useState<ThemeMode>(getStoredTheme);
     const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
-    const [dodoCopied, setDodoCopied] = useState(false);
 
     // Order Tracking State inside NookPhone
     const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
@@ -297,13 +296,6 @@ export const NookPhoneDock: React.FC = () => {
         playChimeClick();
         action();
         setIsOpen(false);
-    };
-
-    const handleCopyDodo = (dodo: string) => {
-        playChimeClick();
-        navigator.clipboard.writeText(dodo);
-        setDodoCopied(true);
-        setTimeout(() => setDodoCopied(false), 2000);
     };
 
     const handleToggleNotifications = async () => {
@@ -736,15 +728,9 @@ export const NookPhoneDock: React.FC = () => {
                                             <span className="fw-black text-success font-monospace" style={{ fontSize: '0.95rem', letterSpacing: '1px' }}>
                                                 DODO: {dodoCode}
                                             </span>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleCopyDodo(dodoCode)}
-                                                className="btn btn-xs btn-success rounded-pill px-2 py-0.5 fw-bold"
-                                                style={{ fontSize: '0.7rem' }}
-                                            >
-                                                <i className={`fa-solid ${dodoCopied ? 'fa-check' : 'fa-copy'} me-1`} />
-                                                {dodoCopied ? 'Copied' : 'Copy'}
-                                            </button>
+                                            <span className="badge bg-success bg-opacity-10 text-success rounded-pill px-2 py-1 tiny-text fw-bold d-inline-flex align-items-center gap-1">
+                                                <i className="fa-solid fa-plane-departure" /> Ready
+                                            </span>
                                         </div>
                                     ) : (
                                         <div className="x-small text-muted fw-bold">

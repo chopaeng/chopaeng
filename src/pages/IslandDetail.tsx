@@ -31,7 +31,6 @@ import "./IslandDetail.css";
 
 
 function getDodoUiState(params: {
-    copied: boolean;
     isFreeIsland: boolean;
     freeLiveCode: string | null;
     revealedCode: string | null;
@@ -40,10 +39,9 @@ function getDodoUiState(params: {
     needsAuth: boolean;
     user: unknown;
 }): DodoUiState {
-    const { copied, isFreeIsland, freeLiveCode, revealedCode, isRevealing, isRevealableState, needsAuth, user } =
+    const { isFreeIsland, freeLiveCode, revealedCode, isRevealing, isRevealableState, needsAuth, user } =
         params;
 
-    if (copied) return "copied";
     if (isFreeIsland && freeLiveCode) return "free-available";
     if (revealedCode) return "revealed";
     if (isRevealing) return "revealing";
@@ -51,20 +49,6 @@ function getDodoUiState(params: {
     if (!user) return "needs-login";
     if (needsAuth) return "needs-membership";
     return "gate-closed";
-}
-
-
-
-
-
-async function copyToClipboard(text: string): Promise<boolean> {
-    try {
-        await navigator.clipboard.writeText(text);
-        return true;
-    } catch (e) {
-        console.error("Clipboard write failed:", e);
-        return false;
-    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -75,16 +59,16 @@ const IslandDetail = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { islands, villagersMap, loading } = useIslandData();
-    const { user, login, canAccessIsland } = useAuth();
+    const { user, login, canAccessIsland, refreshAuth } = useAuth();
     const { isFavoriteIsland, toggleFavoriteIsland } = useFavoriteIslands();
 
     const [showImageModal, setShowImageModal] = useState(false);
     const [revealedCode, setRevealedCode] = useState<string | null>(null);
     const [isRevealing, setIsRevealing] = useState(false);
-    const [copied, setCopied] = useState(false);
     const [revealError, setRevealError] = useState<string | null>(null);
     const [botStatus, setBotStatus] = useState<BotStatusResponse | null>(null);
     const [botLoading, setBotLoading] = useState(false);
+    const [isRefreshingRoles, setIsRefreshingRoles] = useState(false);
     const revealInFlightRef = useRef(false);
     const isMountedRef = useRef(true);
 
@@ -188,11 +172,15 @@ const IslandDetail = () => {
     const canShowDodo = isOrderIsland ? false : isFreeIsland ? !!freeLiveCode : !!(isRevealableState && !needsAuth);
     const mapImageSrc = island.mapUrl || `https://cdn.chopaeng.com/maps/${island.name.toLowerCase()}.png`;
 
-    const flashCopied = () => {
-        setCopied(true);
-        setTimeout(() => {
-            if (isMountedRef.current) setCopied(false);
-        }, 2000);
+    const handleRefreshRoles = async () => {
+        setIsRefreshingRoles(true);
+        try {
+            await refreshAuth();
+        } catch {
+            // ignore
+        } finally {
+            if (isMountedRef.current) setIsRefreshingRoles(false);
+        }
     };
 
     const onRevealCode = async () => {
@@ -203,21 +191,8 @@ const IslandDetail = () => {
             );
             return;
         }
-        // Free islands do not require reveal/auth; copy the live code directly.
-        if (isFreeIsland) {
-            if (freeLiveCode) {
-                const ok = await copyToClipboard(freeLiveCode);
-                if (ok) flashCopied();
-                else setRevealError("Couldn't copy to clipboard. Please copy the code manually.");
-            } else {
-                setRevealError("No live dodo code available right now.");
-            }
-            return;
-        }
-        if (revealedCode) {
-            const ok = await copyToClipboard(revealedCode);
-            if (ok) flashCopied();
-            else setRevealError("Couldn't copy to clipboard. Please copy the code manually.");
+        // Free islands or already revealed codes are directly displayed on screen
+        if (isFreeIsland || revealedCode) {
             return;
         }
         if (!user) {
@@ -266,16 +241,7 @@ const IslandDetail = () => {
             const rawCode = String(data.dodo_code || "");
             const code = rawCode.includes(": ") ? rawCode.split(": ").pop() || rawCode : rawCode;
             setRevealedCode(code);
-
-            const ok = await copyToClipboard(code);
-            if (!isMountedRef.current) return;
-
-            if (ok) {
-                flashCopied();
-                setRevealError(null);
-            } else {
-                setRevealError("Code revealed, but couldn't copy automatically. Please copy it manually.");
-            }
+            setRevealError(null);
         } catch (e) {
             console.error(e);
             if (isMountedRef.current) {
@@ -308,7 +274,6 @@ const IslandDetail = () => {
         )} ACNH treasure island on Chopaeng.`;
 
     const dodoUiState = getDodoUiState({
-        copied,
         isFreeIsland,
         freeLiveCode,
         revealedCode,
@@ -542,11 +507,14 @@ const IslandDetail = () => {
                                         needsAuth={needsAuth}
                                         onRevealCode={onRevealCode}
                                         dodoUiConfig={dodoUiConfig}
-                                        isRevealableState={isRevealableState}
                                         user={user}
                                         login={login}
                                         botStatus={botStatus}
                                         botLoading={botLoading}
+                                        onRefreshRoles={handleRefreshRoles}
+                                        isRefreshingRoles={isRefreshingRoles}
+                                        freeLiveCode={freeLiveCode}
+                                        revealedCode={revealedCode}
                                     />
                                 </div>
                             </div>

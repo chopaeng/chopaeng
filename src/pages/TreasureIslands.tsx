@@ -102,7 +102,6 @@ const TreasureIslands = () => {
 
     const [filter, setFilter] = useState<FilterKey>("ALL");
     const [sortBy, setSortBy] = useState<SortOption>("DEFAULT");
-    const [copiedId, setCopiedId] = useState<string | null>(null);
     const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({});
     const [revealingId, setRevealingId] = useState<string | null>(null);
     const [revealError, setRevealError] = useState<string | null>(null);
@@ -216,25 +215,10 @@ const TreasureIslands = () => {
         return data;
     }, [filter, search, islands, searchMode, finderResults, sortBy, isFavoriteIsland]);
 
-    const onCopyCode = (island: IslandData, code: string) => {
-        if (code === "GETTIN'" || code === "....." || code === "SUB ONLY") return;
-        navigator.clipboard.writeText(code).catch(() => {});
-        playChimeClick();
-        setCopiedId(island.name);
-        setTimeout(() => setCopiedId(null), 2500);
-    };
-
     const onRevealCode = async (island: IslandData) => {
         setRevealError(null);
-        // Free islands do not require reveal/auth; copy the live code directly.
-        if (isPublicIsland(island)) {
-            if (island.dodoCode) onCopyCode(island, island.dodoCode);
-            else setRevealError("No live dodo code available right now.");
-            return;
-        }
-        // Already revealed — just copy
-        if (revealedCodes[island.id]) {
-            onCopyCode(island, revealedCodes[island.id]);
+        // Free islands or already revealed codes are displayed directly
+        if (isPublicIsland(island) || revealedCodes[island.id]) {
             return;
         }
         // Not logged in — send to Discord OAuth
@@ -282,10 +266,7 @@ const TreasureIslands = () => {
             const rawCode = String(data.dodo_code || "");
             const code = rawCode.split(": ").pop() || rawCode;
             setRevealedCodes(prev => ({ ...prev, [island.id]: code }));
-            navigator.clipboard.writeText(code).catch(() => {});
             playChimeClick();
-            setCopiedId(island.name);
-            setTimeout(() => setCopiedId(null), 2500);
             setRevealError(null);
         } catch (e) {
             console.error(e);
@@ -717,7 +698,6 @@ const TreasureIslands = () => {
                             btnIcon = statusMeta.btn.icon;
                         }
 
-                        const isCopied = copiedId === island.name;
                         const visitors = Math.max(0, Math.min(7, island.visitors ?? 0));
                         const pct = (visitors / 7) * 100;
                         const isFull = visitors >= 7;
@@ -904,22 +884,18 @@ const TreasureIslands = () => {
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         if (isRevealableStatus) {
-                                                            if (hasInstantCode) onCopyCode(island, liveCode as string);
-                                                            else onRevealCode(island);
+                                                            if (hasInstantCode || revealedCode) {
+                                                                return;
+                                                            }
+                                                            onRevealCode(island);
                                                         }
                                                     }}
                                                     disabled={btnDisabled}
-                                                    className={`btn w-100 rounded-pill fw-black py-2 position-relative overflow-hidden transition-all shadow-2xs ${
-                                                        isCopied ? 'btn-success text-white' : btnClass
-                                                    }`}
-                                                    style={{ fontSize: '0.85rem' }}
+                                                    className={`btn w-100 rounded-pill fw-black py-2 position-relative overflow-hidden transition-all shadow-2xs ${btnClass}`}
+                                                    style={{ fontSize: '0.85rem', cursor: (revealedCode || hasInstantCode) ? 'default' : undefined }}
                                                 >
                                                     <div className="d-flex align-items-center justify-content-center gap-2">
-                                                        {isCopied ? (
-                                                            <>
-                                                                <i className="fa-solid fa-check"></i> COPIED!
-                                                            </>
-                                                        ) : isRevealing ? (
+                                                        {isRevealing ? (
                                                             <><i className="fa-solid fa-circle-notch fa-spin"></i> LOADING...</>
                                                         ) : revealedCode ? (
                                                             <><i className="fa-solid fa-plane-departure opacity-75"></i><span className="font-monospace">{revealedCode}</span></>

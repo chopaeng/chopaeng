@@ -47,7 +47,6 @@ export const TripPlanner: React.FC = () => {
     const [selectedItems, setSelectedItems] = useState<SelectedPlanItem[]>([]);
     const [filterAccess, setFilterAccess] = useState<'all' | 'unlocked'>('all');
     const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
-    const [copiedDodoId, setCopiedDodoId] = useState<string | null>(null);
     const [shareCopied, setShareCopied] = useState(false);
     const [dodoReveals, setDodoReveals] = useState<Record<string, { code: string; loading: boolean; error?: string }>>({});
 
@@ -379,13 +378,10 @@ export const TripPlanner: React.FC = () => {
         return stops;
     }, [selectedItems, islands, filterAccess, user, canAccessIsland, villagersMap, calculateItemIslandScore]);
 
-    // Handle Reveal / Copy Dodo for an Island
+    // Handle Reveal Dodo for an Island
     const handleRevealDodo = async (island: IslandData) => {
         playChimeClick();
         if (island.dodoCode) {
-            navigator.clipboard.writeText(island.dodoCode).catch(() => {});
-            setCopiedDodoId(island.id);
-            setTimeout(() => setCopiedDodoId(null), 2500);
             return;
         }
 
@@ -402,9 +398,6 @@ export const TripPlanner: React.FC = () => {
                 const data = await resp.json();
                 const code = String(data.dodo_code || '').split(': ').pop() || String(data.dodo_code || '');
                 setDodoReveals((prev) => ({ ...prev, [island.id]: { code, loading: false } }));
-                navigator.clipboard.writeText(code).catch(() => {});
-                setCopiedDodoId(island.id);
-                setTimeout(() => setCopiedDodoId(null), 2500);
             } else {
                 const err = await resp.json().catch(() => ({}));
                 setDodoReveals((prev) => ({
@@ -715,7 +708,6 @@ export const TripPlanner: React.FC = () => {
                                         const reveal = dodoReveals[island.id];
                                         const hasDirectDodo = Boolean(island.dodoCode || reveal?.code);
                                         const activeDodo = reveal?.code || island.dodoCode || '';
-                                        const isCopied = copiedDodoId === island.id;
 
                                         return (
                                             <div key={island.id} className="card rounded-4 border-2 shadow-sm overflow-hidden bg-white">
@@ -851,21 +843,13 @@ export const TripPlanner: React.FC = () => {
 
                                                         <div className="d-flex align-items-center gap-2">
                                                             {hasDirectDodo ? (
-                                                                <button
-                                                                    type="button"
-                                                                    className={`btn btn-sm rounded-pill fw-bold px-3 py-1 shadow-2xs d-inline-flex align-items-center gap-1 ${
-                                                                        isCopied ? 'btn-success text-white' : 'btn-warning text-dark'
-                                                                    }`}
-                                                                    onClick={() => {
-                                                                        navigator.clipboard.writeText(activeDodo).catch(() => {});
-                                                                        setCopiedDodoId(island.id);
-                                                                        playChimeClick();
-                                                                        setTimeout(() => setCopiedDodoId(null), 2500);
-                                                                    }}
+                                                                <div
+                                                                    className="badge bg-warning text-dark rounded-pill fw-black px-3 py-1.5 shadow-2xs d-inline-flex align-items-center gap-1.5 font-monospace"
+                                                                    style={{ fontSize: '0.85rem' }}
                                                                 >
-                                                                    <i className={`fa-solid ${isCopied ? 'fa-check' : 'fa-copy'}`} />
-                                                                    <span>{isCopied ? 'Copied Code!' : 'Copy Dodo'}</span>
-                                                                </button>
+                                                                    <i className="fa-solid fa-plane-departure" />
+                                                                    <span>{activeDodo}</span>
+                                                                </div>
                                                             ) : (
                                                                 <button
                                                                     type="button"

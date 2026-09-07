@@ -926,6 +926,141 @@ const CatalogDetail = () => {
                                         </div>
                                     )}
 
+                                    {/* Sleep Schedule Tool */}
+                                    {(() => {
+                                        const personality = entry.personality || villagerData?.personality || '';
+                                        if (!personality) return null;
+
+                                        // Sleep schedule by personality (ACNH community-documented)
+                                        // Hours > 24 = next-day AM (e.g. 27 = 3:00 AM next day)
+                                        const SLEEP_SCHEDULE: Record<string, { wake: number; sleep: number; label: string; emoji: string }> = {
+                                            'Lazy':       { wake: 8,  sleep: 23, label: 'Lazy',       emoji: '😴' },
+                                            'Jock':       { wake: 6,  sleep: 24, label: 'Jock',       emoji: '💪' },
+                                            'Cranky':     { wake: 9,  sleep: 27, label: 'Cranky',     emoji: '😤' },
+                                            'Smug':       { wake: 8,  sleep: 26, label: 'Smug',       emoji: '😏' },
+                                            'Normal':     { wake: 6,  sleep: 24, label: 'Normal',     emoji: '😊' },
+                                            'Peppy':      { wake: 7,  sleep: 25, label: 'Peppy',      emoji: '✨' },
+                                            'Snooty':     { wake: 9,  sleep: 26, label: 'Snooty',     emoji: '💅' },
+                                            'Big Sister': { wake: 11, sleep: 27, label: 'Big Sister', emoji: '🤜' },
+                                            'Uchi':       { wake: 11, sleep: 27, label: 'Big Sister', emoji: '🤜' },
+                                        };
+
+                                        const schedule = SLEEP_SCHEDULE[personality];
+                                        if (!schedule) return null;
+
+                                        const now = new Date();
+                                        const currentHour = now.getHours();
+                                        const currentMin = now.getMinutes();
+                                        const currentDecimal = currentHour + currentMin / 60; // e.g. 14.5 = 2:30 PM
+
+                                        // Normalize current time relative to 24h+ scale
+                                        // If current time is early AM (0-8) and sleep > 24, treat as 24+
+                                        const normalizedHour = currentDecimal < schedule.wake && schedule.sleep > 24
+                                            ? currentDecimal + 24
+                                            : currentDecimal;
+
+                                        const isAwake = normalizedHour >= schedule.wake && normalizedHour < schedule.sleep;
+
+                                        const fmtHour = (h: number) => {
+                                            const real = h % 24;
+                                            const ampm = real < 12 ? 'AM' : 'PM';
+                                            const display = real === 0 ? 12 : real > 12 ? real - 12 : real;
+                                            return `${display}:00 ${ampm}`;
+                                        };
+
+                                        // For the visual bar: map 0..24h window, clamped
+                                        const barStart = schedule.wake;
+                                        const barEnd = Math.min(schedule.sleep, 24);
+                                        const wakePercent = (barStart / 24) * 100;
+                                        const sleepPercent = (barEnd / 24) * 100;
+                                        const nowPercent = Math.min((currentDecimal / 24) * 100, 100);
+
+                                        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                                        return (
+                                            <div className="mb-4 p-4 rounded-4 bg-white border shadow-sm">
+                                                <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                                    <span className="fw-black small text-nook text-uppercase tracking-wide">
+                                                        <i className="fa-solid fa-moon me-2 opacity-75"></i>Sleep Schedule
+                                                    </span>
+                                                    <span className={`badge rounded-pill px-3 py-2 fw-bold d-flex align-items-center gap-1 ${isAwake ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle'}`} style={{ fontSize: '0.75rem' }}>
+                                                        <span style={{ fontSize: '0.6rem' }}>{isAwake ? '🟢' : '💤'}</span>
+                                                        {isAwake ? `Awake now` : `Asleep now`}
+                                                        <span className="opacity-75 fw-normal">· {timeStr}</span>
+                                                    </span>
+                                                </div>
+
+                                                {!isAwake && (
+                                                    <div className="alert alert-warning border-0 rounded-3 py-2 px-3 mb-3 small fw-semibold d-flex align-items-center gap-2" role="alert">
+                                                        <i className="fa-solid fa-triangle-exclamation text-warning"></i>
+                                                        <span>{entry.name} may be asleep on the island right now. Visit during their awake hours to find them in-game.</span>
+                                                    </div>
+                                                )}
+
+                                                {/* 24h Timeline Bar */}
+                                                <div className="mb-3">
+                                                    <div className="position-relative rounded-pill overflow-hidden" style={{ height: '10px', background: '#e9ecef' }}>
+                                                        {/* Awake band */}
+                                                        <div
+                                                            className="position-absolute h-100 rounded-pill"
+                                                            style={{
+                                                                left: `${wakePercent}%`,
+                                                                width: `${sleepPercent - wakePercent}%`,
+                                                                background: 'linear-gradient(90deg, #52c41a, #73d13d)',
+                                                            }}
+                                                        />
+                                                        {/* Current time marker */}
+                                                        <div
+                                                            className="position-absolute"
+                                                            style={{
+                                                                left: `calc(${nowPercent}% - 5px)`,
+                                                                top: '-3px',
+                                                                width: '10px',
+                                                                height: '16px',
+                                                                background: isAwake ? '#1890ff' : '#adb5bd',
+                                                                borderRadius: '3px',
+                                                                border: '2px solid white',
+                                                                boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                                                                zIndex: 2,
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    {/* Hour labels */}
+                                                    <div className="d-flex justify-content-between mt-1" style={{ fontSize: '0.6rem', color: '#adb5bd', fontWeight: 700 }}>
+                                                        <span>12 AM</span>
+                                                        <span>6 AM</span>
+                                                        <span>12 PM</span>
+                                                        <span>6 PM</span>
+                                                        <span>12 AM</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="d-flex flex-wrap gap-3 small">
+                                                    <div className="d-flex align-items-center gap-2">
+                                                        <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1 fw-bold" style={{ fontSize: '0.7rem' }}>
+                                                            <i className="fa-solid fa-sun me-1"></i>Wakes
+                                                        </span>
+                                                        <span className="fw-black text-dark">{fmtHour(schedule.wake)}</span>
+                                                    </div>
+                                                    <div className="d-flex align-items-center gap-2">
+                                                        <span className="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-2 py-1 fw-bold" style={{ fontSize: '0.7rem' }}>
+                                                            <i className="fa-solid fa-moon me-1"></i>Sleeps
+                                                        </span>
+                                                        <span className="fw-black text-dark">{fmtHour(schedule.sleep)}</span>
+                                                    </div>
+                                                    <div className="d-flex align-items-center gap-2">
+                                                        <span className="badge bg-light text-muted border rounded-pill px-2 py-1 fw-bold" style={{ fontSize: '0.7rem' }}>
+                                                            {schedule.emoji} {schedule.label}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <p className="x-small text-muted mb-0 mt-2" style={{ fontSize: '0.7rem' }}>
+                                                    Based on your local time. ACNH game time is synced to real-world time unless the island host has time-traveled.
+                                                </p>
+                                            </div>
+                                        );
+                                    })()}
+
                                     {/* Image Previews Tabs (Interior / Exterior / Photo) */}
                                     {(entry.houseImage || entry.photoImage || villagerData?.nh_details?.house_interior_url || villagerData?.nh_details?.house_exterior_url || villagerData?.nh_details?.photo_url) && (
                                         <div className="mb-4 p-4 rounded-4 bg-white border shadow-sm">
@@ -968,7 +1103,7 @@ const CatalogDetail = () => {
                                                 <img
                                                     src={
                                                         activeHouseTab === 'interior'
-                                                            ? (villagerData?.nh_details?.house_interior_url || entry.houseImage || entry.image)
+                                                            ? (villagerData?.nh_details?.house_interior_url || entry.image)
                                                             : activeHouseTab === 'exterior'
                                                                 ? (entry.houseImage || villagerData?.nh_details?.house_exterior_url || entry.image)
                                                                 : (entry.photoImage || villagerData?.nh_details?.photo_url || entry.image)

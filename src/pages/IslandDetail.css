@@ -191,3 +191,52 @@
     border: none;
     box-shadow: 0 4px 12px rgba(145, 70, 255, 0.35);
 }
+
+/* ── 3D Dodo Button: Upgrade / No Access state ── */
+.btn-dodo-3d.btn-dodo-upgrade .content {
+    background: linear-gradient(135deg, #d97706, #b45309) !important;
+    border-color: #78350f !important;
+    box-shadow: 0 6px 0 #78350f !important;
+}
+
+.btn-dodo-3d.btn-dodo-upgrade:active .content {
+    box-shadow: 0 0 0 #78350f !important;
+}
+
+[data-theme="celeste"] .btn-dodo-3d.btn-dodo-upgrade .content {
+    background: linear-gradient(135deg, #7c3aed, #5b21b6) !important;
+    border-color: #3b0764 !important;
+    box-shadow: 0 6px 0 #3b0764 !important;
+}
+
+[data-theme="roost"] .btn-dodo-3d.btn-dodo-upgrade .content {
+    background: linear-gradient(135deg, #a06b43, #78350f) !important;
+    border-color: #451a03 !important;
+    box-shadow: 0 6px 0 #451a03 !important;
+}
+
+/* ── No Island Access / Upgrade Card ── */
+.island-no-access-card {
+    background: #fffbeb !important;
+    border: 1.5px solid #fde68a !important;
+    color: #1e293b;
+}
+
+[data-theme="celeste"] .island-no-access-card {
+    background: #1e293b !important;
+    border: 1.5px solid rgba(167, 139, 250, 0.35) !important;
+    color: #f8fafc !important;
+}
+
+[data-theme="roost"] .island-no-access-card {
+    background: #292524 !important;
+    border: 1.5px solid rgba(217, 119, 6, 0.35) !important;
+    color: #fafaf9 !important;
+}
+
+[data-theme="nooklink"] .island-no-access-card {
+    background: #111827 !important;
+    border: 1.5px solid rgba(16, 185, 129, 0.35) !important;
+    color: #f8fafc !important;
+}
+

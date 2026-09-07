@@ -39,9 +39,6 @@ const Home = () => {
     const [heroTab, setHeroTab] = useState<'flights' | 'stream'>('flights');
     const [flightFilter, setFlightFilter] = useState<'all' | 'public' | 'member'>('all');
 
-    // Copy Dodo feedback
-    const [copiedDodoIsland, setCopiedDodoIsland] = useState<string | null>(null);
-
     // Fetch blog posts
     useEffect(() => {
         const fetchPosts = async () => {
@@ -106,14 +103,6 @@ const Home = () => {
             })
             .slice(0, 5);
     }, [islands, flightFilter]);
-
-    const handleCopyDodo = (dodo: string, islandName: string) => {
-        if (!dodo) return;
-        navigator.clipboard.writeText(dodo).catch(() => {});
-        playChimeClick();
-        setCopiedDodoIsland(islandName);
-        setTimeout(() => setCopiedDodoIsland(null), 2500);
-    };
 
     return (
         <>
@@ -372,25 +361,12 @@ const Home = () => {
 
                                                             <div>
                                                                 {isl.dodoCode ? (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleCopyDodo(isl.dodoCode!, isl.name)}
-                                                                        className={`btn btn-sm rounded-pill fw-black px-3 font-monospace shadow-2xs ${
-                                                                            copiedDodoIsland === isl.name ? 'btn-success text-white' : 'btn-white border text-dark'
-                                                                        }`}
+                                                                    <div
+                                                                        className="badge bg-white border text-dark rounded-pill fw-black px-3 py-1.5 font-monospace shadow-2xs d-inline-flex align-items-center"
                                                                         style={{ fontSize: '0.82rem' }}
-                                                                        title="Copy Dodo Code"
                                                                     >
-                                                                        {copiedDodoIsland === isl.name ? (
-                                                                            <>
-                                                                                <i className="fa-solid fa-check me-1"></i> Copied!
-                                                                            </>
-                                                                        ) : (
-                                                                            <>
-                                                                                <i className="fa-solid fa-plane-departure text-nook me-1"></i> {isl.dodoCode}
-                                                                            </>
-                                                                        )}
-                                                                    </button>
+                                                                        <i className="fa-solid fa-plane-departure text-nook me-1"></i> {isl.dodoCode}
+                                                                    </div>
                                                                 ) : (
                                                                     <Link to={`/islands`} className="btn btn-sm btn-outline-success rounded-pill fw-bold px-3" style={{ fontSize: '0.8rem' }}>
                                                                         View Pass

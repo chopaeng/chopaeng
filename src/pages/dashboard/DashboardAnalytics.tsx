@@ -30,11 +30,19 @@ const DashboardAnalytics = () => {
   const [nrDays, setNrDays] = useState<7 | 30>(7);
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [exportSuccess, setExportSuccess] = useState(false);
+  const [expandedQueries, setExpandedQueries] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   const load = useCallback(() => {
     setError("");
-    dashboardApi.analytics(filter).then(setData).catch((err) => setError(err.message));
-    dashboardApi.commandAnalytics(30, 15).then(setCommandData).catch((err) => console.error("[command analytics]", err));
+    dashboardApi.analytics(filter)
+      .then((res) => {
+        setData(res);
+        setLastRefreshed(new Date());
+      })
+      .catch((err) => setError(err.message));
+    dashboardApi.commandAnalytics(30, 25).then(setCommandData).catch((err) => console.error("[command analytics]", err));
   }, [filter]);
 
   useEffect(() => {
@@ -87,6 +95,7 @@ const DashboardAnalytics = () => {
 
   const exportCsv = async () => {
     setExporting(true);
+    setExportSuccess(false);
     setError("");
     try {
       const token = getAuthToken();
@@ -103,6 +112,8 @@ const DashboardAnalytics = () => {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
+      setExportSuccess(true);
+      setTimeout(() => setExportSuccess(false), 3500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
     } finally {
@@ -120,7 +131,7 @@ const DashboardAnalytics = () => {
     ["Total Visits", authTotal, "fa-plane", "dashboard-purple", `avg ${fmt(data.avg_visits_30d)}/day (30d)`],
     ["Unique Travelers", data.total_unique_travelers, "fa-users", "text-nook-green", "all-time distinct visitors"],
     ["Unique Islands", data.total_unique_islands, "fa-map", "dashboard-blue", "all-time destinations"],
-    ["Peak Hour", data.peak_hour == null ? "n/a" : `${String(data.peak_hour).padStart(2, "0")}:00`, "fa-clock", "dashboard-yellow", "UTC+8"],
+    ["Peak Hour", data.peak_hour == null ? "n/a" : `${String(data.peak_hour).padStart(2, "0")}:00`, "fa-clock", "dashboard-yellow", "UTC+8 timezone"],
     ["Auth Rate", data.auth_rate_pct == null ? "n/a" : `${String(data.auth_rate_pct)}%`, "fa-user-shield", "text-nook-green", "authorized visits"],
   ];
 
@@ -128,9 +139,10 @@ const DashboardAnalytics = () => {
     const max = Math.max(...items.map((row) => countFor(row, countKey)), 1);
     return items.length ? items.slice(0, 10).map((row, index) => {
       const count = countFor(row, countKey);
+      const name = nameFor(row);
       return (
-        <div className={`dashboard-bar-row ${colorClass}`} key={`${nameFor(row)}-${index}`}>
-          <div className="dashboard-row-title"><span>#{index + 1}</span>{nameFor(row)}</div>
+        <div className={`dashboard-bar-row ${colorClass}`} key={`${name}-${index}`} title={`${name}: ${count.toLocaleString()}`}>
+          <div className="dashboard-row-title"><span>#{index + 1}</span>{name}</div>
           <div className="dashboard-row-bar"><span style={{ width: pct(count, max) }} /></div>
           <strong>{fmt(count)}</strong>
         </div>
@@ -140,11 +152,16 @@ const DashboardAnalytics = () => {
 
   const renderQueryRows = (items: Row[], colorClass: string) => {
     const max = Math.max(...items.map((row) => countFor(row, "count")), 1);
-    return items.length ? items.slice(0, 8).map((row, index) => {
+    const limit = expandedQueries ? 20 : 8;
+    return items.length ? items.slice(0, limit).map((row, index) => {
       const count = countFor(row, "count");
+      const q = queryNameFor(row);
       return (
-        <div className={`dashboard-bar-row ${colorClass}`} key={`${queryNameFor(row)}-${index}`}>
-          <div className="dashboard-row-title"><span>{String(row.command || "find")}</span>{queryNameFor(row)}</div>
+        <div className={`dashboard-bar-row ${colorClass}`} key={`${q}-${index}`} title={`Query: "${q}" (${count.toLocaleString()} times)`}>
+          <div className="dashboard-row-title text-truncate" style={{ maxWidth: 220 }}>
+            <span>{String(row.command || "find")}</span>
+            <span className="text-truncate" title={q}>{q}</span>
+          </div>
           <div className="dashboard-row-bar"><span style={{ width: pct(count, max) }} /></div>
           <strong>{fmt(count)}</strong>
         </div>
@@ -166,10 +183,28 @@ const DashboardAnalytics = () => {
               <i className={`fa-solid ${icon} me-1`} />{label}
             </button>
           ))}
+          {lastRefreshed && (
+            <span className="x-small text-muted ms-2 d-none d-md-inline">
+              Updated {lastRefreshed.toLocaleTimeString()}
+            </span>
+          )}
         </div>
-        <button className="btn rounded-pill fw-bold px-4 py-2 dashboard-export-btn" disabled={exporting} onClick={exportCsv}>
-          <i className="fa-solid fa-download me-1" />{exporting ? "Exporting" : "Export CSV"}
-        </button>
+        <div className="d-flex align-items-center gap-2">
+          <button
+            className={`btn rounded-pill fw-bold px-4 py-2 ${exportSuccess ? "btn-success text-white" : "dashboard-export-btn"}`}
+            disabled={exporting}
+            onClick={exportCsv}
+            title="Download full analytics as CSV"
+          >
+            {exporting ? (
+              <><span className="spinner-border spinner-border-sm me-1" />Exporting...</>
+            ) : exportSuccess ? (
+              <><i className="fa-solid fa-check me-1" />Exported!</>
+            ) : (
+              <><i className="fa-solid fa-download me-1" />Export CSV</>
+            )}
+          </button>
+        </div>
       </div>
 
       {error && <div className="alert alert-danger dashboard-alert">{error}</div>}
@@ -191,13 +226,28 @@ const DashboardAnalytics = () => {
           <section className="section-card h-100">
             <div className="section-card-header"><span><i className="fa-solid fa-chart-pie me-2 text-success" />Traveler Authorization</span></div>
             <div className="p-4">
-              <div className="dashboard-donut" style={{ background: `conic-gradient(var(--nook-green) 0 ${authTotal ? (authorized / authTotal) * 100 : 0}%, #e06c75 0 100%)` }}>
-                <span>{data.auth_rate_pct == null ? "n/a" : `${String(data.auth_rate_pct)}%`}</span>
+              <div
+                className="dashboard-donut"
+                style={{
+                  background: `conic-gradient(var(--nook-green) 0 ${authTotal ? (authorized / authTotal) * 100 : 0}%, #e06c75 0 100%)`,
+                  transition: "background 0.5s ease",
+                }}
+              >
+                <div className="text-center position-relative" style={{ zIndex: 1, lineHeight: 1.1 }}>
+                  <span className="d-block">{data.auth_rate_pct == null ? "n/a" : `${String(data.auth_rate_pct)}%`}</span>
+                  <small className="text-muted fw-bold" style={{ fontSize: "0.68rem" }}>Auth Rate</small>
+                </div>
               </div>
               <div className="dashboard-legend mt-4">
-                <div><span className="status-dot bg-success" />Authorized<strong>{fmt(authorized)}</strong></div>
-                <div><span className="status-dot dashboard-dot-red" />Unknown<strong>{fmt(unauthorized)}</strong></div>
-                <div><span className="status-dot dashboard-dot-muted" />Total<strong>{fmt(authTotal)}</strong></div>
+                <div title={`${fmt(authorized)} authorized visits`}>
+                  <span className="status-dot bg-success" />Authorized<strong>{fmt(authorized)}</strong>
+                </div>
+                <div title={`${fmt(unauthorized)} unauthorized / unknown visits`}>
+                  <span className="status-dot dashboard-dot-red" />Unknown<strong>{fmt(unauthorized)}</strong>
+                </div>
+                <div title={`${fmt(authTotal)} total visits evaluated`}>
+                  <span className="status-dot dashboard-dot-muted" />Total<strong>{fmt(authTotal)}</strong>
+                </div>
               </div>
             </div>
           </section>
@@ -212,12 +262,24 @@ const DashboardAnalytics = () => {
               </div>
             </div>
             <div className="dashboard-spark-bars">
-              {visitsByDay.map((row) => (
-                <div className="dashboard-spark-item" key={String(row.day)}>
-                  <div className="dashboard-spark-track"><span style={{ height: pct(countFor(row, "count"), maxes.trend) }} /></div>
-                  <small>{String(row.day || "").slice(5)}</small>
-                </div>
-              ))}
+              {visitsByDay.map((row) => {
+                const count = countFor(row, "count");
+                const dayStr = String(row.day || "");
+                return (
+                  <div
+                    className="dashboard-spark-item"
+                    key={dayStr}
+                    title={`${dayStr}: ${count.toLocaleString()} visits`}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <div className="x-small fw-bold text-muted mb-1" style={{ fontSize: "0.68rem" }}>{fmt(count)}</div>
+                    <div className="dashboard-spark-track">
+                      <span style={{ height: pct(count, maxes.trend), transition: "height 0.3s ease" }} />
+                    </div>
+                    <small className="fw-bold">{dayStr.length > 5 ? dayStr.slice(5) : dayStr}</small>
+                  </div>
+                );
+              })}
             </div>
           </section>
         </div>
@@ -249,7 +311,30 @@ const DashboardAnalytics = () => {
           {data.peak_hour != null && <span className="dashboard-peak-badge">Peak: {String(data.peak_hour).padStart(2, "0")}:00</span>}
         </div>
         <div className="dashboard-hour-grid p-3">
-          {visitsByHour.map((row) => <div key={String(row.hour)}><span style={{ height: pct(countFor(row, "count"), maxes.hour) }} /><small>{String(row.hour).padStart(2, "0")}</small></div>)}
+          {visitsByHour.map((row) => {
+            const hourNum = asNumber(row.hour);
+            const count = countFor(row, "count");
+            const isPeak = data.peak_hour === hourNum;
+            const hourLabel = `${String(hourNum).padStart(2, "0")}:00`;
+            return (
+              <div
+                key={String(row.hour)}
+                title={`${hourLabel} (UTC+8): ${count.toLocaleString()} visits${isPeak ? " ★ PEAK" : ""}`}
+                style={{ cursor: "pointer" }}
+              >
+                <span
+                  style={{
+                    height: pct(count, maxes.hour),
+                    background: isPeak ? "var(--dal-blue)" : undefined,
+                    transition: "height 0.3s ease",
+                  }}
+                />
+                <small style={{ color: isPeak ? "var(--dal-blue)" : undefined, fontWeight: isPeak ? 900 : 700 }}>
+                  {String(row.hour).padStart(2, "0")}
+                </small>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -257,7 +342,22 @@ const DashboardAnalytics = () => {
         <div className="col-12 col-lg-7">
           <section className="section-card h-100">
             <div className="section-card-header"><span><i className="fa-solid fa-calendar-days me-2 dashboard-purple" />Visits by Day of Week</span></div>
-            <div className="p-3">{visitsByDow.map((row) => <div className="dashboard-bar-row dashboard-purple-bars" key={String(row.label)}><div className="dashboard-row-title">{String(row.label)}</div><div className="dashboard-row-bar"><span style={{ width: pct(countFor(row, "count"), maxes.dow) }} /></div><strong>{fmt(countFor(row, "count"))}</strong></div>)}</div>
+            <div className="p-3">
+              {visitsByDow.map((row) => {
+                const count = countFor(row, "count");
+                return (
+                  <div
+                    className="dashboard-bar-row dashboard-purple-bars"
+                    key={String(row.label)}
+                    title={`${String(row.label)}: ${count.toLocaleString()} visits`}
+                  >
+                    <div className="dashboard-row-title">{String(row.label)}</div>
+                    <div className="dashboard-row-bar"><span style={{ width: pct(count, maxes.dow) }} /></div>
+                    <strong>{fmt(count)}</strong>
+                  </div>
+                );
+              })}
+            </div>
           </section>
         </div>
         <div className="col-12 col-lg-5">
@@ -291,11 +391,21 @@ const DashboardAnalytics = () => {
       <section className="section-card mt-4">
         <div className="section-card-header">
           <span><i className="fa-solid fa-magnifying-glass-chart me-2 dashboard-blue" />Command Search Analytics</span>
-          {commandData && (
-            <span className="dashboard-peak-badge">
-              {fmt(commandData.summary.total_searches)} searches · {commandData.summary.success_rate_pct == null ? "n/a" : `${commandData.summary.success_rate_pct}%`} success
-            </span>
-          )}
+          <div className="d-flex align-items-center gap-2">
+            {commandData && (
+              <span className="dashboard-peak-badge">
+                {fmt(commandData.summary.total_searches)} searches · {commandData.summary.success_rate_pct == null ? "n/a" : `${commandData.summary.success_rate_pct}%`} success
+              </span>
+            )}
+            {(topQueries.length > 8 || failedQueries.length > 8) && (
+              <button
+                className="btn btn-sm btn-sub rounded-pill fw-bold"
+                onClick={() => setExpandedQueries(!expandedQueries)}
+              >
+                {expandedQueries ? "Show Less" : "Show More"}
+              </button>
+            )}
+          </div>
         </div>
         <div className="row g-0">
           <div className="col-12 col-lg-6 p-3">

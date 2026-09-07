@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { IndexLayout } from "../layouts/IndexLayout.tsx";
 import RequireMod from "../components/RequireMod.tsx";
 import DashboardLayout from "../layouts/DashboardLayout.tsx";
@@ -46,7 +46,6 @@ const DashboardIslands       = lazy(() => import("../pages/dashboard/DashboardIs
 const DashboardIslandDetail  = lazy(() => import("../pages/dashboard/DashboardIslandDetail.tsx"));
 const DashboardLogs          = lazy(() => import("../pages/dashboard/DashboardLogs.tsx"));
 const DashboardWebsiteLogins = lazy(() => import("../pages/dashboard/DashboardWebsiteLogins.tsx"));
-const DashboardStatus        = lazy(() => import("../pages/dashboard/DashboardStatus.tsx"));
 const DashboardAnalytics     = lazy(() => import("../pages/dashboard/DashboardAnalytics.tsx"));
 const DashboardDatabase      = lazy(() => import("../pages/dashboard/DashboardDatabase.tsx"));
 const DashboardForbidden     = lazy(() => import("../pages/dashboard/DashboardForbidden.tsx"));
@@ -54,6 +53,13 @@ const DashboardOps           = lazy(() => import("../pages/dashboard/DashboardOp
 const DashboardIncidents     = lazy(() => import("../pages/dashboard/DashboardIncidents.tsx"));
 const DashboardTrust         = lazy(() => import("../pages/dashboard/DashboardTrust.tsx"));
 const DashboardBundles       = lazy(() => import("../pages/dashboard/DashboardBundles.tsx"));
+const DashboardPlayerLookup  = lazy(() => import("../pages/dashboard/DashboardPlayerLookup.tsx"));
+const DashboardLeaderboard   = lazy(() => import("../pages/dashboard/DashboardLeaderboard.tsx"));
+const DashboardBulkActions   = lazy(() => import("../pages/dashboard/DashboardBulkActions.tsx"));
+const DashboardAuditLog      = lazy(() => import("../pages/dashboard/DashboardAuditLog.tsx"));
+const DashboardScheduled     = lazy(() => import("../pages/dashboard/DashboardScheduled.tsx"));
+const DashboardMaintenance   = lazy(() => import("../pages/dashboard/DashboardMaintenance.tsx"));
+const DashboardDevices       = lazy(() => import("../pages/dashboard/DashboardDevices.tsx"));
 
 /** Lightweight spinner shown while a route chunk is downloading */
 const PageLoader = () => (
@@ -120,12 +126,19 @@ const AppRoutes = () => {
                         <Route path="islands/:id" element={<DashboardIslandDetail />} />
                         <Route path="logs" element={<DashboardLogs />} />
                         <Route path="auth-log" element={<DashboardWebsiteLogins />} />
-                        <Route path="status" element={<DashboardStatus />} />
+                        <Route path="status" element={<Navigate to="/dashboard/islands" replace />} />
                         <Route path="analytics" element={<DashboardAnalytics />} />
                         <Route path="database" element={<DashboardDatabase />} />
                         <Route path="ops" element={<DashboardOps />} />
                         <Route path="incidents" element={<DashboardIncidents />} />
                         <Route path="trust" element={<DashboardTrust />} />
+                        <Route path="player" element={<DashboardPlayerLookup />} />
+                        <Route path="leaderboard" element={<DashboardLeaderboard />} />
+                        <Route path="bulk" element={<DashboardBulkActions />} />
+                        <Route path="audit" element={<DashboardAuditLog />} />
+                        <Route path="scheduled" element={<DashboardScheduled />} />
+                        <Route path="maintenance" element={<DashboardMaintenance />} />
+                        <Route path="devices" element={<DashboardDevices />} />
                     </Route>
                 </Route>
                 <Route path="/dashboard/forbidden" element={<DashboardForbidden />} />

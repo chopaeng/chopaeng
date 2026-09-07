@@ -4446,4 +4446,59 @@ button:focus-visible, .btn:focus-visible, .form-control:focus-visible, .form-sel
     z-index: 5 !important;
 }
 
+/* =====================================================================
+   DASHBOARD FEATURE ADDITIONS — Audit Timeline, Dark Mode, Widgets
+   ===================================================================== */
 
+/* ── Audit / Player Timeline ── */
+.audit-timeline { display: flex; flex-direction: column; }
+.audit-timeline-item {
+  display: flex; gap: 1rem; padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.audit-timeline-item:last-child { border-bottom: none; }
+.audit-timeline-dot {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; font-size: 0.75rem; margin-top: 2px;
+}
+.audit-timeline-dot.badge-danger  { background: rgba(239,68,68,0.15);  color: #dc3545; }
+.audit-timeline-dot.badge-warning { background: rgba(245,158,11,0.15); color: #d97706; }
+.audit-timeline-dot.badge-info    { background: rgba(59,130,246,0.12); color: #3b82f6; }
+.audit-timeline-body { flex: 1; min-width: 0; }
+
+/* ── dashboard-empty utility ── */
+.dashboard-empty {
+  padding: 3rem 1rem; text-align: center;
+  color: #94a3b8; font-weight: 700; font-size: 0.9rem;
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+}
+
+/* ── Dashboard Dark Mode ── */
+.db-dark { --db-bg: #0f172a; --db-card-bg: #1e293b; --db-border: rgba(255,255,255,0.08); --db-text: #e2e8f0; --db-text-muted: #94a3b8; }
+.db-dark .db-sidebar  { background: #0b1120; border-right-color: var(--db-border); }
+.db-dark .db-topbar   { background: #0f172a; border-bottom-color: var(--db-border); }
+.db-dark .db-body, .db-dark .db-main { background: var(--db-bg); color: var(--db-text); }
+.db-dark .section-card { background: var(--db-card-bg); border-color: var(--db-border); }
+.db-dark .section-card-header { border-bottom-color: var(--db-border); background: var(--db-card-bg); color: var(--db-text); }
+.db-dark .stat-card { background: var(--db-card-bg); border-color: var(--db-border); color: var(--db-text); }
+.db-dark .db-table th, .db-dark .db-table td { border-color: var(--db-border); color: var(--db-text); }
+.db-dark .db-table tbody tr:hover { background: rgba(255,255,255,0.04); }
+.db-dark .db-input, .db-dark select.db-input { background: #1e293b; color: var(--db-text); border-color: var(--db-border); }
+.db-dark .text-muted { color: var(--db-text-muted) !important; }
+.db-dark .db-sidebar .nav-pill-link { color: var(--db-text-muted); }
+.db-dark .db-sidebar .nav-pill-link:hover { background: rgba(255,255,255,0.06); color: var(--db-text); }
+.db-dark .db-sidebar .nav-pill-link.active { background: rgba(34,197,94,0.15); color: #4ade80; }
+.db-dark .sidebar-section-label { color: rgba(255,255,255,0.3); }
+.db-dark .btn-sub { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); color: var(--db-text); }
+.db-dark .btn-sub:hover { background: rgba(255,255,255,0.1); }
+.db-dark .bg-light { background: rgba(255,255,255,0.06) !important; color: var(--db-text) !important; }
+.db-dark .border { border-color: var(--db-border) !important; }
+.db-dark .audit-timeline-item { border-bottom-color: var(--db-border); }
+.db-dark .dashboard-sidebar-footer { border-top-color: var(--db-border) !important; }
+.db-dark .dashboard-user-chip { background: rgba(255,255,255,0.07); border-color: var(--db-border); }
+.db-dark .dashboard-alert { border-color: var(--db-border); }
+.db-dark .badge.bg-light { background: rgba(255,255,255,0.1) !important; color: #e2e8f0 !important; border-color: rgba(255,255,255,0.15) !important; }
+
+/* Light mode explicit */
+.db-light { --db-bg: #f8fafc; --db-card-bg: #ffffff; --db-border: rgba(0,0,0,0.08); }

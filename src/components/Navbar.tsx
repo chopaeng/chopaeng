@@ -1308,6 +1308,52 @@ export const Navbar: React.FC = () => {
                     color: #ffffff;
                 }
 
+                /* Staff-only Dashboard nav item */
+                .chopaeng-nav-item--staff {
+                    color: #d97706 !important;
+                    border: 1px solid rgba(245, 158, 11, 0.25);
+                    background: rgba(245, 158, 11, 0.06);
+                }
+
+                .chopaeng-nav-item--staff:hover {
+                    background: rgba(245, 158, 11, 0.12) !important;
+                    color: #b45309 !important;
+                    border-color: rgba(245, 158, 11, 0.4);
+                }
+
+                .chopaeng-nav-item--staff.active {
+                    background: linear-gradient(135deg, #d97706, #b45309) !important;
+                    color: #ffffff !important;
+                    border-color: transparent !important;
+                    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.35) !important;
+                }
+
+                /* Staff dropdown item */
+                .chopaeng-user-dropdown-item--staff {
+                    border-radius: 10px;
+                    border: 1px solid rgba(245, 158, 11, 0.18);
+                    background: rgba(245, 158, 11, 0.04);
+                }
+
+                .chopaeng-user-dropdown-item--staff:hover {
+                    background: rgba(245, 158, 11, 0.1) !important;
+                }
+
+                /* Staff mobile nav link */
+                .mobile-nav-link--staff {
+                    border: 1px solid rgba(245, 158, 11, 0.2);
+                    background: rgba(245, 158, 11, 0.04);
+                }
+
+                .mobile-nav-link--staff:hover {
+                    background: rgba(245, 158, 11, 0.1) !important;
+                }
+
+                .mobile-nav-link--staff.active {
+                    background: linear-gradient(135deg, #d97706, #b45309) !important;
+                    color: #ffffff !important;
+                }
+
                 /* Preserve Action Button & Nav Icons Across All Themes */
                 .chopaeng-action-btn i.text-success,
                 [data-theme="celeste"] .chopaeng-action-btn i.text-success,
@@ -1409,6 +1455,19 @@ export const Navbar: React.FC = () => {
                                 <span className="visually-hidden">{link.name}</span>
                             </NavLink>
                         ))}
+                        {(user?.is_admin || user?.is_mod) && (
+                            <NavLink
+                                to="/dashboard"
+                                className={({ isActive }) => `chopaeng-nav-item chopaeng-nav-item--staff ${isActive ? "active" : ""}`}
+                                onClick={() => playChimeClick()}
+                                role="menuitem"
+                                title="Dashboard"
+                                aria-label="Admin Dashboard"
+                            >
+                                <i className="fa-solid fa-shield-halved" style={{ fontSize: '0.8rem' }} aria-hidden="true" />
+                                <span className="visually-hidden">Dashboard</span>
+                            </NavLink>
+                        )}
                     </div>
 
                     {/* Desktop Navigation — Primary Pills + Explore Dropdown */}
@@ -1426,6 +1485,19 @@ export const Navbar: React.FC = () => {
                                 <span>{link.name}</span>
                             </NavLink>
                         ))}
+
+                        {/* Staff-only Dashboard pill */}
+                        {(user?.is_admin || user?.is_mod) && (
+                            <NavLink
+                                to="/dashboard"
+                                className={({ isActive }) => `chopaeng-nav-item chopaeng-nav-item--staff ${isActive ? "active" : ""}`}
+                                onClick={() => playChimeClick()}
+                                role="menuitem"
+                            >
+                                <i className="fa-solid fa-shield-halved" style={{ fontSize: '0.72rem' }} aria-hidden="true" />
+                                <span>Dashboard</span>
+                            </NavLink>
+                        )}
 
                         {/* Explore "More" Dropdown Trigger */}
                         <div
@@ -1529,6 +1601,30 @@ export const Navbar: React.FC = () => {
                                                 {user.is_admin ? "Administrator" : user.is_mod ? "Moderator" : "Member"}
                                             </div>
                                         </div>
+
+                                        {/* Staff Dashboard link — only for mods/admins */}
+                                        {(user.is_admin || user.is_mod) && (
+                                            <>
+                                                <Link
+                                                    to="/dashboard"
+                                                    role="menuitem"
+                                                    className="chopaeng-user-dropdown-item chopaeng-user-dropdown-item--staff"
+                                                    onClick={() => setShowUserDropdown(false)}
+                                                >
+                                                    <div className="dropdown-icon" style={{ backgroundColor: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>
+                                                        <i className="fa-solid fa-shield-halved" />
+                                                    </div>
+                                                    <div className="flex-grow-1">
+                                                        <div style={{ fontSize: '0.84rem', fontWeight: 700 }}>Dashboard</div>
+                                                        <div style={{ fontSize: '0.65rem', color: '#f59e0b' }}>
+                                                            {user.is_admin ? 'Admin Panel' : 'Mod Panel'}
+                                                        </div>
+                                                    </div>
+                                                    <i className="fa-solid fa-chevron-right" style={{ fontSize: '0.55rem', color: '#f59e0b', opacity: 0.7 }} />
+                                                </Link>
+                                                <div className="border-bottom mx-2 my-1" style={{ borderColor: 'var(--card-border, rgba(0,0,0,0.06))' }} />
+                                            </>
+                                        )}
 
                                         {userQuickLinks.map((link) => (
                                             <Link
@@ -1848,6 +1944,25 @@ export const Navbar: React.FC = () => {
                             Navigation
                         </div>
                         <div className="d-flex flex-column gap-1 mb-3">
+                            {/* Staff Dashboard — pinned at top on mobile */}
+                            {(user?.is_admin || user?.is_mod) && (
+                                <NavLink
+                                    to="/dashboard"
+                                    className={({ isActive }) => `mobile-nav-link mobile-nav-link--staff ${isActive ? "active" : ""}`}
+                                    onClick={() => {
+                                        playChimeClick();
+                                        setIsMobileMenuOpen(false);
+                                    }}
+                                >
+                                    <div className="mobile-nav-icon" style={{ background: 'rgba(245,158,11,0.12)' }}>
+                                        <i className="fa-solid fa-shield-halved" style={{ color: '#f59e0b' }} aria-hidden="true" />
+                                    </div>
+                                    <span>Dashboard</span>
+                                    <span className="badge ms-auto rounded-pill fw-bold" style={{ fontSize: '0.58rem', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}>
+                                        {user?.is_admin ? 'Admin' : 'Mod'}
+                                    </span>
+                                </NavLink>
+                            )}
                             {allNavLinks.map((link) => (
                                 <NavLink
                                     key={link.name}

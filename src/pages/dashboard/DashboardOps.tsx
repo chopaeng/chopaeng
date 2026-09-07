@@ -35,11 +35,20 @@ const timeAgo = (dateStr: string) => {
   return `${Math.floor(diffSec / 86400)} days ago`;
 };
 
+const fmtDate = (value: unknown) => {
+  if (!value) return "-";
+  const d = new Date(String(value));
+  if (!isNaN(d.getTime())) return d.toLocaleString();
+  return String(value);
+};
+
 const DashboardOps = () => {
   const [status, setStatus] = useState<DashboardOpsStatus | null>(null);
   const [backups, setBackups] = useState<DashboardBackupList | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savedKey, setSavedKey] = useState("");
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   const load = useCallback(async () => {
     setError("");
@@ -50,6 +59,7 @@ const DashboardOps = () => {
       ]);
       setStatus(runtime);
       setBackups(backupList);
+      setLastRefreshed(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load ops status");
     }
@@ -63,7 +73,7 @@ const DashboardOps = () => {
       if (document.hidden) {
         window.clearInterval(timer);
       } else {
-        load(); // fetch immediately on return
+        load();
         timer = window.setInterval(load, 60000);
       }
     };
@@ -76,12 +86,16 @@ const DashboardOps = () => {
   }, [load]);
 
   const maintenance = status?.maintenance || {};
-  const saveMaintenance = async (patch: Record<string, unknown>) => {
+  const saveMaintenance = async (patch: Record<string, unknown>, keyName?: string) => {
     setSaving(true);
     setError("");
     try {
       await dashboardApi.maintenanceMode({ ...maintenance, ...patch });
       await load();
+      if (keyName) {
+        setSavedKey(keyName);
+        setTimeout(() => setSavedKey(""), 2500);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update maintenance mode");
     } finally {
@@ -98,7 +112,24 @@ const DashboardOps = () => {
 
   return (
     <div className="container-fluid px-0">
-      {error && <div className="alert alert-danger dashboard-alert">{error}</div>}
+      {/* Header bar */}
+      <div className="d-flex align-items-center justify-content-between mb-3">
+        <div className="x-small text-muted fw-bold">
+          <i className="fa-solid fa-server me-1" />
+          {lastRefreshed ? `Updated ${lastRefreshed.toLocaleTimeString()}` : "Loading..."}
+          <span className="ms-2 opacity-75">(auto-refreshes every 60s)</span>
+        </div>
+        <button
+          className="btn btn-sm btn-sub rounded-pill fw-bold"
+          onClick={load}
+          title="Refresh ops status"
+        >
+          <i className="fa-solid fa-arrows-rotate me-1" />
+          Refresh
+        </button>
+      </div>
+
+      {error && <div className="alert alert-danger dashboard-alert mb-4">{error}</div>}
 
       <div className="row g-3 mb-4">
         <div className="col-6 col-xl-3"><div className="stat-card h-100"><div className="stat-label">System</div><div className={`stat-value ${statusColor(status.status)}`}>{status.status?.toUpperCase()}</div><div className="x-small text-muted fw-bold mt-1">{status.reasons?.join(", ") || "No active warnings."}</div></div></div>
@@ -112,21 +143,30 @@ const DashboardOps = () => {
           <section className="section-card h-100">
             <div className="section-card-header">
               <span><i className="fa-solid fa-heart-pulse me-2 text-success" />Services</span>
-              <button className="btn btn-sm rounded-pill fw-bold btn-sub" onClick={load}><i className="fa-solid fa-arrows-rotate me-1" />Refresh</button>
+              <span className="badge rounded-pill bg-light text-muted border">{services.length} tracked</span>
             </div>
             <div className="table-responsive">
               <table className="db-table">
                 <thead><tr><th>Service</th><th>Status</th><th>Mode</th><th>Heartbeat</th><th>Last Error</th></tr></thead>
                 <tbody>
-                  {services.length ? services.map(([name, svc]) => (
-                    <tr key={name}>
-                      <td className="fw-bold">{name}</td>
-                      <td className={`fw-bold ${statusColor(svc.status)}`}><i className="fa-solid fa-circle me-2" style={{ fontSize: "0.6rem" }} />{svc.status || "-"}</td>
-                      <td>{svc.mode || "-"}</td>
-                      <td>{timeAgo(svc.last_heartbeat as string)}</td>
-                      <td className="small text-muted">{svc.last_error || ""}</td>
-                    </tr>
-                  )) : <tr><td colSpan={5} className="text-center py-4 text-muted fw-bold">No service heartbeats yet.</td></tr>}
+                  {services.length ? services.map(([name, svc]) => {
+                    const isHealthy = ["ok", "running"].includes(svc.status || "");
+                    return (
+                      <tr key={name} style={{ background: !isHealthy ? "rgba(239, 68, 68, 0.07)" : undefined }}>
+                        <td className="fw-bold">{name}</td>
+                        <td className={`fw-bold ${statusColor(svc.status)}`}>
+                          <i className="fa-solid fa-circle me-2" style={{ fontSize: "0.6rem" }} />{svc.status || "-"}
+                        </td>
+                        <td>{svc.mode || "-"}</td>
+                        <td className="small text-muted">
+                          <span title={fmtDate(svc.last_heartbeat)} style={{ cursor: "help" }}>
+                            {timeAgo(svc.last_heartbeat as string)}
+                          </span>
+                        </td>
+                        <td className="small text-muted">{svc.last_error || "-"}</td>
+                      </tr>
+                    );
+                  }) : <tr><td colSpan={5} className="text-center py-4 text-muted fw-bold">No service heartbeats yet.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -143,25 +183,40 @@ const DashboardOps = () => {
                 ["disable_refresh", "Disable manual refresh"],
                 ["disable_commands", "Disable bot commands"],
               ].map(([key, label]) => (
-                <label className="d-flex align-items-center gap-2 mb-3 fw-bold" key={key}>
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    checked={Boolean(maintenance[key as keyof typeof maintenance])}
-                    disabled={saving}
-                    onChange={(event) => saveMaintenance({ [key]: event.target.checked })}
-                  />
-                  {label}
+                <label className="d-flex align-items-center justify-content-between mb-3 fw-bold" key={key} style={{ cursor: "pointer" }}>
+                  <div className="d-flex align-items-center gap-2">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      checked={Boolean(maintenance[key as keyof typeof maintenance])}
+                      disabled={saving}
+                      onChange={(event) => saveMaintenance({ [key]: event.target.checked }, key)}
+                    />
+                    <span>{label}</span>
+                  </div>
+                  {savedKey === key && (
+                    <span className="badge rounded-pill bg-success-subtle text-success border border-success-subtle x-small">
+                      <i className="fa-solid fa-check me-1" />Saved
+                    </span>
+                  )}
                 </label>
               ))}
-              <label className="db-label">Public Message</label>
+              <div className="d-flex align-items-center justify-content-between mt-3 mb-1">
+                <label className="db-label mb-0">Public Maintenance Message</label>
+                {savedKey === "message" && (
+                  <span className="badge rounded-pill bg-success-subtle text-success border border-success-subtle x-small">
+                    <i className="fa-solid fa-check me-1" />Saved
+                  </span>
+                )}
+              </div>
               <textarea
                 className="db-input"
                 rows={3}
                 value={String(maintenance.message || "")}
                 disabled={saving}
                 onChange={(event) => setStatus((current) => current ? { ...current, maintenance: { ...(current.maintenance || {}), message: event.target.value } } : current)}
-                onBlur={(event) => saveMaintenance({ message: event.target.value })}
+                onBlur={(event) => saveMaintenance({ message: event.target.value }, "message")}
+                placeholder="Message displayed to travelers during maintenance..."
               />
             </div>
           </section>
@@ -185,7 +240,10 @@ const DashboardOps = () => {
         </div>
         <div className="col-12 col-xl-7">
           <section className="section-card h-100">
-            <div className="section-card-header"><span><i className="fa-solid fa-hard-drive me-2 text-success" />Recent Backups</span><span className="x-small text-muted fw-bold">{backups?.backend || "-"}</span></div>
+            <div className="section-card-header">
+              <span><i className="fa-solid fa-hard-drive me-2 text-success" />Recent Backups</span>
+              <span className="x-small text-muted fw-bold">{backups?.backend || "-"}</span>
+            </div>
             <div className="table-responsive">
               <table className="db-table">
                 <thead><tr><th>File</th><th>Created</th><th className="text-end">Size</th></tr></thead>
@@ -193,7 +251,11 @@ const DashboardOps = () => {
                   {backupEntries.length ? backupEntries.map((entry) => (
                     <tr key={entry.file}>
                       <td className="fw-bold">{entry.file}</td>
-                      <td>{entry.created_at || "-"}</td>
+                      <td className="small text-muted">
+                        <span title={fmtDate(entry.created_at)} style={{ cursor: "help" }}>
+                          {entry.created_at ? timeAgo(entry.created_at) : "-"}
+                        </span>
+                      </td>
                       <td className="text-end">{bytes(entry.size_bytes)}</td>
                     </tr>
                   )) : <tr><td colSpan={3} className="text-center py-4 text-muted fw-bold">No backups found.</td></tr>}

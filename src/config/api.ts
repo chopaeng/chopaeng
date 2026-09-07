@@ -14,3 +14,7 @@ export const DODO_API_BASE = API_BASE;
 export const ACNH_FINDER_API_BASE = API_BASE;
 export const FINDER_API_BASE = API_BASE;
 export const BLOGS_API_BASE = API_BASE;
+export const CONSOLE_API_BASE = trimTrailingSlash(
+    env.VITE_CONSOLE_API_BASE || "https://console.chopaeng.com"
+);
+

@@ -20,6 +20,7 @@ import { ResidentVillagerPill } from "../components/island/ResidentVillagerPill"
 import { IslandMapPolaroid } from "../components/island/IslandMapPolaroid";
 import { DALFlightBoard } from "../components/island/DALFlightBoard";
 import { IslandActionArea } from "../components/island/IslandActionArea";
+import { InteractiveIslandMapModal } from "../components/island/InteractiveIslandMapModal";
 import "./IslandDetail.css";
 
 
@@ -554,32 +555,13 @@ const IslandDetail = () => {
                 </div>
             </div>
 
-            {/* Modal */}
-            {showImageModal && (
-                <div
-                    className="modal-backdrop-custom"
-                    onClick={() => setShowImageModal(false)}
-                    role="dialog"
-                    aria-modal="true"
-                    aria-label={`${island.name} map, enlarged`}
-                >
-                    <div className="modal-content-custom" onClick={(e) => e.stopPropagation()}>
-                        <img
-                            src={mapImageSrc}
-                            alt="Zoomed Map"
-                            onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                if (target.src.includes(".png")) target.src = target.src.replace(".png", ".jpg");
-                                else if (target.src.endsWith(".jpg")) target.src = target.src.replace(".jpg", ".jpeg");
-                                else target.src = "https://www.chopaeng.com/banner.png";
-                            }}
-                        />
-                        <button className="close-fab" onClick={() => setShowImageModal(false)} aria-label="Close map view">
-                            <i className="fa-solid fa-xmark"></i>
-                        </button>
-                    </div>
-                </div>
-            )}
+            {/* Interactive Ground Radar Modal */}
+            <InteractiveIslandMapModal
+                isOpen={showImageModal}
+                onClose={() => setShowImageModal(false)}
+                islandName={island.name}
+                mapImageSrc={mapImageSrc}
+            />
 
             {revealError && <RevealErrorPopup message={revealError} onClose={() => setRevealError(null)} />}
 

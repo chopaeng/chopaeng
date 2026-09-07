@@ -53,171 +53,7 @@ const BASE_ALL_TIME_VISITS = 2_847_380;
 const BASE_TODAY_VISITS = 14_920;
 const BASE_WEEK_VISITS = 98_460;
 
-// Curated active Animal Crossing community members with authentic villager avatars & island themes
-const MOCK_ONLINE_RESIDENTS: Omit<OnlineResident, 'id'>[] = [
-    {
-        username: 'bitress',
-        displayName: 'Bitress (Mayor)',
-        avatarUrl: 'https://acnhcdn.com/latest/NpcIcon/der00.png', // Raymond/Cat
-        ign: 'Bitress',
-        islandName: 'Pebble Bay',
-        nativeFruit: 'Peach',
-        role: 'admin',
-        status: 'online',
-        currentActivity: 'Managing Nook Inc. Flight Operations',
-        hasPublicPassport: true,
-        joinedMinutesAgo: 2,
-    },
-    {
-        username: 'isabellefan',
-        displayName: 'IsabelleFan22',
-        avatarUrl: 'https://acnhcdn.com/latest/NpcIcon/dog00.png', // Goldie
-        ign: 'Belle',
-        islandName: 'Sunset Isle',
-        nativeFruit: 'Apple',
-        role: 'member',
-        status: 'on_island',
-        currentActivity: 'Grabbing DIY recipes on SILAKBO',
-        currentIsland: 'SILAKBO',
-        hasPublicPassport: true,
-        joinedMinutesAgo: 5,
-    },
-    {
-        username: 'starlight_acnh',
-        displayName: 'StarlightACNH',
-        avatarUrl: 'https://acnhcdn.com/latest/NpcIcon/cbr18.png', // Judy
-        ign: 'Starry',
-        islandName: 'Celestia',
-        nativeFruit: 'Cherry',
-        role: 'member',
-        status: 'on_island',
-        currentActivity: 'Collecting star fragments on TALA',
-        currentIsland: 'TALA',
-        hasPublicPassport: true,
-        joinedMinutesAgo: 8,
-    },
-    {
-        username: 'dodo_captain',
-        displayName: 'Captain Wilbur',
-        avatarUrl: 'https://acnhcdn.com/latest/NpcIcon/pbr01.png', // Dodo / Wilbur
-        ign: 'Wilbur',
-        islandName: 'DAL Terminal',
-        nativeFruit: 'Coconut',
-        role: 'mod',
-        status: 'online',
-        currentActivity: 'Monitoring DAL Airport Gate Queues',
-        hasPublicPassport: false,
-        joinedMinutesAgo: 11,
-    },
-    {
-        username: 'mochi_crossing',
-        displayName: 'MochiCrossing',
-        avatarUrl: 'https://acnhcdn.com/latest/NpcIcon/rbt19.png', // Sasha
-        ign: 'Mochi',
-        islandName: 'Matcha Cove',
-        nativeFruit: 'Pear',
-        role: 'resident',
-        status: 'on_island',
-        currentActivity: 'Harvesting rare materials on SINAGTALA',
-        currentIsland: 'SINAGTALA',
-        hasPublicPassport: true,
-        joinedMinutesAgo: 14,
-    },
-    {
-        username: 'marshal_vibes',
-        displayName: 'MarshalFanatic',
-        avatarUrl: 'https://acnhcdn.com/latest/NpcIcon/squ17.png', // Marshal
-        ign: 'Crispy',
-        islandName: 'Acorn Valley',
-        nativeFruit: 'Orange',
-        role: 'member',
-        status: 'ordering',
-        currentActivity: 'Ordering 40 DIY items via Order Bot',
-        hasPublicPassport: true,
-        joinedMinutesAgo: 19,
-    },
-    {
-        username: 'sakura_bloom',
-        displayName: 'CherryBlossom99',
-        avatarUrl: 'https://acnhcdn.com/latest/NpcIcon/dea10.png', // Shino
-        ign: 'Hana',
-        islandName: 'Kyoto Mist',
-        nativeFruit: 'Cherry',
-        role: 'resident',
-        status: 'on_island',
-        currentActivity: 'Touring furniture on TADHANA',
-        currentIsland: 'TADHANA',
-        hasPublicPassport: true,
-        joinedMinutesAgo: 22,
-    },
-    {
-        username: 'cozy_roost',
-        displayName: 'BrewsterBrews',
-        avatarUrl: 'https://acnhcdn.com/latest/NpcIcon/brd01.png', // Brewster / Bird
-        ign: 'Pigeon',
-        islandName: 'Warm Mug',
-        nativeFruit: 'Coconut',
-        role: 'member',
-        status: 'online',
-        currentActivity: 'Listening to K.K. Slider Jukebox',
-        hasPublicPassport: true,
-        joinedMinutesAgo: 27,
-    },
-    {
-        username: 'boba_island',
-        displayName: 'BobaBreeze',
-        avatarUrl: 'https://acnhcdn.com/latest/NpcIcon/cat23.png', // Bob
-        ign: 'Taro',
-        islandName: 'Tapioca',
-        nativeFruit: 'Peach',
-        role: 'resident',
-        status: 'on_island',
-        currentActivity: 'Grabbing star DIYs on TINIG',
-        currentIsland: 'TINIG',
-        hasPublicPassport: true,
-        joinedMinutesAgo: 31,
-    },
-    {
-        username: 'nook_millionaire',
-        displayName: 'TomNookApprentice',
-        avatarUrl: 'https://acnhcdn.com/latest/NpcIcon/rcn01.png', // Timmy/Tommy
-        ign: 'Bellsy',
-        islandName: 'Royal Mint',
-        nativeFruit: 'Apple',
-        role: 'member',
-        status: 'ordering',
-        currentActivity: 'Ordering Royal Crowns on Sinta Bot',
-        hasPublicPassport: true,
-        joinedMinutesAgo: 38,
-    },
-    {
-        username: 'audie_sunset',
-        displayName: 'SunsetAudie',
-        avatarUrl: 'https://acnhcdn.com/latest/NpcIcon/wol12.png', // Audie
-        ign: 'Coral',
-        islandName: 'Sunken Isle',
-        nativeFruit: 'Orange',
-        role: 'resident',
-        status: 'online',
-        currentActivity: 'Styling Resident Passport in Studio',
-        hasPublicPassport: true,
-        joinedMinutesAgo: 42,
-    },
-    {
-        username: 'sherb_dreams',
-        displayName: 'SleepySherb',
-        avatarUrl: 'https://acnhcdn.com/latest/NpcIcon/goa02.png', // Sherb
-        ign: 'Nappy',
-        islandName: 'Cloud Pillow',
-        nativeFruit: 'Pear',
-        role: 'member',
-        status: 'on_island',
-        currentActivity: 'Exploring furniture on TADHANA',
-        currentIsland: 'TADHANA',
-        hasPublicPassport: true,
-        joinedMinutesAgo: 45,
-    },
-];
+
 
 export interface WaveNotification {
     id: string;
@@ -378,8 +214,8 @@ export const getTrafficStats = (): TrafficStats => {
                 allTimeVisits: Number(parsed.allTimeVisits) || BASE_ALL_TIME_VISITS,
                 visitsToday: isNewDay ? Math.floor(Math.random() * 80) + 120 : Number(parsed.visitsToday) || BASE_TODAY_VISITS,
                 visitsThisWeek: Number(parsed.visitsThisWeek) || BASE_WEEK_VISITS,
-                activeOnlineCount: Number(parsed.activeOnlineCount) || 48,
-                islandOccupantsCount: Number(parsed.islandOccupantsCount) || 23,
+                activeOnlineCount: !Number(parsed.activeOnlineCount) || Number(parsed.activeOnlineCount) === 48 ? 1 : Number(parsed.activeOnlineCount),
+                islandOccupantsCount: Number(parsed.islandOccupantsCount) || 0,
                 lastUpdated: now,
             };
         }
@@ -391,8 +227,8 @@ export const getTrafficStats = (): TrafficStats => {
         allTimeVisits: BASE_ALL_TIME_VISITS,
         visitsToday: BASE_TODAY_VISITS,
         visitsThisWeek: BASE_WEEK_VISITS,
-        activeOnlineCount: 48,
-        islandOccupantsCount: 23,
+        activeOnlineCount: 1,
+        islandOccupantsCount: 0,
         lastUpdated: Date.now(),
     };
     try {
@@ -720,18 +556,6 @@ export const getOnlineResidentsList = (
             joinedMinutesAgo: 0,
         });
     }
-
-    // 2. Add community members, avoiding duplicate usernames
-    MOCK_ONLINE_RESIDENTS.forEach((item, index) => {
-        if (activeUsername && item.username.toLowerCase() === activeUsername.toLowerCase()) {
-            return;
-        }
-        list.push({
-            ...item,
-            id: `resident-${index + 1}`,
-            isCurrentUser: false,
-        });
-    });
 
     return list;
 };

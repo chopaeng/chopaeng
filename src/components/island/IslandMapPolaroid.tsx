@@ -29,9 +29,14 @@ export const IslandMapPolaroid: React.FC<IslandMapPolaroidProps> = ({ mapImageSr
                         <i className="fa-solid fa-expand"></i>
                     </div>
                 </div>
-                <div className="polaroid-caption">
-                    <i className="fa-solid fa-map-location-dot me-2 text-warning"></i>
-                    {islandName} Map
+                <div className="polaroid-caption d-flex align-items-center justify-content-between">
+                    <div>
+                        <i className="fa-solid fa-map-location-dot me-2 text-warning"></i>
+                        {islandName} Map
+                    </div>
+                    <span className="badge bg-primary text-white rounded-pill px-2 py-1 shadow-2xs" style={{ fontSize: '0.7rem', letterSpacing: '0.02em' }}>
+                        <i className="fa-solid fa-satellite-dish me-1"></i> Interactive Radar
+                    </span>
                 </div>
             </div>
         </div>

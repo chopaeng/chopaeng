@@ -534,7 +534,7 @@ export const getOnlineResidentsList = (
 
     // 1. Current logged-in user at the top
     const userPassport = getStoredPassport(currentUser?.username);
-    const activeUsername = currentUser?.username || userPassport?.username;
+    const activeUsername = userPassport?.username || currentUser?.username;
 
     if (activeUsername && activeUsername.trim()) {
         const ign = userPassport?.primaryIgn || (currentUser as any)?.ign || 'Resident';

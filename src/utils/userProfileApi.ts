@@ -47,30 +47,54 @@ export const DEFAULT_PASSPORT_DATA: PublicPassportData = {
     updatedAt: Date.now(),
 };
 
+export const cleanPassportUsername = (raw?: string | null, fallback = ''): string => {
+    if (!raw) return fallback;
+    const trimmed = String(raw).trim();
+    // If it contains characters typical of Discord server nicknames (e.g. slashes, pipes, backslashes, spaces)
+    if (/[/|\\ ]/.test(trimmed)) {
+        return fallback;
+    }
+    // Clean to valid URL handle characters: lowercase alphanumeric, hyphens, underscores
+    const sanitized = trimmed.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
+    return sanitized || fallback;
+};
+
 export const getStoredPassport = (username?: string): PublicPassportData => {
+    const cleanUser = cleanPassportUsername(username);
     try {
-        if (username && username.trim()) {
-            const saved = localStorage.getItem(`${STORAGE_KEY}_${username.toLowerCase().trim()}`);
+        if (cleanUser) {
+            const saved = localStorage.getItem(`${STORAGE_KEY}_${cleanUser.toLowerCase()}`);
             if (saved) {
-                return { ...DEFAULT_PASSPORT_DATA, ...JSON.parse(saved) };
+                const parsed = JSON.parse(saved);
+                return {
+                    ...DEFAULT_PASSPORT_DATA,
+                    ...parsed,
+                    username: cleanPassportUsername(parsed.username, cleanUser),
+                };
             }
         }
         const scopedSaved = getUserScopedItem(STORAGE_KEY);
         if (scopedSaved) {
-            return { ...DEFAULT_PASSPORT_DATA, ...JSON.parse(scopedSaved) };
+            const parsed = JSON.parse(scopedSaved);
+            return {
+                ...DEFAULT_PASSPORT_DATA,
+                ...parsed,
+                username: cleanPassportUsername(parsed.username, cleanUser),
+            };
         }
     } catch {
         // Storage inaccessible
     }
-    return { ...DEFAULT_PASSPORT_DATA, username: username || '' };
+    return { ...DEFAULT_PASSPORT_DATA, username: cleanUser || '' };
 };
 
 export const saveStoredPassport = (data: PublicPassportData): void => {
     try {
-        const payload = { ...data, updatedAt: Date.now() };
+        const cleanUser = cleanPassportUsername(data.username);
+        const payload = { ...data, username: cleanUser, updatedAt: Date.now() };
         setUserScopedItem(STORAGE_KEY, JSON.stringify(payload));
-        if (data.username && data.username.trim()) {
-            localStorage.setItem(`${STORAGE_KEY}_${data.username.toLowerCase().trim()}`, JSON.stringify(payload));
+        if (cleanUser) {
+            localStorage.setItem(`${STORAGE_KEY}_${cleanUser.toLowerCase()}`, JSON.stringify(payload));
         }
         window.dispatchEvent(new CustomEvent('chopaeng_passport_updated', { detail: payload }));
     } catch {
@@ -78,88 +102,214 @@ export const saveStoredPassport = (data: PublicPassportData): void => {
     }
 };
 
-export const savePassportToDb = async (data: PublicPassportData, token?: string | null): Promise<boolean> => {
+export interface SavePassportResult {
+    success: boolean;
+    savedToDb: boolean;
+    message: string;
+    endpoint?: string;
+    passport?: PublicPassportData;
+}
+
+/**
+ * Returns list of candidate backend URLs to ensure reliable connectivity
+ * across production domains, console API, and local dev server.
+ */
+export const getBackendBaseUrls = (): string[] => {
+    return Array.from(
+        new Set([
+            DODO_API_BASE,
+            'https://console.chopaeng.com',
+            'https://chopaeng.com',
+        ].filter(Boolean))
+    );
+};
+
+export const savePassportToDb = async (
+    data: PublicPassportData,
+    token?: string | null
+): Promise<SavePassportResult> => {
     const authToken = token || getAuthToken();
-    saveStoredPassport(data);
+    const cleanUser = cleanPassportUsername(data.username);
+    const now = Date.now();
+    const cleanedData: PublicPassportData = {
+        ...data,
+        username: cleanUser,
+        updatedAt: now,
+    };
 
-    if (!authToken) return true;
+    // 1. Instant local persistence and reactive notification
+    saveStoredPassport(cleanedData);
 
-    const endpoints = [
-        `${DODO_API_BASE}/api/user/passport`,
-        `${DODO_API_BASE}/api/profile/passport`,
-        `${DODO_API_BASE}/api/user/preferences`,
-    ];
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+    };
+    if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+    }
 
-    for (const ep of endpoints) {
-        try {
-            const resp = await fetch(ep, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${authToken}`,
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    passport: data,
-                    public_passport: data,
-                    preferences: { passport: data },
-                }),
-            });
-            if (resp.ok) return true;
-        } catch {
-            // continue to next endpoint
+    const payload = {
+        ...cleanedData,
+        passport: cleanedData,
+        public_passport: cleanedData,
+        preferences: { passport: cleanedData },
+        username: cleanUser,
+        custom_username: cleanUser,
+        public_username: cleanUser,
+    };
+
+    const candidateBases = getBackendBaseUrls();
+    const candidatePaths = ['/api/user/passport', '/api/profile/passport'];
+
+    for (const base of candidateBases) {
+        for (const path of candidatePaths) {
+            const ep = `${base}${path}`;
+            try {
+                const resp = await fetch(ep, {
+                    method: 'POST',
+                    headers,
+                    credentials: 'include',
+                    body: JSON.stringify(payload),
+                });
+
+                if (resp.ok) {
+                    const resJson = await resp.json().catch(() => null);
+                    if (resJson && resJson.ok !== false && resJson.success !== false) {
+                        const savedPassport: PublicPassportData = {
+                            ...cleanedData,
+                            ...(resJson.passport || {}),
+                            username: cleanUser,
+                        };
+                        saveStoredPassport(savedPassport);
+                        console.info(`[ChoBot DB] Successfully persisted passport to database (${ep})`);
+                        return {
+                            success: true,
+                            savedToDb: true,
+                            message: 'Your Resident Passport has been saved to the ChoBot database!',
+                            endpoint: ep,
+                            passport: savedPassport,
+                        };
+                    }
+                }
+            } catch {
+                // Try next endpoint or base URL
+            }
         }
     }
 
-    return false;
+    console.warn('[ChoBot DB] Backend database could not be reached; saved locally in browser.');
+    return {
+        success: true,
+        savedToDb: false,
+        message: 'Passport saved locally (ChoBot server sync pending).',
+        passport: cleanedData,
+    };
 };
 
 export const fetchPublicPassportFromDb = async (
     username: string,
     token?: string | null
 ): Promise<PublicPassportData | null> => {
-    if (!username) return null;
+    const cleanUser = cleanPassportUsername(username);
+    if (!cleanUser) return null;
 
     const authToken = token || getAuthToken();
     const headers: Record<string, string> = {};
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
-    const endpoints = [
-        `${DODO_API_BASE}/api/public/passport/${encodeURIComponent(username)}`,
-        `${DODO_API_BASE}/api/user/passport/${encodeURIComponent(username)}`,
-        `${DODO_API_BASE}/api/profile/passport?username=${encodeURIComponent(username)}`,
-    ];
+    const candidateBases = getBackendBaseUrls();
 
-    for (const ep of endpoints) {
-        try {
-            const resp = await fetch(ep, {
-                headers,
-                credentials: 'include',
-            });
-            if (resp.ok) {
-                const data = await resp.json();
-                const passport = data?.passport || data?.public_passport || data?.data;
-                if (passport) {
-                    saveStoredPassport(passport);
-                    return passport;
+    for (const base of candidateBases) {
+        const endpoints = [
+            `${base}/api/public/passport/${encodeURIComponent(cleanUser)}`,
+            `${base}/api/user/passport/${encodeURIComponent(cleanUser)}`,
+            `${base}/api/profile/passport?username=${encodeURIComponent(cleanUser)}`,
+        ];
+
+        for (const ep of endpoints) {
+            try {
+                const resp = await fetch(ep, {
+                    headers,
+                    credentials: 'include',
+                });
+                if (resp.ok) {
+                    const data = await resp.json().catch(() => null);
+                    if (data && !data.error && (data.passport || data.public_passport || data.data)) {
+                        const passport = data.passport || data.public_passport || data.data;
+                        const sanitized: PublicPassportData = {
+                            ...DEFAULT_PASSPORT_DATA,
+                            ...passport,
+                            username: cleanPassportUsername(passport.username, cleanUser),
+                        };
+                        saveStoredPassport(sanitized);
+                        return sanitized;
+                    }
                 }
+            } catch {
+                // continue to next endpoint
             }
-        } catch {
-            // continue
         }
     }
 
     // Check local storage fallback
     try {
-        const local = localStorage.getItem(`${STORAGE_KEY}_${username.toLowerCase()}`);
+        const local = localStorage.getItem(`${STORAGE_KEY}_${cleanUser.toLowerCase()}`);
         if (local) {
             const parsed = JSON.parse(local);
-            if (parsed && (parsed.isPublic || parsed.username.toLowerCase() === username.toLowerCase())) {
+            if (parsed && (parsed.isPublic || parsed.username?.toLowerCase() === cleanUser.toLowerCase())) {
                 return parsed;
             }
         }
     } catch {
         // Ignore
+    }
+
+    return null;
+};
+
+/**
+ * Fetch the authenticated user's saved passport directly from ChoBot database
+ */
+export const fetchUserPassportFromDb = async (
+    token?: string | null
+): Promise<PublicPassportData | null> => {
+    const authToken = token || getAuthToken();
+    if (!authToken) return null;
+
+    const headers: Record<string, string> = {
+        Authorization: `Bearer ${authToken}`,
+    };
+
+    const candidateBases = getBackendBaseUrls();
+
+    for (const base of candidateBases) {
+        const endpoints = [
+            `${base}/api/user/passport`,
+            `${base}/api/profile/passport`,
+        ];
+
+        for (const ep of endpoints) {
+            try {
+                const resp = await fetch(ep, {
+                    headers,
+                    credentials: 'include',
+                });
+                if (resp.ok) {
+                    const data = await resp.json().catch(() => null);
+                    if (data && !data.error && (data.passport || data.public_passport || data.data)) {
+                        const passport = data.passport || data.public_passport || data.data;
+                        const sanitized: PublicPassportData = {
+                            ...DEFAULT_PASSPORT_DATA,
+                            ...passport,
+                            username: cleanPassportUsername(passport.username, ''),
+                        };
+                        saveStoredPassport(sanitized);
+                        return sanitized;
+                    }
+                }
+            } catch {
+                // continue
+            }
+        }
     }
 
     return null;
@@ -193,49 +343,54 @@ export const updateDiscordNickname = async (
         return { success: false, message: 'You must be logged in to update your Discord nickname.' };
     }
 
-    const endpoints = [
-        `${DODO_API_BASE}/api/user/nickname`,
-        `${DODO_API_BASE}/api/profile/nickname`,
-        `${DODO_API_BASE}/api/user/update-nickname`,
-        `${DODO_API_BASE}/api/profile/update-nickname`,
+    const candidateBases = getBackendBaseUrls();
+    const candidatePaths = [
+        '/api/user/nickname',
+        '/api/profile/nickname',
+        '/api/user/update-nickname',
+        '/api/profile/update-nickname',
     ];
 
     let lastError = 'Unable to update nickname on Discord. Please check your backend bot connection.';
 
-    for (const ep of endpoints) {
-        try {
-            const resp = await fetch(ep, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${authToken}`,
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    nickname: cleanNick,
-                    nick: cleanNick,
-                }),
-            });
+    for (const base of candidateBases) {
+        for (const path of candidatePaths) {
+            const ep = `${base}${path}`;
+            try {
+                const resp = await fetch(ep, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${authToken}`,
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        nickname: cleanNick,
+                        nick: cleanNick,
+                    }),
+                });
 
-            const data = await resp.json().catch(() => ({}));
+                const data = await resp.json().catch(() => ({}));
 
-            if (resp.ok && data.success !== false) {
-                return {
-                    success: true,
-                    nickname: data.nickname || data.nick || cleanNick,
-                    message: data.message || `Successfully updated your Discord server nickname to "${cleanNick}"!`,
-                };
+                if (resp.ok && data.success !== false) {
+                    return {
+                        success: true,
+                        nickname: data.nickname || data.nick || cleanNick,
+                        message: data.message || `Successfully updated your Discord server nickname to "${cleanNick}"!`,
+                    };
+                }
+
+                if (data.error || data.message) {
+                    lastError = data.error || data.message;
+                }
+            } catch {
+                // continue to next endpoint
             }
-
-            if (data.error || data.message) {
-                lastError = data.error || data.message;
-            }
-        } catch {
-            // continue to next endpoint
         }
     }
 
     return { success: false, message: lastError };
 };
+
 
 

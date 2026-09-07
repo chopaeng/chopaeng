@@ -1,30 +1,40 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { fetchPublicPassportFromDb, type PublicPassportData } from '../utils/userProfileApi';
+import { fetchPublicPassportFromDb, cleanPassportUsername, type PublicPassportData } from '../utils/userProfileApi';
+import { useAuth } from '../context/useAuth';
 import { useCatalogData } from '../hooks/useCatalogData';
 import { playChimeClick } from '../utils/kkAudioSynthesizer';
 import { ResidentPassportCard } from '../components/passport/ResidentPassportCard';
 
 export const PublicProfile: React.FC = () => {
     const { username } = useParams<{ username: string }>();
+    const { user: authUser } = useAuth();
     const { data: catalogData } = useCatalogData();
 
+    const cleanUser = cleanPassportUsername(username);
     const [passport, setPassport] = useState<PublicPassportData | null>(null);
     const [loading, setLoading] = useState(true);
     const [copiedLink, setCopiedLink] = useState(false);
 
     useEffect(() => {
-        if (!username) {
+        if (!cleanUser) {
             setLoading(false);
             return;
         }
         setLoading(true);
-        fetchPublicPassportFromDb(username).then((data) => {
+        fetchPublicPassportFromDb(cleanUser).then((data) => {
             setPassport(data);
             setLoading(false);
         });
-    }, [username]);
+    }, [cleanUser]);
+
+    const isOwner = Boolean(
+        authUser && (
+            (passport?.username && authUser.username?.toLowerCase() === passport.username.toLowerCase()) ||
+            (cleanUser && authUser.username?.toLowerCase() === cleanUser.toLowerCase())
+        )
+    );
 
     const handleCopyLink = () => {
         playChimeClick();
@@ -45,7 +55,7 @@ export const PublicProfile: React.FC = () => {
         );
     }
 
-    if (!passport || (!passport.isPublic && passport.username.toLowerCase() !== (username || '').toLowerCase())) {
+    if (!passport || (!passport.isPublic && !isOwner)) {
         return (
             <div className="nook-bg min-vh-100 py-5 px-3 d-flex align-items-center justify-content-center">
                 <Helmet>
@@ -61,7 +71,7 @@ export const PublicProfile: React.FC = () => {
                         </div>
                         <h1 className="h4 fw-black text-dark mb-2 ac-font">This Passport is Private</h1>
                         <p className="text-muted small mb-4">
-                            @{username} hasn't made their ACNH resident passport public yet, or this user does not exist.
+                            @{cleanUser || username} hasn't made their ACNH resident passport public yet, or this user does not exist.
                         </p>
                         <div className="d-flex align-items-center justify-content-center gap-2">
                             <Link to="/islands" className="btn btn-nook rounded-pill px-4 fw-bold shadow-2xs">
@@ -98,6 +108,13 @@ export const PublicProfile: React.FC = () => {
                     </Link>
 
                     <div className="d-flex align-items-center gap-2">
+                        {isOwner && (
+                            <Link to="/profile" className="btn btn-sm btn-outline-success rounded-pill fw-bold px-3 shadow-2xs d-inline-flex align-items-center gap-1">
+                                <i className="fa-solid fa-pen-nib" />
+                                <span>Edit Passport</span>
+                            </Link>
+                        )}
+
                         <Link to="/trip-planner" className="btn btn-sm btn-light rounded-pill border fw-bold px-3 shadow-2xs d-inline-flex align-items-center gap-1 d-none d-sm-inline-flex">
                             <i className="fa-solid fa-map-location-dot text-primary" />
                             <span>Trip Planner</span>
@@ -115,6 +132,18 @@ export const PublicProfile: React.FC = () => {
                         </button>
                     </div>
                 </div>
+
+                {isOwner && !passport.isPublic && (
+                    <div className="alert alert-warning rounded-4 shadow-2xs d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+                        <div className="d-flex align-items-center gap-2 small fw-bold text-dark">
+                            <i className="fa-solid fa-eye text-warning fs-5" />
+                            <span>Owner Preview: Your passport is currently private. Only you can view this page.</span>
+                        </div>
+                        <Link to="/profile" className="btn btn-xs btn-dark rounded-pill fw-bold px-3 py-1">
+                            Publish in Studio
+                        </Link>
+                    </div>
+                )}
 
                 {/* ════ MAIN AUTHENTIC ANIMAL CROSSING PASSPORT CARD ════ */}
                 <div className="mb-4">

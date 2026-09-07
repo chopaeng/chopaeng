@@ -11,7 +11,7 @@ import { parseItemCodes } from "../utils/itemCodeParser";
 import { parseDiscordNicknameToCharacters, formatCharactersToNickname } from "../utils/characterParser";
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
 import { fetchUserOrderHistory, type OrderHistoryItem } from "../utils/orderBotApi";
-import { getStoredPassport, savePassportToDb, fetchPublicPassportFromDb, updateDiscordNickname, type PublicPassportData } from "../utils/userProfileApi";
+import { getStoredPassport, savePassportToDb, fetchPublicPassportFromDb, fetchUserPassportFromDb, updateDiscordNickname, cleanPassportUsername, type PublicPassportData } from "../utils/userProfileApi";
 import { HowItWorksExplainer, PROFILE_EXPLAINER_CONFIG } from "../components/HowItWorksExplainer";
 import { ResidentPassportCard, FRUIT_ICONS, ZODIAC_SIGNS, PERSONALITY_THEMES } from "../components/passport/ResidentPassportCard";
 import { setUserScopedItem } from "../utils/accountStorage";
@@ -159,13 +159,22 @@ const Profile = () => {
     const { data: catalogData } = useCatalogData({ enabled: shouldLoadCatalog });
 
     // Public Passport Customizer State
-    const [passportData, setPassportData] = useState<PublicPassportData>(() => getStoredPassport(authUser?.username || ''));
+    const [passportData, setPassportData] = useState<PublicPassportData>(() => {
+        const authHandle = cleanPassportUsername(authUser?.username, '');
+        const base = getStoredPassport(authHandle);
+        return {
+            ...base,
+            username: cleanPassportUsername(base.username, authHandle),
+        };
+    });
     const [savingPassport, setSavingPassport] = useState(false);
     const [villagerSearchQuery, setVillagerSearchQuery] = useState('');
     const [passportLinkCopied, setPassportLinkCopied] = useState(false);
     const [studioViewMode, setStudioViewMode] = useState<"split" | "card" | "editor">("split");
     const [studioSection, setStudioSection] = useState<"identity" | "vibe" | "motto" | "besties" | "privacy">("identity");
     const [passportDirty, setPassportDirty] = useState(false);
+    const [lastSavedDbTime, setLastSavedDbTime] = useState<number | null>(() => passportData.updatedAt || null);
+    const [passportNotice, setPassportNotice] = useState<{ type: "success" | "warning" | "error"; message: string } | null>(null);
 
     // Orders History & Reorder State
     const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
@@ -273,31 +282,52 @@ const Profile = () => {
 
     // Sync and hydrate Public Passport state from ChoBot database & local storage
     useEffect(() => {
-        const username = profile?.user?.discord_name || authUser?.username || '';
-        const userAvatar = profile?.user?.avatar || authUser?.avatar || '';
-        if (username) {
+        const authName = cleanPassportUsername(authUser?.username || profile?.user?.account_name, "");
+        const userAvatar = profile?.user?.avatar || authUser?.avatar || "";
+        const lookupHandle = cleanPassportUsername(passportData.username, authName);
+        if (lookupHandle || authName) {
+            const queryTarget = lookupHandle || authName;
             const token = getAuthToken();
-            fetchPublicPassportFromDb(username, token).then((dbPassport) => {
-                const base = dbPassport || getStoredPassport(username);
-                setPassportData({
-                    ...base,
-                    username,
-                    avatarUrl: userAvatar || base.avatarUrl || '',
-                    primaryIgn: activeCharacter.ign || base.primaryIgn || '',
-                    primaryIsland: activeCharacter.islandName || base.primaryIsland || '',
+
+            Promise.allSettled([
+                fetchUserPassportFromDb(token),
+                fetchPublicPassportFromDb(queryTarget, token),
+            ]).then(([userRes, pubRes]) => {
+                const userPassport = userRes.status === "fulfilled" ? userRes.value : null;
+                const pubPassport = pubRes.status === "fulfilled" ? pubRes.value : null;
+                const dbPassport = userPassport || pubPassport;
+                const base = dbPassport || getStoredPassport(queryTarget);
+                const resolvedUsername = cleanPassportUsername(base.username, queryTarget);
+
+                setPassportData((prev) => {
+                    const chosenUsername = !passportDirty && dbPassport?.username
+                        ? cleanPassportUsername(dbPassport.username, resolvedUsername)
+                        : cleanPassportUsername(prev.username, resolvedUsername);
+                    return {
+                        ...base,
+                        username: chosenUsername,
+                        avatarUrl: userAvatar || base.avatarUrl || "",
+                        primaryIgn: activeCharacter.ign || base.primaryIgn || "",
+                        primaryIsland: activeCharacter.islandName || base.primaryIsland || "",
+                    };
                 });
+
+                if (dbPassport?.updatedAt) {
+                    setLastSavedDbTime(typeof dbPassport.updatedAt === "number" ? dbPassport.updatedAt : Date.now());
+                }
             }).catch(() => {
-                const stored = getStoredPassport(username);
-                setPassportData({
+                const stored = getStoredPassport(queryTarget);
+                const resolvedUsername = cleanPassportUsername(stored.username, queryTarget);
+                setPassportData((prev) => ({
                     ...stored,
-                    username,
-                    avatarUrl: userAvatar || stored.avatarUrl || '',
-                    primaryIgn: activeCharacter.ign || stored.primaryIgn || '',
-                    primaryIsland: activeCharacter.islandName || stored.primaryIsland || '',
-                });
+                    username: cleanPassportUsername(prev.username, resolvedUsername),
+                    avatarUrl: userAvatar || stored.avatarUrl || "",
+                    primaryIgn: activeCharacter.ign || stored.primaryIgn || "",
+                    primaryIsland: activeCharacter.islandName || stored.primaryIsland || "",
+                }));
             });
         }
-    }, [profile?.user?.discord_name, profile?.user?.avatar, authUser?.username, authUser?.avatar, activeCharacter.ign, activeCharacter.islandName]);
+    }, [authUser?.username, profile?.user?.account_name, profile?.user?.avatar, authUser?.avatar, activeCharacter.ign, activeCharacter.islandName]);
 
     // Saved in-game character creation / editing state
     const [characterModalOpen, setCharacterModalOpen] = useState(false);
@@ -1137,7 +1167,7 @@ const Profile = () => {
                                         {passportData.isPublic ? "Public Profile Active" : "Private Profile"}
                                     </span>
                                     <Link
-                                        to={`/u/${encodeURIComponent(passportData.username || profileUser?.discord_name || authUser?.username || "resident")}`}
+                                        to={`/u/${encodeURIComponent(cleanPassportUsername(passportData.username, authUser?.username || "resident"))}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="btn btn-xs btn-outline-success rounded-pill fw-bold px-2 py-1 d-inline-flex align-items-center gap-1 shadow-2xs"
@@ -1150,7 +1180,7 @@ const Profile = () => {
                                 <div className="bg-light rounded-3 p-3 border mb-0">
                                     <span className="tiny-text fw-bold text-muted text-uppercase d-block mb-1">Your Public Link:</span>
                                     <strong className="text-dark font-monospace small text-truncate d-block mb-2">
-                                        {window.location.origin}/u/{passportData.username || profileUser?.discord_name || authUser?.username || "resident"}
+                                        {window.location.origin}/u/{cleanPassportUsername(passportData.username, authUser?.username || "resident")}
                                     </strong>
                                     <button
                                         type="button"
@@ -1158,7 +1188,8 @@ const Profile = () => {
                                             passportLinkCopied ? "btn-success text-white" : "btn-dark text-white"
                                         }`}
                                         onClick={() => {
-                                            const url = `${window.location.origin}/u/${passportData.username || profileUser?.discord_name || authUser?.username || "resident"}`;
+                                            const uname = cleanPassportUsername(passportData.username, authUser?.username || "resident");
+                                            const url = `${window.location.origin}/u/${encodeURIComponent(uname)}`;
                                             navigator.clipboard.writeText(url).catch(() => {});
                                             setPassportLinkCopied(true);
                                             playChimeClick();
@@ -1322,7 +1353,7 @@ const Profile = () => {
                                             type="button"
                                             onClick={() => {
                                                 playChimeClick();
-                                                const uname = passportData.username || profileUser?.discord_name || authUser?.username || "resident";
+                                                const uname = cleanPassportUsername(passportData.username, authUser?.username || "resident");
                                                 const url = `${window.location.origin}/u/${encodeURIComponent(uname)}`;
                                                 navigator.clipboard.writeText(url).then(() => {
                                                     setPassportLinkCopied(true);
@@ -1343,7 +1374,7 @@ const Profile = () => {
 
                                         {/* View Live Page */}
                                         <Link
-                                            to={`/u/${encodeURIComponent(passportData.username || profileUser?.discord_name || authUser?.username || "resident")}`}
+                                            to={`/u/${encodeURIComponent(cleanPassportUsername(passportData.username, authUser?.username || "resident"))}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="btn btn-xs btn-outline-success rounded-pill fw-bold px-3 py-2 d-inline-flex align-items-center gap-1 shadow-2xs"
@@ -1352,6 +1383,36 @@ const Profile = () => {
                                             <span>View Live</span>
                                             <i className="fa-solid fa-arrow-up-right-from-square"></i>
                                         </Link>
+                                        {/* Quick Save to Database Button */}
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                setSavingPassport(true);
+                                                playChimeClick();
+                                                const token = getAuthToken();
+                                                const res = await savePassportToDb(passportData, token);
+                                                setSavingPassport(false);
+                                                setPassportDirty(false);
+                                                if (res.savedToDb) {
+                                                    setLastSavedDbTime(Date.now());
+                                                }
+                                                setPrefNotice(res.message);
+                                                setPassportNotice({
+                                                    type: res.savedToDb ? "success" : "warning",
+                                                    message: res.message,
+                                                });
+                                                setTimeout(() => setPassportNotice(null), 4500);
+                                                setTimeout(() => setPrefNotice(null), 3500);
+                                            }}
+                                            disabled={savingPassport}
+                                            className={`btn btn-xs rounded-pill fw-bold px-3 py-2 d-inline-flex align-items-center gap-1 shadow-2xs ${
+                                                passportDirty ? "btn-warning text-dark border-warning" : "btn-nook text-white"
+                                            }`}
+                                            title="Save Resident Passport to ChoBot Database"
+                                        >
+                                            <i className={savingPassport ? "fa-solid fa-spinner fa-spin" : (passportDirty ? "fa-solid fa-floppy-disk" : "fa-solid fa-cloud-arrow-up")}></i>
+                                            <span>{savingPassport ? "Saving..." : (passportDirty ? "Save to DB *" : "Save to DB")}</span>
+                                        </button>
                                     </div>
                                 </div>
 
@@ -1360,13 +1421,37 @@ const Profile = () => {
                                         e.preventDefault();
                                         setSavingPassport(true);
                                         playChimeClick();
-                                        const ok = await savePassportToDb(passportData, getAuthToken());
+                                        const token = getAuthToken();
+                                        const res = await savePassportToDb(passportData, token);
                                         setSavingPassport(false);
                                         setPassportDirty(false);
-                                        setPrefNotice(ok ? "Your Resident Passport has been saved to the ChoBot database!" : "Passport saved locally (server sync pending).");
+                                        if (res.savedToDb) {
+                                            setLastSavedDbTime(Date.now());
+                                        }
+                                        setPrefNotice(res.message);
+                                        setPassportNotice({
+                                            type: res.savedToDb ? "success" : "warning",
+                                            message: res.message,
+                                        });
+                                        setTimeout(() => setPassportNotice(null), 4500);
                                         setTimeout(() => setPrefNotice(null), 3500);
                                     }}
                                 >
+                                    {/* Passport Studio Database Status Banner */}
+                                    {passportNotice && (
+                                        <div className={`alert alert-${passportNotice.type === 'success' ? 'success' : 'warning'} rounded-4 py-2 px-3 small fw-bold mb-3 d-flex align-items-center justify-content-between animate-fade shadow-2xs`}>
+                                            <div className="d-flex align-items-center gap-2">
+                                                <i className={`fa-solid ${passportNotice.type === 'success' ? 'fa-circle-check text-success' : 'fa-triangle-exclamation text-warning'}`}></i>
+                                                <span>{passportNotice.message}</span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="btn-close small ms-2"
+                                                onClick={() => setPassportNotice(null)}
+                                                aria-label="Dismiss notice"
+                                            ></button>
+                                        </div>
+                                    )}
                                     {/* ── CARD FOCUS VIEW MODE ── */}
                                     {studioViewMode === "card" && (
                                         <div className="py-3 px-1 animate-fade" style={{ maxWidth: 880, margin: "0 auto" }}>
@@ -1400,7 +1485,7 @@ const Profile = () => {
                                                 interactive={true}
                                                 onShareClick={() => {
                                                     playChimeClick();
-                                                    const uname = passportData.username || profileUser?.discord_name || authUser?.username || "resident";
+                                                    const uname = cleanPassportUsername(passportData.username, authUser?.username || "resident");
                                                     const url = `${window.location.origin}/u/${encodeURIComponent(uname)}`;
                                                     navigator.clipboard.writeText(url);
                                                     setPassportLinkCopied(true);
@@ -1441,7 +1526,7 @@ const Profile = () => {
                                                             interactive={true}
                                                             onShareClick={() => {
                                                                 playChimeClick();
-                                                                const uname = passportData.username || profileUser?.discord_name || authUser?.username || "resident";
+                                                                const uname = cleanPassportUsername(passportData.username, authUser?.username || "resident");
                                                                 const url = `${window.location.origin}/u/${encodeURIComponent(uname)}`;
                                                                 navigator.clipboard.writeText(url);
                                                                 setPassportLinkCopied(true);
@@ -2190,34 +2275,72 @@ const Profile = () => {
                                                         <div className="studio-inner-box">
                                                             <div className="d-flex align-items-center justify-content-between mb-2">
                                                                 <span className="fw-bold small">
-                                                                    <i className="fa-solid fa-link text-primary me-1"></i> Your Public Passport Link:
+                                                                    <i className="fa-solid fa-link text-primary me-1"></i> Choose Your Public Passport Username:
                                                                 </span>
                                                                 <span className={`badge rounded-pill x-small fw-bold ${passportData.isPublic ? "bg-success text-white" : "bg-secondary text-white"}`}>
                                                                     {passportData.isPublic ? "Active & Public" : "Draft (Private)"}
                                                                 </span>
                                                             </div>
-                                                            <div className="input-group">
+
+                                                            <div className="input-group mb-2">
+                                                                <span className="input-group-text bg-light text-muted font-monospace small">
+                                                                    {window.location.host}/u/
+                                                                </span>
                                                                 <input
                                                                     type="text"
-                                                                    readOnly
-                                                                    className="form-control rounded-start-3 border-2 font-monospace small"
-                                                                    value={`${window.location.origin}/u/${encodeURIComponent(passportData.username || profileUser?.discord_name || authUser?.username || "resident")}`}
+                                                                    className="form-control rounded-0 font-monospace fw-bold"
+                                                                    placeholder={authUser?.username || "your-handle"}
+                                                                    value={passportData.username || ""}
+                                                                    onChange={(e) => {
+                                                                        const sanitized = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30);
+                                                                        setPassportDirty(true);
+                                                                        setPassportData({ ...passportData, username: sanitized });
+                                                                    }}
                                                                 />
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => {
                                                                         playChimeClick();
-                                                                        const uname = passportData.username || profileUser?.discord_name || authUser?.username || "resident";
+                                                                        const uname = cleanPassportUsername(passportData.username, authUser?.username || "resident");
                                                                         const url = `${window.location.origin}/u/${encodeURIComponent(uname)}`;
                                                                         navigator.clipboard.writeText(url);
                                                                         setPassportLinkCopied(true);
                                                                         setTimeout(() => setPassportLinkCopied(false), 2500);
                                                                     }}
                                                                     className={`btn fw-bold px-3 ${passportLinkCopied ? "btn-success" : "btn-dark"}`}
+                                                                    title="Copy Public Passport Link"
                                                                 >
                                                                     <i className={`fa-solid ${passportLinkCopied ? "fa-check" : "fa-copy"} me-1`}></i>
                                                                     <span>{passportLinkCopied ? "Copied!" : "Copy"}</span>
                                                                 </button>
+                                                                <button
+                                                                    type="submit"
+                                                                    disabled={savingPassport}
+                                                                    className="btn btn-nook fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-2xs"
+                                                                    title="Save Public Username directly to ChoBot Database"
+                                                                >
+                                                                    <i className={savingPassport ? "fa-solid fa-spinner fa-spin" : "fa-solid fa-cloud-arrow-up"}></i>
+                                                                    <span>{savingPassport ? "Saving..." : "Save to DB"}</span>
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                                                <span className="tiny-text text-muted">
+                                                                    <i className="fa-solid fa-circle-info me-1 text-primary"></i>
+                                                                    Allowed: letters, numbers, hyphens, underscores (max 30 chars). Saved to ChoBot database.
+                                                                </span>
+                                                                {authUser?.username && passportData.username !== authUser.username && (
+                                                                    <button
+                                                                        type="button"
+                                                                        className="btn btn-link p-0 tiny-text text-primary text-decoration-none fw-bold"
+                                                                        onClick={() => {
+                                                                            setPassportDirty(true);
+                                                                            setPassportData({ ...passportData, username: authUser.username });
+                                                                        }}
+                                                                    >
+                                                                        Use Discord username (@{authUser.username})
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -2241,7 +2364,14 @@ const Profile = () => {
                                                 </span>
                                             )}
                                             <span className="tiny-text text-muted d-none d-md-inline">
-                                                Changes save securely to ChoBot &amp; your browser.
+                                                {lastSavedDbTime ? (
+                                                    <span>
+                                                        <i className="fa-solid fa-database text-success me-1"></i>
+                                                        Saved to ChoBot database at {new Date(lastSavedDbTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                ) : (
+                                                    "Changes save securely to ChoBot database & your browser."
+                                                )}
                                             </span>
                                         </div>
 

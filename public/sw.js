@@ -3,8 +3,8 @@
  * Provides offline caching, fast asset loading, and catalog persistence.
  */
 
-const CACHE_NAME = 'chopaeng-v2.0.53';
-const CATALOG_CACHE = 'chopaeng-catalog-v2.0.53';
+const CACHE_NAME = 'chopaeng-v2.0.56';
+const CATALOG_CACHE = 'chopaeng-catalog-v2.0.56';
 
 // Core shell assets to pre-cache on install
 const PRECACHE_ASSETS = [
@@ -62,6 +62,7 @@ self.addEventListener('fetch', (event) => {
     if (
         url.pathname.startsWith('/api/') ||
         url.pathname.startsWith('/dashboard/api/') ||
+        url.hostname.includes('console.chopaeng.com') ||
         url.hostname.includes('dodo.chopaeng.com')
     ) {
         event.respondWith(

@@ -563,36 +563,35 @@ export const useCommandBuilderPockets = () => {
     }, [orderItems]);
 
     const injectVillagerCommand = useMemo(() => {
-        const villagers = dropItems.concat(orderItems).filter((p) => p.item.entityType === 'villager');
+        const villagers = dropItems.filter((p) => p.item.entityType === 'villager');
         if (villagers.length === 0) return '';
         const uniqueNames = Array.from(new Set(villagers.map((p) => p.item.name)));
         return `!injectvillager ${uniqueNames.join(' ')}`;
-    }, [dropItems, orderItems]);
+    }, [dropItems]);
 
     const mviVillagerCommand = useMemo(() => {
-        const villagers = dropItems.concat(orderItems).filter((p) => p.item.entityType === 'villager');
+        const villagers = dropItems.filter((p) => p.item.entityType === 'villager');
         if (villagers.length === 0) return '';
         const uniqueNames = Array.from(new Set(villagers.map((p) => p.item.name)));
         return `!mvi ${uniqueNames.join(' ')}`;
-    }, [dropItems, orderItems]);
+    }, [dropItems]);
 
     const dropVillagerCommand = useMemo(() => {
-        const villagers = dropItems.concat(orderItems).filter((p) => p.item.entityType === 'villager');
+        const villagers = dropItems.filter((p) => p.item.entityType === 'villager');
         if (villagers.length === 0) return '';
         const uniqueNames = Array.from(new Set(villagers.map((p) => p.item.name)));
         return uniqueNames.length === 1 ? `!injectvillager ${uniqueNames[0]}` : `!mvi ${uniqueNames.join(' ')}`;
-    }, [dropItems, orderItems]);
+    }, [dropItems]);
 
     const dropItemsOnlyCommand = useMemo(() => {
-        const regularItems = dropItems.concat(orderItems).filter((p) => p.item.entityType !== 'villager');
+        const regularItems = dropItems.filter((p) => p.item.entityType !== 'villager');
         if (regularItems.length === 0) return '';
         const itemsList = regularItems
-            .slice(0, DROP_BOT_MAX)
             .flatMap((p) => Array(p.quantity).fill(getItemCommandId(p.item)))
             .slice(0, DROP_BOT_MAX)
             .join(' ');
         return itemsList ? `!drop ${itemsList}` : '';
-    }, [dropItems, orderItems]);
+    }, [dropItems]);
 
     const orderCommandText = useMemo(() => {
         if (orderItems.length === 0) return '';

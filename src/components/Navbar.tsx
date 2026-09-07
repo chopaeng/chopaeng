@@ -148,12 +148,14 @@ export const Navbar: React.FC = () => {
     const primaryLinks = useMemo(() => [
         { name: "Home", path: "/", icon: "fa-house" },
         { name: "Islands", path: "/islands", icon: "fa-map-location-dot" },
+        { name: "Order Bot", path: "/order", icon: "fa-paper-plane" },
+        { name: "Drop Bot", path: "/drop", icon: "fa-parachute-box" },
         { name: "Catalogue", path: "/catalog", icon: "fa-boxes-stacked" },
-        { name: "Builder", path: "/command-builder", icon: "fa-cubes" },
     ], []);
 
     // "Explore" dropdown links — secondary features
     const exploreLinks = useMemo(() => [
+        { name: "Builder", path: "/command-builder", icon: "fa-cubes", color: "#06b6d4", desc: "Sandbox command builder" },
         { name: "Trip Planner", path: "/trip-planner", icon: "fa-route", color: "#10b981", desc: "Optimal island flight routes" },
         { name: "Find Items", path: "/find", icon: "fa-magnifying-glass", color: "#6366f1", desc: "Instant item search" },
         { name: "Critters", path: "/critters", icon: "fa-fish-fins", color: "#0ea5e9", desc: "Availability calendar" },
@@ -165,24 +167,27 @@ export const Navbar: React.FC = () => {
     // User-only quick links for the dropdown
     const userQuickLinks = useMemo(() => [
         { name: "My Profile", path: "/profile", icon: "fa-user", color: "#16a34a" },
+        { name: "Order Bot", path: "/order", icon: "fa-paper-plane", color: "#06b6d4" },
+        { name: "Drop Bot", path: "/drop", icon: "fa-parachute-box", color: "#10b981" },
         { name: "Trip Planner", path: "/trip-planner", icon: "fa-route", color: "#10b981" },
         { name: "My Wishlist", path: "/wishlist", icon: "fa-heart", color: "#ef4444" },
         { name: "My Collection", path: "/my-collection", icon: "fa-clipboard-check", color: "#f59e0b" },
         { name: "Pocket Inventory", path: "/pockets", icon: "fa-box-archive", color: "#3b82f6" },
-        { name: "Order Bot", path: "/order", icon: "fa-paper-plane", color: "#06b6d4" },
     ], []);
 
     // All links for mobile
     const allNavLinks = useMemo(() => [
         { name: "Home", path: "/", icon: "fa-house" },
         { name: "Islands", path: "/islands", icon: "fa-map-location-dot" },
+        { name: "Order Bot", path: "/order", icon: "fa-paper-plane" },
+        { name: "Drop Bot", path: "/drop", icon: "fa-parachute-box" },
+        { name: "Builder", path: "/command-builder", icon: "fa-cubes" },
         { name: "Trip Planner", path: "/trip-planner", icon: "fa-route" },
         { name: "Find", path: "/find", icon: "fa-magnifying-glass" },
         { name: "Catalogue", path: "/catalog", icon: "fa-boxes-stacked" },
         { name: "Critters", path: "/critters", icon: "fa-fish-fins" },
         { name: "Events", path: "/events", icon: "fa-calendar-days" },
         { name: "NPCs", path: "/npcs", icon: "fa-users" },
-        { name: "Builder", path: "/command-builder", icon: "fa-cubes" },
         { name: "Guides", path: "/guides", icon: "fa-book-open" },
     ], []);
 
@@ -202,6 +207,11 @@ export const Navbar: React.FC = () => {
             <style>{`
                 .chopaeng-navbar {
                     transition: background-color 0.25s ease, border-color 0.25s ease, backdrop-filter 0.25s ease, box-shadow 0.25s ease;
+                }
+
+                .chopaeng-navbar,
+                .chopaeng-navbar > .container-xl {
+                    flex-wrap: nowrap !important;
                 }
 
                 .chopaeng-navbar.scrolled {
@@ -1411,7 +1421,7 @@ export const Navbar: React.FC = () => {
                 role="navigation"
                 aria-label="Main Navigation"
             >
-                <div className="container-xl d-flex align-items-center justify-content-between gap-2">
+                <div className="container-xl d-flex flex-nowrap align-items-center justify-content-between gap-2">
                     {/* Brand Logo */}
                     <Link
                         to="/"
@@ -1438,8 +1448,8 @@ export const Navbar: React.FC = () => {
                         </div>
                     </Link>
 
-                    {/* Compact icon-only nav for tablet widths (md up to lg) so the bar isn't hamburger-only there */}
-                    <div className="d-none d-md-flex d-lg-none align-items-center chopaeng-nav-pill-container chopaeng-nav-compact" role="menubar" aria-label="Quick navigation">
+                    {/* Compact icon-only nav for tablet widths (md up to xl) so the bar isn't hamburger-only there */}
+                    <div className="d-none d-md-flex d-xl-none align-items-center chopaeng-nav-pill-container chopaeng-nav-compact" role="menubar" aria-label="Quick navigation">
                         {primaryLinks.map((link) => (
                             <NavLink
                                 key={link.name}
@@ -1471,7 +1481,7 @@ export const Navbar: React.FC = () => {
                     </div>
 
                     {/* Desktop Navigation — Primary Pills + Explore Dropdown */}
-                    <div className="d-none d-lg-flex align-items-center chopaeng-nav-pill-container" role="menubar">
+                    <div className="d-none d-xl-flex align-items-center chopaeng-nav-pill-container" role="menubar">
                         {primaryLinks.map((link) => (
                             <NavLink
                                 key={link.name}
@@ -1586,9 +1596,7 @@ export const Navbar: React.FC = () => {
                                             {user.username.charAt(0).toUpperCase()}
                                         </div>
                                     )}
-                                    <span className="d-none d-md-inline text-truncate" style={{ maxWidth: '80px' }}>
-                                        {user.username}
-                                    </span>
+
                                     <i className={`fa-solid fa-chevron-down text-muted`} style={{ fontSize: '0.55rem', transition: 'transform 0.2s', transform: showUserDropdown ? 'rotate(180deg)' : 'none' }} aria-hidden="true" />
                                 </button>
 
@@ -1681,13 +1689,13 @@ export const Navbar: React.FC = () => {
                             aria-label="Open Search Command Palette"
                         >
                             <i className="fa-solid fa-magnifying-glass text-muted" aria-hidden="true" />
-                            <span className="d-none d-lg-inline-block font-monospace text-muted" style={{ fontSize: '0.68rem', fontWeight: 700 }}>⌘K</span>
+                            <span className="d-none d-xl-inline-block font-monospace text-muted" style={{ fontSize: '0.68rem', fontWeight: 700 }}>⌘K</span>
                         </button>
 
                         {/* Secondary actions toolbar — jukebox / theme / discord grouped into one pill
-                            instead of three separate floating circles. Desktop only (lg+); on mobile & tablet
+                            instead of three separate floating circles. Desktop only (xl+); on mobile & tablet
                             these live in the drawer where there's ample room without overcrowding. */}
-                        <div className="chopaeng-toolbar d-none d-lg-inline-flex">
+                        <div className="chopaeng-toolbar d-none d-xl-inline-flex">
                             <button
                                 type="button"
                                 onClick={() => openCommunityModal('online')}
@@ -1730,14 +1738,13 @@ export const Navbar: React.FC = () => {
                                     aria-haspopup="menu"
                                     aria-expanded={showThemeDropdown}
                                 >
-                                    <i className={`fa-solid ${
-                                        currentTheme === 'celeste' ? 'fa-star text-warning' :
-                                        currentTheme === 'roost' ? 'fa-mug-hot text-amber' :
-                                        currentTheme === 'sakura' ? 'fa-heart text-danger' :
-                                        currentTheme === 'dal' ? 'fa-plane text-info' :
-                                        currentTheme === 'nooklink' ? 'fa-mobile-screen text-success' :
-                                        'fa-leaf text-success'
-                                    }`} aria-hidden="true" />
+                                    <i className={`fa-solid ${currentTheme === 'celeste' ? 'fa-star text-warning' :
+                                            currentTheme === 'roost' ? 'fa-mug-hot text-amber' :
+                                                currentTheme === 'sakura' ? 'fa-heart text-danger' :
+                                                    currentTheme === 'dal' ? 'fa-plane text-info' :
+                                                        currentTheme === 'nooklink' ? 'fa-mobile-screen text-success' :
+                                                            'fa-leaf text-success'
+                                        }`} aria-hidden="true" />
                                 </button>
 
                                 {showThemeDropdown && (
@@ -1797,7 +1804,7 @@ export const Navbar: React.FC = () => {
                         <button
                             ref={hamburgerRef}
                             type="button"
-                            className={`chopaeng-hamburger d-lg-none ${isMobileMenuOpen ? 'open' : ''}`}
+                            className={`chopaeng-hamburger d-xl-none ${isMobileMenuOpen ? 'open' : ''}`}
                             onClick={() => {
                                 playChimeClick();
                                 setIsMobileMenuOpen(!isMobileMenuOpen);

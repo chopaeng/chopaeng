@@ -15,6 +15,11 @@ export const ROUTE_SEO: Record<string, RouteSEO> = {
     description: "Request custom Animal Crossing items with our 24/7 automated Order Bot. Submit 40-slot pocket loadouts, track live queues, and receive instant Dodo deliveries.",
   },
 
+  "/drop": {
+    title: "ACNH Treasure Island Drop Bot & Villager Injector | Chopaeng",
+    description: "Drop up to 9 custom items or inject villagers into House Plots 0-9 instantly on ChoPaeng Sub Member Treasure Islands.",
+  },
+
   "/command-builder": {
     title: "ACNH Drop Command Builder & Pocket Generator | Chopaeng",
     description: "Generate automated drop commands for Chopaeng ACNH Discord bots. Search items, customize DIYs, build 40-slot pocket loadouts, and order instantly.",

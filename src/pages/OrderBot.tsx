@@ -3,19 +3,18 @@ import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { getAuthToken } from '../context/authToken';
-import { useIslandData } from '../context/useIslandData';
-import { type IslandData } from '../data/islands';
+import { DODO_API_BASE } from '../config/api';
 import { useCommandBuilderPockets, type PocketItem } from '../hooks/useCommandBuilderPockets';
 import { useCatalogData } from '../hooks/useCatalogData';
 import { useSavedCharacters, type SavedCharacter } from '../hooks/useSavedCharacters';
 import { useFavorites } from '../hooks/useFavorites';
-import { ORDER_MAX, DROP_MAX } from '../constants/limits';
+import { ORDER_MAX } from '../constants/limits';
 import { parseItemCodes } from '../utils/itemCodeParser';
 import { playChimeClick } from '../utils/kkAudioSynthesizer';
-import { DODO_API_BASE } from '../config/api';
 import { QuickAddItemModal } from '../components/command-builder/QuickAddItemModal';
 import { CommandBuilderPocketBundlesModal } from '../components/command-builder/CommandBuilderPocketBundlesModal';
 import { CommandBuilderShareModal } from '../components/command-builder/CommandBuilderShareModal';
+import { CommandBuilderVariantModal } from '../components/command-builder/CommandBuilderVariantModal';
 import { HowItWorksExplainer, ORDER_BOT_EXPLAINER_CONFIG } from '../components/HowItWorksExplainer';
 import { DiscordNicknameModal } from '../components/DiscordNicknameModal';
 import { isValidAcnhNickname, parseDiscordNicknameToCharacters, formatCharactersToNickname } from '../utils/characterParser';
@@ -91,37 +90,6 @@ const QUICK_PRESETS = [
         name: '40× Gold Nuggets',
         icon: 'https://dodo.ac/np/images/2/26/Gold_Nugget_NH_Inv_Icon.png',
         desc: '1,200 Crafting Gold Nuggets',
-        fillType: 'gold',
-    },
-];
-
-const DROP_QUICK_PRESETS = [
-    {
-        id: 'crowns-9',
-        name: '9× Royal Crowns',
-        icon: 'https://dodo.ac/np/images/c/c7/Royal_Crown_NH_Storage_Icon.png',
-        desc: 'Max value in Bells',
-        fillType: 'crowns',
-    },
-    {
-        id: 'nmt-9',
-        name: '9× NMTs',
-        icon: 'https://dodo.ac/np/images/4/43/Nook_Miles_Ticket_NH_Inv_Icon.png',
-        desc: '90 Nook Miles Tickets',
-        fillType: 'tickets',
-    },
-    {
-        id: 'bells-9',
-        name: '9× 99k Bells',
-        icon: 'https://dodo.ac/np/images/1/1e/99k_Bells_NH_Inv_Icon.png',
-        desc: 'Instant cash in bags',
-        fillType: 'bells',
-    },
-    {
-        id: 'gold-9',
-        name: '9× Gold Nuggets',
-        icon: 'https://dodo.ac/np/images/2/26/Gold_Nugget_NH_Inv_Icon.png',
-        desc: 'Top-tier crafting resource',
         fillType: 'gold',
     },
 ];
@@ -334,35 +302,29 @@ const QueueList: React.FC<{ queue: QueueEntry[]; myOrderId?: string }> = ({ queu
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 const OrderBot: React.FC = () => {
-    const { user, canAccessIsland, loading: authLoading, login } = useAuth();
-    const { islands, loading: islandsLoading } = useIslandData();
+    const { user, loading: authLoading, login } = useAuth();
     const token = getAuthToken();
     const { data: catalogData } = useCatalogData();
     const { favorites } = useFavorites();
     const {
         orderCommandText,
-        dropCommandText,
-        dropItemsOnlyCommand,
-        dropVillagerCommand,
         totalOrderCount,
-        totalDropCount,
         totalOrderItemsCount,
+        totalDropCount,
+        canIncreaseDrop,
         orderVillager,
         removeOrderVillager,
         orderItems,
         dropItems,
         setOrderItems,
-        setDropItems,
         addItemToOrderPockets,
         addItemToDropPockets,
         increaseOrderQuantity,
         decreaseOrderQuantity,
-        removeOrderItem,
         increaseDropQuantity,
         decreaseDropQuantity,
-        removeDropItem,
+        removeOrderItem,
         canIncreaseOrder,
-        canIncreaseDrop,
         handleFillTickets,
         handleFillCrowns,
         handleFillBells,
@@ -371,6 +333,8 @@ const OrderBot: React.FC = () => {
         handleSortPockets,
         loadBundleIntoOrder,
         loadBundleIntoDrop,
+        getOrderPocketQuantity,
+        getDropPocketQuantity,
     } = useCommandBuilderPockets();
 
     // ── Sound state ──
@@ -728,16 +692,38 @@ const OrderBot: React.FC = () => {
         playSound();
     };
 
-    // ── Mode Switch & Drop State ──
-    const [botMode, setBotMode] = useState<'order' | 'drop'>('order');
-    const [modeOverridden, setModeOverridden] = useState(false);
-    const [selectedDropIsland, setSelectedDropIsland] = useState<IslandData | null>(null);
-    const [dropFilter, setDropFilter] = useState<'all' | 'unlocked'>('all');
-    const [dropDodoCode, setDropDodoCode] = useState<string | null>(null);
-    const [dropDodoLoading, setDropDodoLoading] = useState(false);
-    const [dropDodoError, setDropDodoError] = useState<string | null>(null);
-    const [alreadyOnIsland, setAlreadyOnIsland] = useState(false);
-    const [dropDodoCopied, setDropDodoCopied] = useState(false);
+    // ── Inline Command Builder Catalog State ──
+    const [inlineSearch, setInlineSearch] = useState('');
+    const [inlineCategory, setInlineCategory] = useState('All');
+    const [inlinePage, setInlinePage] = useState(1);
+    const [inlineVariantItem, setInlineVariantItem] = useState<PocketItem | null>(null);
+    const INLINE_ITEMS_PER_PAGE = 24;
+
+    const catalogCategories = useMemo(() => {
+        const cats = new Set<string>();
+        (catalogData?.items || []).forEach((it) => {
+            if (it.category) cats.add(it.category);
+        });
+        return ['All', ...Array.from(cats).sort()];
+    }, [catalogData?.items]);
+
+    const filteredInlineItems = useMemo(() => {
+        let list = (catalogData?.items || []).filter((it) => !it.unorderable);
+        if (inlineCategory !== 'All') {
+            list = list.filter((it) => it.category === inlineCategory);
+        }
+        if (inlineSearch.trim()) {
+            const q = inlineSearch.toLowerCase().trim();
+            list = list.filter((it) => it.name.toLowerCase().includes(q));
+        }
+        return list;
+    }, [catalogData?.items, inlineCategory, inlineSearch]);
+
+    const totalInlinePages = Math.ceil(filteredInlineItems.length / INLINE_ITEMS_PER_PAGE) || 1;
+    const paginatedInlineItems = useMemo(() => {
+        const start = (inlinePage - 1) * INLINE_ITEMS_PER_PAGE;
+        return filteredInlineItems.slice(start, start + INLINE_ITEMS_PER_PAGE);
+    }, [filteredInlineItems, inlinePage]);
 
     // ── State ──
     const [botStatus, setBotStatus] = useState<BotStatusResponse | null>(null);
@@ -939,12 +925,7 @@ const OrderBot: React.FC = () => {
         const d = await fetchBotStatus(token);
         setBotStatus(d);
         setStatusLoading(false);
-
-        if (d.success && !modeOverridden) {
-            if (d.is_drop_mode) setBotMode('drop');
-            else if (d.is_order_mode) setBotMode('order');
-        }
-    }, [token, modeOverridden]);
+    }, [token]);
 
     useEffect(() => {
         refreshStatus();
@@ -1241,173 +1222,7 @@ const OrderBot: React.FC = () => {
         });
     };
 
-    // ── Drop Mode Helpers ──
-    const handleGetDropIslandDodo = async (island: IslandData) => {
-        if (!island) return;
-        setDropDodoLoading(true);
-        setDropDodoError(null);
-        playSound();
 
-        try {
-            const token = getAuthToken();
-            const resp = await fetch(`${DODO_API_BASE}/api/islands/${encodeURIComponent(island.name)}/dodo`, {
-                method: 'POST',
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
-                credentials: 'include',
-            });
-
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                if (resp.status === 401) {
-                    setDropDodoError('Your login session expired. Please log in again.');
-                    return;
-                }
-                if (resp.status === 403) {
-                    setDropDodoError(err.error || "You do not have access to this Sub Member island's Dodo code.");
-                    return;
-                }
-                if (resp.status === 404) {
-                    setDropDodoError('Dodo code is not available right now. Please try again shortly.');
-                    return;
-                }
-                setDropDodoError(err.error || 'Unable to retrieve Dodo code.');
-                return;
-            }
-
-            const data = await resp.json();
-            const rawCode = String(data.dodo_code || '');
-            const code = rawCode.split(': ').pop() || rawCode;
-            setDropDodoCode(code);
-            navigator.clipboard.writeText(code).catch(() => { });
-            playSound();
-            setDropDodoCopied(true);
-            setTimeout(() => setDropDodoCopied(false), 2500);
-            triggerInAppToast({
-                type: 'dodo',
-                title: 'Dodo Code Logged & Copied!',
-                message: `Logged to Discord webhook & copied ${code} to clipboard. Fly in to drop!`,
-            });
-        } catch (e) {
-            console.error(e);
-            setDropDodoError('Network error while revealing Dodo code. Please try again.');
-        } finally {
-            setDropDodoLoading(false);
-        }
-    };
-
-    const handleCopyDropIslandDodo = (code: string) => {
-        if (!code) return;
-        navigator.clipboard.writeText(code).catch(() => { });
-        playSound();
-        setDropDodoCopied(true);
-        setTimeout(() => setDropDodoCopied(false), 2500);
-        triggerInAppToast({
-            type: 'dodo',
-            title: 'Dodo Code Copied!',
-            message: `Copied ${code} to clipboard. Enter this at Dodo Airlines!`,
-        });
-    };
-
-    const handleApplyDropPreset = (fillType: string) => {
-        playSound();
-        if (fillType === 'tickets') {
-            setDropItems([
-                {
-                    item: {
-                        id: '16DB',
-                        name: 'Nook Miles Ticket',
-                        entityType: 'item',
-                        category: 'Currency',
-                        theme: 'Buffer',
-                        series: 'Buffer',
-                        interactivity: 'Consumable',
-                        colour: 'Various',
-                        image: 'https://dodo.ac/np/images/4/43/Nook_Miles_Ticket_NH_Inv_Icon.png',
-                        description: 'Nook Miles Ticket',
-                    },
-                    quantity: 9,
-                },
-            ]);
-        } else if (fillType === 'crowns') {
-            setDropItems([
-                {
-                    item: {
-                        id: '14BB',
-                        name: 'Royal Crown',
-                        entityType: 'item',
-                        category: 'Currency',
-                        theme: 'Buffer',
-                        series: 'Buffer',
-                        interactivity: 'Consumable',
-                        colour: 'Various',
-                        image: 'https://dodo.ac/np/images/c/c7/Royal_Crown_NH_Storage_Icon.png',
-                        description: 'Royal Crown',
-                    },
-                    quantity: 9,
-                },
-            ]);
-        } else if (fillType === 'bells') {
-            setDropItems([
-                {
-                    item: {
-                        id: '08A4',
-                        name: '99,000 Bells',
-                        entityType: 'item',
-                        category: 'Currency',
-                        theme: 'Buffer',
-                        series: 'Buffer',
-                        interactivity: 'Consumable',
-                        colour: 'Various',
-                        image: 'https://dodo.ac/np/images/1/1e/99k_Bells_NH_Inv_Icon.png',
-                        description: '99k Bells',
-                    },
-                    quantity: 9,
-                },
-            ]);
-        } else if (fillType === 'gold') {
-            setDropItems([
-                {
-                    item: {
-                        id: '0B07',
-                        name: 'Gold nugget',
-                        entityType: 'item',
-                        category: 'Material',
-                        theme: 'Buffer',
-                        series: 'Buffer',
-                        interactivity: 'Consumable',
-                        colour: 'Gold',
-                        image: 'https://dodo.ac/np/images/2/26/Gold_Nugget_NH_Inv_Icon.png',
-                        description: 'Gold nugget',
-                    },
-                    quantity: 9,
-                },
-            ]);
-        }
-
-        triggerInAppToast({
-            type: 'info',
-            title: 'Drop Preset Applied',
-            message: `Loaded 9× ${fillType} into your drop pocket.`,
-        });
-    };
-
-    const handleCopyDropForDiscord = () => {
-        if (!dropCommandText) return;
-        navigator.clipboard.writeText(dropCommandText).catch(() => { });
-        playSound();
-        triggerInAppToast({
-            type: 'success',
-            title: 'Copied !drop for Discord!',
-            message: `Redirecting to Discord ${selectedDropIsland?.name ? `(${selectedDropIsland.name})` : ''
-                }... Paste command in the channel!`,
-        });
-        setTimeout(() => {
-            const targetUrl = (selectedDropIsland as any)?.channel_id
-                ? `https://discord.com/channels/729590421478703135/${(selectedDropIsland as any).channel_id}`
-                : 'https://discord.gg/chopaeng';
-            window.open(targetUrl, '_blank');
-        }, 450);
-    };
 
     // ── Reorder from modal ──
     const handleReorderHistoryItem = (order: OrderHistoryItem) => {
@@ -1440,17 +1255,6 @@ const OrderBot: React.FC = () => {
     const sintaIsDropMode = botStatus?.is_drop_mode === true;
     const canSubmitOrder = botAvailable && !sintaIsDropMode;
     const hasAnyOrderContent = totalOrderItemsCount > 0 || orderVillager !== null;
-
-    const subMemberIslands = useMemo(() => {
-        return islands.filter((isl) => isl.cat === 'member');
-    }, [islands]);
-
-    const availableDropIslands = useMemo(() => {
-        if (dropFilter === 'unlocked') {
-            return subMemberIslands.filter((isl) => !!user && canAccessIsland(isl.requiredRoles));
-        }
-        return subMemberIslands;
-    }, [subMemberIslands, dropFilter, user, canAccessIsland]);
 
     // Compute empty slots to fill up to 40 regular item slots
     const emptySlotsCount = Math.max(0, ORDER_MAX - totalOrderItemsCount);
@@ -1648,63 +1452,50 @@ const OrderBot: React.FC = () => {
 
             {/* ════════════════ MAIN BODY ════════════════ */}
             <div className="container py-2">
-                {/* ── BOT MODE SELECTOR (Order Delivery vs In-Island Drop) ── */}
-                <div className="d-flex align-items-center justify-content-center mb-4">
-                    <div className="ob-mode-toggle-wrap">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setBotMode('order');
-                                setModeOverridden(true);
-                                playSound();
-                            }}
-                            className={`ob-mode-btn ${botMode === 'order' ? 'active order' : ''}`}
-                        >
-                            <i className="fa-solid fa-plane-departure"></i>
-                            <span>Order Delivery (40 Slots)</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setBotMode('drop');
-                                setModeOverridden(true);
-                                playSound();
-                            }}
-                            className={`ob-mode-btn ${botMode === 'drop' ? 'active drop' : ''}`}
-                        >
-                            <i className="fa-solid fa-box-open"></i>
-                            <span>In-Island Drop Bot (9 Slots)</span>
-                        </button>
+                {/* ── BOT NAVIGATION & DROP BOT LINK ── */}
+                <div className="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+                    <div className="d-flex align-items-center gap-2">
+                        <span className="badge rounded-pill bg-success-subtle text-success-emphasis border border-success-subtle px-3 py-2 fw-bold" style={{ fontSize: '0.8rem' }}>
+                            <i className="fa-solid fa-plane-departure me-1" /> Order Delivery (40 Slots)
+                        </span>
                     </div>
+                    <Link
+                        to="/drop"
+                        className="btn btn-sm btn-outline-success rounded-pill fw-bold px-3 py-2 shadow-2xs d-inline-flex align-items-center gap-2"
+                        style={{ fontSize: '0.82rem' }}
+                    >
+                        <i className="fa-solid fa-parachute-box" />
+                        <span>Need In-Island Drops or Villager Injection? Go to Drop Bot</span>
+                        <i className="fa-solid fa-arrow-right small" />
+                    </Link>
                 </div>
 
                 {/* ── REUSABLE HOW IT WORKS EXPLAINER ── */}
                 <HowItWorksExplainer {...ORDER_BOT_EXPLAINER_CONFIG} className="mb-4" defaultExpanded={false} />
 
                 {/* Drop Mode warning when user tries to order */}
-                {botMode === 'order' && sintaIsDropMode && botAvailable && (
+                {sintaIsDropMode && botAvailable && (
                     <div
-                        className="alert alert-warning border-warning-subtle rounded-4 p-3 mb-4 d-flex align-items-center gap-2 shadow-2xs animate-fade"
+                        className="alert alert-warning border-warning-subtle rounded-4 p-3 mb-4 d-flex align-items-center justify-content-between gap-3 shadow-2xs animate-fade"
                         role="alert"
                     >
-                        <i className="fa-solid fa-triangle-exclamation text-warning fs-5" />
-                        <div>
-                            <strong>Drop Mode Active</strong>
-                            <span className="text-muted ms-1 small">
-                                — The bot is currently in Drop Mode. Order submissions are disabled until it switches to Order Mode.
-                                {botStatus?.dodo_code && (
-                                    <>
-                                        {' '}
-                                        Dodo Code: <strong className="text-success">{botStatus.dodo_code}</strong>
-                                    </>
-                                )}
-                            </span>
+                        <div className="d-flex align-items-center gap-2">
+                            <i className="fa-solid fa-triangle-exclamation text-warning fs-5" />
+                            <div>
+                                <strong>Drop Mode Active on Sinta</strong>
+                                <span className="text-muted ms-1 small">
+                                    — Order submissions are paused while the bot is running in Drop Mode.
+                                    {botStatus?.dodo_code && (
+                                        <> Dodo Code: <strong className="text-success">{botStatus.dodo_code}</strong></>
+                                    )}
+                                </span>
+                            </div>
                         </div>
+                        <Link to="/drop" className="btn btn-sm btn-warning text-dark fw-bold rounded-pill px-3 py-1 text-nowrap">
+                            Go to Drop Bot
+                        </Link>
                     </div>
                 )}
-
-                {botMode === 'order' ? (
-                    <>
                         {/* Step indicator */}
                         <StepIndicator stage={stage} />
 
@@ -2199,36 +1990,6 @@ const OrderBot: React.FC = () => {
                                                             <i className="fa-solid fa-copy text-success" />
                                                             <span>!order</span>
                                                         </button>
-                                                        <button
-                                                            type="button"
-                                                            className="ob-copy-chip"
-                                                            onClick={() =>
-                                                                handleCopySpecific(
-                                                                    dropItemsOnlyCommand || dropCommandText,
-                                                                    '!drop items'
-                                                                )
-                                                            }
-                                                            title="Copy !drop items command"
-                                                        >
-                                                            <i className="fa-solid fa-plane-arrival text-primary" />
-                                                            <span>!drop</span>
-                                                        </button>
-                                                        {dropVillagerCommand && (
-                                                            <button
-                                                                type="button"
-                                                                className="ob-copy-chip"
-                                                                onClick={() =>
-                                                                    handleCopySpecific(
-                                                                        dropVillagerCommand,
-                                                                        '!drop villager'
-                                                                    )
-                                                                }
-                                                                title="Copy !drop <villager> command"
-                                                            >
-                                                                <i className="fa-solid fa-person-falling text-danger" />
-                                                                <span>!drop villager</span>
-                                                            </button>
-                                                        )}
                                                     </div>
                                                 </div>
 
@@ -2452,6 +2213,217 @@ const OrderBot: React.FC = () => {
                                                 )}
                                             </div>
                                         </div>
+                                    </div>
+                                )}
+
+                                {/* ══════════════════════════════════════
+                                    STAGE: SUBMIT — INLINE CATALOG BROWSER
+                                ══════════════════════════════════════ */}
+                                {stage === 'submit' && (
+                                    <div className="ob-card shadow-sm mb-4 animate-fade">
+                                        <div className="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom flex-wrap gap-2">
+                                            <div className="d-flex align-items-center gap-3">
+                                                <div className="ob-card-icon" style={{ background: '#ecfdf5', color: '#059669' }}>
+                                                    <i className="fa-solid fa-boxes-stacked" />
+                                                </div>
+                                                <div>
+                                                    <h2 className="h5 fw-bold mb-0 text-dark ac-font">
+                                                        Catalog Item Browser
+                                                    </h2>
+                                                    <p className="text-muted mb-0 tiny-text">
+                                                        Browse &amp; click items to add them directly to your 40-slot order pocket
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="d-flex align-items-center gap-2">
+                                                <Link
+                                                    to="/command-builder"
+                                                    className="btn btn-sm btn-outline-dark rounded-pill fw-bold px-3 py-1 shadow-2xs"
+                                                    style={{ fontSize: '0.78rem' }}
+                                                >
+                                                    <i className="fa-solid fa-cubes me-1" /> Open Sandbox Builder
+                                                </Link>
+                                            </div>
+                                        </div>
+
+                                        {/* Search & Category Filter Bar */}
+                                        <div className="row g-2 mb-3">
+                                            <div className="col-12 col-sm-7">
+                                                <div className="position-relative">
+                                                    <i className="fa-solid fa-magnifying-glass position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" />
+                                                    <input
+                                                        type="text"
+                                                        value={inlineSearch}
+                                                        onChange={(e) => {
+                                                            setInlineSearch(e.target.value);
+                                                            setInlinePage(1);
+                                                        }}
+                                                        placeholder="Search 7,000+ catalog items…"
+                                                        className="form-control form-control-sm rounded-pill ps-5 py-2 border shadow-2xs"
+                                                        style={{ fontSize: '0.85rem' }}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="col-12 col-sm-5">
+                                                <select
+                                                    value={inlineCategory}
+                                                    onChange={(e) => {
+                                                        setInlineCategory(e.target.value);
+                                                        setInlinePage(1);
+                                                    }}
+                                                    className="form-select form-select-sm rounded-pill py-2 border shadow-2xs fw-bold"
+                                                    style={{ fontSize: '0.82rem' }}
+                                                >
+                                                    {catalogCategories.map((cat) => (
+                                                        <option key={cat} value={cat}>
+                                                            {cat}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {/* Catalog Items Grid */}
+                                        {paginatedInlineItems.length === 0 ? (
+                                            <div className="text-center py-4 text-muted">
+                                                <i className="fa-solid fa-box-open fs-2 mb-2 d-block text-secondary" />
+                                                <span>No items found matching "{inlineSearch}".</span>
+                                            </div>
+                                        ) : (
+                                            <div className="row g-2">
+                                                {paginatedInlineItems.map((item) => {
+                                                    const qty = getOrderPocketQuantity(item.id);
+                                                    const hasVariants = Array.isArray(item.variations) && item.variations.length > 0;
+
+                                                    return (
+                                                        <div key={item.id} className="col-6 col-sm-4 col-md-3">
+                                                            <div
+                                                                className={`h-100 p-2 rounded-4 text-center border position-relative transition-all d-flex flex-column justify-content-between ${
+                                                                    qty > 0 ? 'bg-success-subtle border-success shadow-2xs' : 'bg-white hover-shadow'
+                                                                }`}
+                                                                style={{ minHeight: 140 }}
+                                                            >
+                                                                <div className="pt-1">
+                                                                    <img
+                                                                        src={item.image || FALLBACK_IMG}
+                                                                        alt={item.name}
+                                                                        style={{ width: 44, height: 44, objectFit: 'contain' }}
+                                                                        onError={(e) => {
+                                                                            (e.currentTarget as HTMLImageElement).src = FALLBACK_IMG;
+                                                                        }}
+                                                                    />
+                                                                    <span
+                                                                        className="fw-bold text-dark text-truncate d-block mt-1"
+                                                                        style={{ fontSize: '0.78rem' }}
+                                                                        title={item.name}
+                                                                    >
+                                                                        {item.name}
+                                                                    </span>
+                                                                    <span
+                                                                        className="badge bg-light text-muted rounded-pill px-2"
+                                                                        style={{ fontSize: '0.65rem' }}
+                                                                    >
+                                                                        {item.category || 'Item'}
+                                                                    </span>
+                                                                </div>
+
+                                                                <div className="mt-2 pt-1 border-top">
+                                                                    {hasVariants ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                playSound();
+                                                                                setInlineVariantItem(item);
+                                                                            }}
+                                                                            className="btn btn-xs btn-outline-success rounded-pill w-100 fw-bold py-1"
+                                                                            style={{ fontSize: '0.72rem' }}
+                                                                        >
+                                                                            Variants {qty > 0 && `(${qty})`}
+                                                                        </button>
+                                                                    ) : qty > 0 ? (
+                                                                        <div className="d-flex align-items-center justify-content-between px-1">
+                                                                            <button
+                                                                                type="button"
+                                                                                className="btn btn-xs btn-light border rounded-circle"
+                                                                                style={{ width: 20, height: 20, padding: 0 }}
+                                                                                onClick={() => {
+                                                                                    playSound();
+                                                                                    decreaseOrderQuantity(item.id);
+                                                                                }}
+                                                                            >
+                                                                                -
+                                                                            </button>
+                                                                            <span className="fw-black text-success small">
+                                                                                ×{qty}
+                                                                            </span>
+                                                                            <button
+                                                                                type="button"
+                                                                                disabled={totalOrderItemsCount >= ORDER_MAX}
+                                                                                className="btn btn-xs btn-light border rounded-circle"
+                                                                                style={{ width: 20, height: 20, padding: 0 }}
+                                                                                onClick={() => {
+                                                                                    playSound();
+                                                                                    increaseOrderQuantity(item.id);
+                                                                                }}
+                                                                            >
+                                                                                +
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={totalOrderItemsCount >= ORDER_MAX}
+                                                                            onClick={() => {
+                                                                                playSound();
+                                                                                addItemToOrderPockets(item);
+                                                                            }}
+                                                                            className="btn btn-xs btn-light border rounded-pill w-100 fw-bold py-1 hover-bg-success"
+                                                                            style={{ fontSize: '0.72rem' }}
+                                                                        >
+                                                                            + Add ({ORDER_MAX - totalOrderItemsCount} left)
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {/* Pagination */}
+                                        {totalInlinePages > 1 && (
+                                            <div className="d-flex align-items-center justify-content-between mt-3 pt-3 border-top">
+                                                <button
+                                                    type="button"
+                                                    disabled={inlinePage <= 1}
+                                                    onClick={() => {
+                                                        playSound();
+                                                        setInlinePage((p) => Math.max(1, p - 1));
+                                                    }}
+                                                    className="btn btn-sm btn-light rounded-pill px-3 fw-bold"
+                                                    style={{ fontSize: '0.78rem' }}
+                                                >
+                                                    Previous
+                                                </button>
+                                                <span className="text-muted small fw-bold">
+                                                    Page {inlinePage} of {totalInlinePages}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    disabled={inlinePage >= totalInlinePages}
+                                                    onClick={() => {
+                                                        playSound();
+                                                        setInlinePage((p) => Math.min(totalInlinePages, p + 1));
+                                                    }}
+                                                    className="btn btn-sm btn-light rounded-pill px-3 fw-bold"
+                                                    style={{ fontSize: '0.78rem' }}
+                                                >
+                                                    Next
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -3066,807 +3038,6 @@ const OrderBot: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                    </>
-                ) : (
-                    /* ══════════════════════════════════════
-                        IN-ISLAND DROP BOT (9 SLOTS)
-                    ══════════════════════════════════════ */
-                    <div className="row g-4 animate-fade">
-                        {/* ════ MAIN DROP COLUMN ════ */}
-                        <div className="col-12 col-lg-8">
-                            {/* ── STEP 1: SELECT DESTINATION SUB MEMBER ISLAND ── */}
-                            <div className="ob-card accent-green shadow-sm mb-4">
-                                <div className="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom flex-wrap gap-2">
-                                    <div className="d-flex align-items-center gap-3">
-                                        <div className="ob-card-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
-                                            <i className="fa-solid fa-crown" />
-                                        </div>
-                                        <div>
-                                            <h2 className="h5 fw-bold mb-0 text-dark ac-font">
-                                                1. Select Destination Sub Member Island
-                                            </h2>
-                                            <p className="text-muted mb-0 tiny-text">
-                                                Select a Sub Member island to receive your in-game item drops
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {/* Filter Pills */}
-                                    <div className="d-flex gap-1 bg-light p-1 rounded-pill border flex-wrap">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setDropFilter('all');
-                                                playSound();
-                                            }}
-                                            className={`btn btn-xs rounded-pill fw-bold px-3 py-1 transition-all ${dropFilter === 'all'
-                                                    ? 'btn-dark text-white shadow-2xs'
-                                                    : 'text-muted border-0 bg-transparent'
-                                                }`}
-                                            style={{ fontSize: '0.72rem' }}
-                                        >
-                                            All Sub Islands ({subMemberIslands.length})
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setDropFilter('unlocked');
-                                                playSound();
-                                            }}
-                                            className={`btn btn-xs rounded-pill fw-bold px-3 py-1 transition-all ${dropFilter === 'unlocked'
-                                                    ? 'btn-dark text-white shadow-2xs'
-                                                    : 'text-muted border-0 bg-transparent'
-                                                }`}
-                                            style={{ fontSize: '0.72rem' }}
-                                        >
-                                            <i className="fa-solid fa-crown me-1 text-warning"></i>
-                                            My Sub Islands (
-                                            {
-                                                subMemberIslands.filter(
-                                                    (i) => !!user && canAccessIsland(i.requiredRoles)
-                                                ).length
-                                            }
-                                            )
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Sub Requirement Notice for Guest / Non-Sub */}
-                                {(!user ||
-                                    subMemberIslands.every((i) => !user || !canAccessIsland(i.requiredRoles))) && (
-                                        <div className="alert alert-warning rounded-4 border-0 p-3 mb-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 shadow-2xs">
-                                            <div className="d-flex align-items-center gap-2">
-                                                <i className="fa-solid fa-crown text-warning fs-5 flex-shrink-0"></i>
-                                                <span className="small fw-bold text-dark">
-                                                    {user
-                                                        ? 'You do not currently have an active Sub Member subscription tier.'
-                                                        : 'Log in with your Discord account to access your Sub Islands.'}
-                                                </span>
-                                            </div>
-                                            {user ? (
-                                                <Link
-                                                    to="/membership"
-                                                    className="btn btn-sm btn-dark rounded-pill fw-bold px-3 text-nowrap"
-                                                >
-                                                    View Memberships
-                                                </Link>
-                                            ) : (
-                                                <button
-                                                    type="button"
-                                                    onClick={login}
-                                                    className="btn btn-sm btn-dark rounded-pill fw-bold px-3 text-nowrap"
-                                                >
-                                                    <i className="fa-brands fa-discord me-1"></i> Log In
-                                                </button>
-                                            )}
-                                        </div>
-                                    )}
-
-                                {/* Island Dropdown Selector */}
-                                {islandsLoading ? (
-                                    <div className="text-center py-4 text-muted">
-                                        <span className="spinner-border spinner-border-sm text-success me-2" />
-                                        <span>Loading Sub Member islands…</span>
-                                    </div>
-                                ) : (
-                                    <div className="mb-3">
-                                        <label className="form-label small fw-bold text-muted text-uppercase tracking-wider d-flex align-items-center justify-content-between">
-                                            <span>
-                                                <i className="fa-solid fa-tree text-success me-1"></i> Choose Sub Island:
-                                            </span>
-                                            {selectedDropIsland && (
-                                                <span className="text-success fw-bold tiny-text">
-                                                    <i className="fa-solid fa-circle-check me-1"></i> Selected:{' '}
-                                                    {selectedDropIsland.name}
-                                                </span>
-                                            )}
-                                        </label>
-                                        <select
-                                            className="form-select form-select-lg rounded-4 border-2 shadow-2xs fw-bold text-dark"
-                                            style={{
-                                                fontSize: '0.95rem',
-                                                borderColor: selectedDropIsland ? '#86efac' : '#e2e8f0',
-                                            }}
-                                            value={selectedDropIsland?.id || ''}
-                                            onChange={(e) => {
-                                                const found = subMemberIslands.find((isl) => isl.id === e.target.value);
-                                                if (found) {
-                                                    const hasAccess = !!user && canAccessIsland(found.requiredRoles);
-                                                    if (!hasAccess) {
-                                                        if (!user) {
-                                                            login();
-                                                        } else {
-                                                            triggerInAppToast({
-                                                                type: 'warning',
-                                                                title: 'Sub Pass Required',
-                                                                message: `You do not have access to ${found.name}. Requires an active Sub Member tier.`,
-                                                            });
-                                                        }
-                                                        return;
-                                                    }
-                                                    setSelectedDropIsland(found);
-                                                    setDropDodoCode(null);
-                                                    setDropDodoError(null);
-                                                    setAlreadyOnIsland(false);
-                                                    playSound();
-                                                } else {
-                                                    setSelectedDropIsland(null);
-                                                    setDropDodoCode(null);
-                                                    setDropDodoError(null);
-                                                    setAlreadyOnIsland(false);
-                                                }
-                                            }}
-                                        >
-                                            <option value="">-- Select a Sub Member Island --</option>
-                                            {availableDropIslands.filter(
-                                                (i) => !!user && canAccessIsland(i.requiredRoles)
-                                            ).length > 0 && (
-                                                    <optgroup label="My Sub Member Islands (Subscribed)">
-                                                        {availableDropIslands
-                                                            .filter((i) => !!user && canAccessIsland(i.requiredRoles))
-                                                            .map((isl) => (
-                                                                <option key={isl.id} value={isl.id}>
-                                                                    {isl.name} · {isl.type || 'Treasure Island'} (
-                                                                    {isl.visitors ?? 0}/7 Flying)
-                                                                </option>
-                                                            ))}
-                                                    </optgroup>
-                                                )}
-                                            {dropFilter === 'all' &&
-                                                availableDropIslands.filter(
-                                                    (i) => !user || !canAccessIsland(i.requiredRoles)
-                                                ).length > 0 && (
-                                                    <optgroup label="Other Sub Member Islands (Requires Subscription)">
-                                                        {availableDropIslands
-                                                            .filter(
-                                                                (i) => !user || !canAccessIsland(i.requiredRoles)
-                                                            )
-                                                            .map((isl) => (
-                                                                <option key={isl.id} value={isl.id}>
-                                                                    {isl.name} · {isl.type || 'Treasure Island'} (
-                                                                    {isl.visitors ?? 0}/7 Flying)
-                                                                </option>
-                                                            ))}
-                                                    </optgroup>
-                                                )}
-                                        </select>
-                                    </div>
-                                )}
-
-                                {/* Selected Island Banner Preview */}
-                                {selectedDropIsland && (
-                                    <div className="animate-up mt-3">
-                                        <div className="ob-island-sub-card selected p-0 overflow-hidden shadow-sm border-2">
-                                            <div className="ob-island-card-banner position-relative">
-                                                <img
-                                                    src={
-                                                        selectedDropIsland.mapUrl ||
-                                                        `https://cdn.chopaeng.com/maps/${selectedDropIsland.name.toLowerCase()}.png`
-                                                    }
-                                                    alt={selectedDropIsland.name}
-                                                    className="ob-island-card-img"
-                                                    onError={(e) => {
-                                                        e.currentTarget.onerror = null;
-                                                        e.currentTarget.src =
-                                                            "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230f172a'/><text x='50%' y='65%' font-size='40' text-anchor='middle' fill='%2352b788'>MAP</text></svg>";
-                                                    }}
-                                                />
-                                                <div className="ob-island-banner-overlay" />
-
-                                                <div className="position-absolute top-0 start-0 m-2 d-flex gap-1">
-                                                    <span className="badge bg-dark bg-opacity-75 text-white rounded-pill x-small fw-bold border border-secondary border-opacity-50">
-                                                        <i className="fa-solid fa-crown text-warning me-1"></i> SUB MEMBER
-                                                    </span>
-                                                </div>
-
-                                                <div className="position-absolute top-0 end-0 m-2">
-                                                    <span className="badge bg-success text-white rounded-pill px-2 py-1 shadow-2xs x-small fw-bold">
-                                                        <i className="fa-solid fa-check me-1"></i> TARGET SET
-                                                    </span>
-                                                </div>
-
-                                                <div className="position-absolute bottom-0 start-0 m-3">
-                                                    <strong className="text-white h5 mb-0 fw-black text-truncate d-block">
-                                                        {selectedDropIsland.name}
-                                                    </strong>
-                                                    <span className="tiny-text text-white-50">
-                                                        {selectedDropIsland.type || 'Treasure Island'} ·{' '}
-                                                        {selectedDropIsland.visitors ?? 0}/7 Flying
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="p-3 bg-white d-flex align-items-center justify-content-between">
-                                                <div className="d-flex align-items-center gap-2">
-                                                    <i className="fa-solid fa-circle-check text-success fs-5"></i>
-                                                    <div>
-                                                        <strong className="d-block text-dark small fw-bold">
-                                                            Ready for Flight Pass
-                                                        </strong>
-                                                        <span className="tiny-text text-muted">
-                                                            Proceed to Step 2 below to retrieve Dodo code
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <span className="badge bg-success-subtle text-success rounded-pill px-3 py-1 fw-bold x-small border border-success">
-                                                    ACCESS GRANTED
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* ── STEP 2: GET DODO FLIGHT PASS & LOG VIA WEBHOOK ── */}
-                            {selectedDropIsland && (
-                                <div className="ob-dodo-flight-pass mb-4 animate-up">
-                                    <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-                                        <div className="d-flex align-items-center gap-2">
-                                            <div
-                                                className="rounded-circle bg-success bg-opacity-25 p-2 d-flex align-items-center justify-content-center"
-                                                style={{ width: 36, height: 36 }}
-                                            >
-                                                <i className="fa-solid fa-plane-departure text-warning fs-6" />
-                                            </div>
-                                            <div>
-                                                <h2 className="h6 fw-black mb-0 text-white ac-font">
-                                                    2. Flight Pass &amp; On-Island Presence
-                                                </h2>
-                                                <span className="tiny-text text-white-50">
-                                                    Fly in via Dodo Airlines or confirm you're already landed
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <span
-                                            className={`badge rounded-pill px-3 py-1 fw-black x-small ${alreadyOnIsland
-                                                    ? 'bg-success text-white'
-                                                    : dropDodoCode
-                                                        ? 'bg-warning text-dark'
-                                                        : 'bg-secondary text-white'
-                                                }`}
-                                        >
-                                            <i
-                                                className={`fa-solid ${alreadyOnIsland ? 'fa-circle-check' : 'fa-plane'
-                                                    } me-1`}
-                                            ></i>
-                                            {alreadyOnIsland
-                                                ? 'ON-SITE CONFIRMED'
-                                                : dropDodoCode
-                                                    ? 'FLIGHT PASS ACTIVE'
-                                                    : 'LOGGING REQUIRED'}
-                                        </span>
-                                    </div>
-
-                                    <div className="bg-black bg-opacity-30 rounded-4 p-3 border border-white border-opacity-10 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 min-w-0">
-                                        <div className="min-w-0">
-                                            <span className="tiny-text text-uppercase text-white-50 fw-bold d-block mb-1 tracking-wider text-truncate">
-                                                Destination · {selectedDropIsland.name}
-                                            </span>
-                                            {alreadyOnIsland ? (
-                                                <div className="d-flex align-items-center gap-2 text-success fw-black py-1 text-truncate">
-                                                    <i className="fa-solid fa-location-dot fs-5 text-success flex-shrink-0"></i>
-                                                    <span className="text-truncate">Landed on {selectedDropIsland.name} (Ready to Drop)</span>
-                                                </div>
-                                            ) : dropDodoCode ? (
-                                                <div className="ob-dodo-code-chip">
-                                                    <i className="fa-solid fa-ticket text-warning fs-5 flex-shrink-0"></i>
-                                                    <span>{dropDodoCode}</span>
-                                                </div>
-                                            ) : (
-                                                <div className="text-white-50 small font-monospace py-1">
-                                                    <i className="fa-solid fa-lock me-1"></i> Get code to fly in, or
-                                                    click if already on island
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="d-flex align-items-center gap-2 flex-wrap">
-                                            {dropDodoCode ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleCopyDropIslandDodo(dropDodoCode)}
-                                                    className={`btn rounded-pill fw-black px-4 py-2 shadow-sm d-flex align-items-center gap-2 transition-all ${dropDodoCopied
-                                                            ? 'btn-success text-white'
-                                                            : 'btn-warning text-dark hover-scale'
-                                                        }`}
-                                                >
-                                                    {dropDodoCopied ? (
-                                                        <>
-                                                            <i className="fa-solid fa-check"></i> Copied to Clipboard!
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <i className="fa-solid fa-copy"></i> Copy Flight Code
-                                                        </>
-                                                    )}
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    type="button"
-                                                    disabled={dropDodoLoading}
-                                                    onClick={() => handleGetDropIslandDodo(selectedDropIsland)}
-                                                    className="btn btn-warning text-dark rounded-pill fw-black px-3 py-2 shadow-sm d-flex align-items-center gap-2 hover-scale transition-all"
-                                                >
-                                                    {dropDodoLoading ? (
-                                                        <>
-                                                            <span className="spinner-border spinner-border-sm" />{' '}
-                                                            Logging &amp; Retrieving…
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <i className="fa-solid fa-key"></i> Get Dodo Code
-                                                        </>
-                                                    )}
-                                                </button>
-                                            )}
-
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    playSound();
-                                                    setAlreadyOnIsland(true);
-                                                    if (!dropDodoCode) {
-                                                        handleGetDropIslandDodo(selectedDropIsland);
-                                                    }
-                                                    triggerInAppToast({
-                                                        type: 'success',
-                                                        title: 'Island Presence Confirmed',
-                                                        message: `Confirmed on ${selectedDropIsland.name}! Proceed to Step 3 to drop items.`,
-                                                    });
-                                                }}
-                                                className={`btn rounded-pill fw-black px-3 py-2 shadow-sm d-flex align-items-center gap-2 transition-all ${alreadyOnIsland
-                                                        ? 'btn-success text-white'
-                                                        : 'btn-outline-light text-white hover-scale'
-                                                    }`}
-                                            >
-                                                <i
-                                                    className={`fa-solid ${alreadyOnIsland ? 'fa-check-double' : 'fa-location-dot'
-                                                        }`}
-                                                ></i>
-                                                <span>
-                                                    {alreadyOnIsland
-                                                        ? 'Already On Island (Confirmed)'
-                                                        : "I'm Already on the Island"}
-                                                </span>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {dropDodoError && (
-                                        <div className="alert alert-danger rounded-4 mt-3 mb-0 p-2 d-flex align-items-center justify-content-between gap-2 shadow-2xs">
-                                            <div className="d-flex align-items-center gap-2 tiny-text fw-bold">
-                                                <i className="fa-solid fa-triangle-exclamation"></i>
-                                                <span>{dropDodoError}</span>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleGetDropIslandDodo(selectedDropIsland)}
-                                                className="btn btn-xs btn-outline-danger rounded-pill fw-bold px-2 py-1"
-                                            >
-                                                Retry
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {(dropDodoCode || alreadyOnIsland) && (
-                                        <div className="mt-2 tiny-text text-white-50 d-flex align-items-center gap-1">
-                                            <i className="fa-solid fa-circle-check text-success"></i>
-                                            <span>
-                                                {alreadyOnIsland
-                                                    ? `Island presence confirmed for ${selectedDropIsland.name}. Stand in front of airport gate to drop.`
-                                                    : `Flight pass logged via Discord webhook. Fly to ${selectedDropIsland.name} before dropping!`}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* ── STEP 3: DROP ITEMS DESIGNER (9 SLOTS) ── */}
-                            <div className="ob-card shadow-sm mb-4">
-                                <div className="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom flex-wrap gap-2">
-                                    <div className="d-flex align-items-center gap-3">
-                                        <div
-                                            className="ob-card-icon"
-                                            style={{ background: '#e0e7ff', color: '#4338ca' }}
-                                        >
-                                            <i className="fa-solid fa-boxes-stacked" />
-                                        </div>
-                                        <div>
-                                            <h2 className="h5 fw-bold mb-0 text-dark ac-font">
-                                                3. Select Drop Items (Max {DROP_MAX} Slots)
-                                            </h2>
-                                            <p className="text-muted mb-0 tiny-text">
-                                                Items dropped instantly at the island airport landing zone
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {totalDropCount > 0 && (
-                                        <button
-                                            type="button"
-                                            className="btn btn-link p-0 text-danger tiny-text fw-bold text-decoration-none"
-                                            onClick={() => {
-                                                playSound();
-                                                setDropItems([]);
-                                            }}
-                                        >
-                                            <i className="fa-solid fa-trash-can me-1" /> Clear Drop Pocket
-                                        </button>
-                                    )}
-                                </div>
-
-                                {selectedDropIsland && !dropDodoCode && !alreadyOnIsland && (
-                                    <div className="alert alert-info rounded-4 border-0 p-3 mb-3 d-flex align-items-center gap-2 tiny-text fw-bold shadow-2xs">
-                                        <i className="fa-solid fa-circle-info fs-6 flex-shrink-0 text-primary"></i>
-                                        <span>
-                                            Please click <strong>Get Dodo Code</strong> or{' '}
-                                            <strong>I'm Already on the Island</strong> in Step 2 before dropping items.
-                                        </span>
-                                    </div>
-                                )}
-
-                                {/* Quick Fill Drop Presets Bar */}
-                                <div className="ob-presets-container mb-3">
-                                    <div className="d-flex align-items-center justify-content-between mb-2">
-                                        <span className="tiny-text fw-bold text-muted text-uppercase tracking-wider">
-                                            <i className="fa-solid fa-wand-magic-sparkles text-warning me-1" />
-                                            Quick Drop Presets
-                                        </span>
-                                    </div>
-                                    <div className="d-flex gap-2 flex-wrap">
-                                        {DROP_QUICK_PRESETS.map((preset) => (
-                                            <button
-                                                key={preset.id}
-                                                type="button"
-                                                className="ob-preset-chip"
-                                                onClick={() => handleApplyDropPreset(preset.fillType)}
-                                                title={`Load 9× ${preset.name}`}
-                                            >
-                                                <img
-                                                    src={preset.icon}
-                                                    alt=""
-                                                    style={{ width: 18, height: 18, objectFit: 'contain' }}
-                                                />
-                                                <span>{preset.name}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* 9-Slot Drop Grid */}
-                                {dropItems.length === 0 ? (
-                                    <div className="ob-empty-pocket my-4 text-center">
-                                        <div className="text-secondary mb-2" style={{ fontSize: '3rem' }}>
-                                            <i className="fa-solid fa-box-open" />
-                                        </div>
-                                        <h3 className="h6 fw-bold mb-1 text-dark">Your drop pocket is empty</h3>
-                                        <p className="text-muted small mb-3" style={{ maxWidth: 380, margin: '0 auto' }}>
-                                            Choose one of the quick drop presets above, or load items from Command Builder.
-                                        </p>
-                                        <button
-                                            type="button"
-                                            className="btn btn-sm btn-outline-primary rounded-pill px-4 fw-bold shadow-2xs"
-                                            onClick={() => {
-                                                playSound();
-                                                setShowQuickAddModal(true);
-                                            }}
-                                        >
-                                            <i className="fa-solid fa-magnifying-glass me-1" /> Search Items to Drop
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="row g-2 mb-3">
-                                        {dropItems.map((entry) => (
-                                            <div key={entry.item.id} className="col-4 col-sm-3 col-md-4">
-                                                <div className="ob-drop-slot-tile h-100">
-                                                    <img
-                                                        src={entry.item.image || FALLBACK_IMG}
-                                                        alt={entry.item.name}
-                                                        style={{ width: 44, height: 44, objectFit: 'contain' }}
-                                                        onError={(ev) => {
-                                                            (ev.currentTarget as HTMLImageElement).src = FALLBACK_IMG;
-                                                        }}
-                                                    />
-                                                    <span
-                                                        className="tiny-text fw-bold text-dark text-truncate w-100 mt-1"
-                                                        title={entry.item.name}
-                                                    >
-                                                        {entry.item.name}
-                                                    </span>
-                                                    <div className="d-flex align-items-center gap-1 mt-1">
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-xs btn-light border rounded-circle"
-                                                            style={{ width: 22, height: 22, padding: 0 }}
-                                                            onClick={() => {
-                                                                playSound();
-                                                                decreaseDropQuantity(entry.item.id);
-                                                            }}
-                                                        >
-                                                            -
-                                                        </button>
-                                                        <span className="small fw-black text-primary px-1">
-                                                            ×{entry.quantity}
-                                                        </span>
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-xs btn-light border rounded-circle"
-                                                            style={{ width: 22, height: 22, padding: 0 }}
-                                                            onClick={() => {
-                                                                playSound();
-                                                                increaseDropQuantity(entry.item.id);
-                                                            }}
-                                                        >
-                                                            +
-                                                        </button>
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-link p-0 text-muted hover-text-danger position-absolute top-0 end-0 m-1"
-                                                        onClick={() => {
-                                                            playSound();
-                                                            removeDropItem(entry.item.id);
-                                                        }}
-                                                        title="Remove item"
-                                                    >
-                                                        <i className="fa-solid fa-xmark small" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* Drop Bot Guidance Banner */}
-                                <div className="alert alert-warning rounded-4 border-0 p-3 mt-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 shadow-2xs">
-                                    <div className="d-flex align-items-start gap-2">
-                                        <i className="fa-solid fa-moon text-warning fs-5 flex-shrink-0 mt-1"></i>
-                                        <div>
-                                            <strong className="d-block text-dark small fw-bold">
-                                                Drop Bot is Currently Offline
-                                            </strong>
-                                            <span className="tiny-text text-muted">
-                                                SysBot direct web dispatch is not set up yet. Use Discord for now to drop items on your Sub Island.
-                                            </span>
-                                        </div>
-                                    </div>
-                                    {dropCommandText && (
-                                        <button
-                                            type="button"
-                                            onClick={handleCopyDropForDiscord}
-                                            className="btn btn-sm btn-dark rounded-pill fw-bold px-3 text-nowrap d-flex align-items-center gap-2 hover-scale"
-                                        >
-                                            <i className="fa-solid fa-copy"></i> Copy !drop for Discord
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* ════ SIDEBAR: DROP DISPATCH RADAR ════ */}
-                        <div className="col-12 col-lg-4">
-                            <div className="ob-radar-card sticky-top" style={{ top: '1.5rem' }}>
-                                {/* Radar Header */}
-                                <div className="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
-                                    <div className="d-flex align-items-center gap-2">
-                                        <div
-                                            className="ob-card-icon"
-                                            style={{ width: 34, height: 34, background: '#fffbeb', color: '#d97706' }}
-                                        >
-                                            <i className="fa-solid fa-satellite-dish fa-spin-pulse" />
-                                        </div>
-                                        <div>
-                                            <h3
-                                                className="h6 fw-black mb-0 text-dark ac-font"
-                                                style={{ letterSpacing: '0.04em' }}
-                                            >
-                                                DROP RADAR
-                                            </h3>
-                                            <span className="tiny-text text-muted">In-Game Telemetry</span>
-                                        </div>
-                                    </div>
-                                    <span className="ob-radar-badge-pulse">
-                                        <span className="ob-radar-dot" /> LIVE
-                                    </span>
-                                </div>
-
-                                {/* Target Island HUD Screen */}
-                                <div className={`ob-radar-hud-box mb-3 ${selectedDropIsland ? 'active' : ''}`}>
-                                    <div className="d-flex align-items-center justify-content-between mb-1">
-                                        <span className="tiny-text fw-bold text-uppercase text-muted tracking-wider">
-                                            <i className="fa-solid fa-crosshairs me-1 text-primary"></i> Target
-                                            Coordinates
-                                        </span>
-                                        {selectedDropIsland && (
-                                            <span className="badge bg-light text-dark border rounded-pill x-small fw-bold">
-                                                {selectedDropIsland.visitors ?? 0}/7 Flying
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {selectedDropIsland ? (
-                                        <div>
-                                            <div className="d-flex align-items-center justify-content-between mt-1">
-                                                <strong className="text-dark fs-6 fw-black text-truncate d-block">
-                                                    {selectedDropIsland.name}
-                                                </strong>
-                                                <span className="badge bg-warning-subtle text-warning-emphasis rounded-pill x-small fw-bold border border-warning-subtle">
-                                                    {selectedDropIsland.type || 'Treasure Island'}
-                                                </span>
-                                            </div>
-
-                                            <div className="mt-2 pt-2 border-top d-flex align-items-center justify-content-between tiny-text">
-                                                <span className="text-muted">Presence:</span>
-                                                {alreadyOnIsland ? (
-                                                    <span className="text-success fw-bold d-inline-flex align-items-center gap-1">
-                                                        <i className="fa-solid fa-circle-check"></i> On-Site Confirmed
-                                                    </span>
-                                                ) : dropDodoCode ? (
-                                                    <span className="text-primary fw-bold d-inline-flex align-items-center gap-1">
-                                                        <i className="fa-solid fa-ticket"></i> Pass Logged (
-                                                        {dropDodoCode})
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-muted fw-bold d-inline-flex align-items-center gap-1">
-                                                        <i className="fa-solid fa-clock"></i> Logging Required
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="text-muted small py-1">
-                                            <i className="fa-solid fa-location-dot me-1 text-secondary"></i>
-                                            No island locked. Select destination in Step 1.
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Drop Slot Capacity Progress Bar */}
-                                <div className="mb-3">
-                                    <div className="d-flex align-items-center justify-content-between mb-1">
-                                        <span className="tiny-text fw-bold text-uppercase text-muted tracking-wider">
-                                            <i className="fa-solid fa-box me-1 text-success"></i> Slot Capacity
-                                        </span>
-                                        <span
-                                            className={`tiny-text fw-black ${totalDropCount >= DROP_MAX ? 'text-success' : 'text-primary'
-                                                }`}
-                                        >
-                                            {totalDropCount} / {DROP_MAX} Slots
-                                        </span>
-                                    </div>
-                                    <div className="progress" style={{ height: 6, borderRadius: 99 }}>
-                                        <div
-                                            className={`progress-bar transition-all ${totalDropCount >= DROP_MAX ? 'bg-success' : 'bg-primary'
-                                                }`}
-                                            role="progressbar"
-                                            style={{ width: `${(totalDropCount / DROP_MAX) * 100}%` }}
-                                            aria-valuenow={totalDropCount}
-                                            aria-valuemin={0}
-                                            aria-valuemax={DROP_MAX}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Payload Micro Preview Chips */}
-                                {dropItems.length > 0 && (
-                                    <div className="d-flex flex-wrap gap-1 mb-3">
-                                        {dropItems.map((entry) => (
-                                            <span key={entry.item.id} className="ob-radar-payload-pill">
-                                                <img
-                                                    src={entry.item.image || FALLBACK_IMG}
-                                                    alt=""
-                                                    style={{ width: 14, height: 14, objectFit: 'contain' }}
-                                                />
-                                                <span className="text-truncate" style={{ maxWidth: 80 }}>
-                                                    {entry.item.name}
-                                                </span>
-                                                <span className="text-success fw-black">×{entry.quantity}</span>
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* Live Monospace Command Injection Preview */}
-                                <div className="ob-radar-terminal-box mb-3">
-                                    <div className="d-flex align-items-center gap-2 text-truncate min-w-0 flex-grow-1">
-                                        <span className="text-secondary flex-shrink-0">$</span>
-                                        <span className="text-truncate font-monospace">{dropCommandText || '!drop <payload>'}</span>
-                                    </div>
-                                    {dropCommandText && (
-                                        <button
-                                            type="button"
-                                            className="btn btn-link p-0 text-success opacity-75 hover-opacity-100 flex-shrink-0"
-                                            title="Copy drop command & open Discord"
-                                            onClick={handleCopyDropForDiscord}
-                                        >
-                                            <i className="fa-solid fa-copy"></i>
-                                        </button>
-                                    )}
-                                </div>
-
-                                {/* Copy Command for Discord CTA Button */}
-                                <button
-                                    type="button"
-                                    disabled={!selectedDropIsland || totalDropCount === 0}
-                                    onClick={handleCopyDropForDiscord}
-                                    className="btn ob-radar-dispatch-cta w-100 d-flex align-items-center justify-content-center gap-2"
-                                >
-                                    {!selectedDropIsland ? (
-                                        <>
-                                            <i className="fa-solid fa-crosshairs"></i> 1. SELECT ISLAND FIRST
-                                        </>
-                                    ) : totalDropCount === 0 ? (
-                                        <>
-                                            <i className="fa-solid fa-boxes-stacked"></i> 3. LOAD DROP ITEMS
-                                        </>
-                                    ) : (
-                                        <>
-                                            <i className="fa-solid fa-copy"></i> COPY !DROP &amp; OPEN DISCORD
-                                        </>
-                                    )}
-                                </button>
-
-                                {/* Diagnostic Checklist */}
-                                <div className="mt-3 pt-3 border-top d-flex flex-column gap-1">
-                                    <span className="tiny-text fw-bold text-muted text-uppercase d-block mb-1 tracking-wider">
-                                        Flight Pre-Check:
-                                    </span>
-                                    <div className={`ob-radar-diag-item ${selectedDropIsland ? 'done' : 'pending'}`}>
-                                        <i
-                                            className={`fa-solid ${selectedDropIsland
-                                                    ? 'fa-check-circle text-success'
-                                                    : 'fa-circle-dot text-muted'
-                                                }`}
-                                        />
-                                        <span>1. Sub Island Target Set</span>
-                                    </div>
-                                    <div
-                                        className={`ob-radar-diag-item ${alreadyOnIsland || dropDodoCode ? 'done' : 'pending'
-                                            }`}
-                                    >
-                                        <i
-                                            className={`fa-solid ${alreadyOnIsland || dropDodoCode
-                                                    ? 'fa-check-circle text-success'
-                                                    : 'fa-circle-dot text-muted'
-                                                }`}
-                                        />
-                                        <span>2. Webhook &amp; On-Island Presence</span>
-                                    </div>
-                                    <div className={`ob-radar-diag-item ${totalDropCount > 0 ? 'done' : 'pending'}`}>
-                                        <i
-                                            className={`fa-solid ${totalDropCount > 0
-                                                    ? 'fa-check-circle text-success'
-                                                    : 'fa-circle-dot text-muted'
-                                                }`}
-                                        />
-                                        <span>
-                                            3. 9-Slot Payload Loaded ({totalDropCount}/{DROP_MAX})
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* ════════════════ INLINE QUICK ADD ITEM MODAL ════════════════ */}
@@ -3875,7 +3046,7 @@ const OrderBot: React.FC = () => {
                     isOpen={showQuickAddModal}
                     onClose={() => setShowQuickAddModal(false)}
                     catalog={catalogData?.all || []}
-                    initialTarget={botMode}
+                    initialTarget="order"
                     addItemToOrderPockets={addItemToOrderPockets}
                     addItemToDropPockets={addItemToDropPockets}
                     decreaseOrderQuantity={decreaseOrderQuantity}
@@ -4689,6 +3860,28 @@ const OrderBot: React.FC = () => {
                     });
                 }}
             />
+
+            {/* ════════════════ INLINE CATALOG VARIANT MODAL ════════════════ */}
+            {inlineVariantItem && (
+                <CommandBuilderVariantModal
+                    item={inlineVariantItem}
+                    isOpen={!!inlineVariantItem}
+                    onClose={() => setInlineVariantItem(null)}
+                    onOpenFullDetail={() => {}}
+                    addItemToOrderPockets={addItemToOrderPockets}
+                    addItemToDropPockets={addItemToDropPockets}
+                    decreaseOrderQuantity={decreaseOrderQuantity}
+                    increaseOrderQuantity={increaseOrderQuantity}
+                    decreaseDropQuantity={decreaseDropQuantity}
+                    increaseDropQuantity={increaseDropQuantity}
+                    totalOrderCount={totalOrderCount}
+                    totalDropCount={totalDropCount}
+                    canIncreaseOrder={canIncreaseOrder}
+                    canIncreaseDrop={canIncreaseDrop}
+                    getOrderPocketQuantity={getOrderPocketQuantity}
+                    getDropPocketQuantity={getDropPocketQuantity}
+                />
+            )}
         </div>
     );
 };

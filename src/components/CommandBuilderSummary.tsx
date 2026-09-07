@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import type { CatalogEntity } from "../data/commandBuilderData";
 import { SmartFillDropdown } from "./command-builder/SmartFillDropdown";
+import { ChoPaengDispatchCard } from "./command-builder/ChoPaengDispatchCard";
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
 import { generateFullItemHex } from "../utils/commandBuilderHex";
 
@@ -92,12 +93,10 @@ export const CommandBuilderSummary = ({
 }: CommandBuilderSummaryProps) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [activeTab, setActiveTab] = useState<'all' | 'order' | 'drop'>('all');
-    const [terminalTab, setTerminalTab] = useState<'all' | 'order' | 'drop'>('all');
 
-    // Sync terminal tab when user clicks pocket filter tabs
+    // Sync pocket filter tabs
     const handleTabChange = (tab: 'all' | 'order' | 'drop') => {
         setActiveTab(tab);
-        setTerminalTab(tab);
         playChimeClick();
     };
     const [listSearchQuery, setListSearchQuery] = useState('');
@@ -106,11 +105,6 @@ export const CommandBuilderSummary = ({
         () => orderPockets.filter((p) => p.item.entityType !== 'villager').reduce((sum, p) => sum + p.quantity, 0),
         [orderPockets]
     );
-    const orderVillager = useMemo(
-        () => orderPockets.find((p) => p.item.entityType === 'villager')?.item || null,
-        [orderPockets]
-    );
-
     const dropItemsCount = useMemo(
         () => dropPockets.filter((p) => p.item.entityType !== 'villager').reduce((sum, p) => sum + p.quantity, 0),
         [dropPockets]
@@ -188,31 +182,21 @@ export const CommandBuilderSummary = ({
         return combined.length > 0 ? `!order ${combined.join(' ')}` : '';
     }, [orderPockets]);
 
-    // 2. Copy Item-Only Order Command (!order <hexes>)
     // 2. Copy Drop Item Command (!drop <hexes>)
     const dropItemsOnlyCmd = useMemo(() => {
-        const regularItems = dropPockets.concat(orderPockets).filter(p => p.item.entityType !== 'villager');
+        const regularItems = dropPockets.filter(p => p.item.entityType !== 'villager');
         if (regularItems.length === 0) return '';
-        const list = regularItems.slice(0, DROP_BOT_MAX).flatMap(p => Array(p.quantity).fill(getItemCommandId(p.item))).slice(0, DROP_BOT_MAX).join(' ');
+        const list = regularItems.flatMap(p => Array(p.quantity).fill(getItemCommandId(p.item))).slice(0, DROP_BOT_MAX).join(' ');
         return list ? `!drop ${list}` : '';
-    }, [dropPockets, orderPockets]);
+    }, [dropPockets]);
 
-    // 4. Copy Drop Villager Command (!injectvillager if 1, !mvi if 2+) - Deduplicated
+    // 3. Copy Drop Villager Command (!injectvillager if 1, !mvi if 2+)
     const dropVillagerOnlyCmd = useMemo(() => {
-        const villagers = dropPockets.concat(orderPockets).filter(p => p.item.entityType === 'villager');
+        const villagers = dropPockets.filter(p => p.item.entityType === 'villager');
         if (villagers.length === 0) return '';
         const uniqueNames = Array.from(new Set(villagers.map(p => p.item.name)));
         return uniqueNames.length === 1 ? `!injectvillager ${uniqueNames[0]}` : `!mvi ${uniqueNames.join(' ')}`;
-    }, [dropPockets, orderPockets]);
-
-    const villagerCount = useMemo(() => {
-        const uniqueVillagerIds = new Set(
-            dropPockets.concat(orderPockets)
-                .filter(p => p.item.entityType === 'villager')
-                .map(p => p.item.id)
-        );
-        return uniqueVillagerIds.size;
-    }, [dropPockets, orderPockets]);
+    }, [dropPockets]);
 
     // Keyboard shortcuts: Ctrl+Shift+O = Copy Order, Ctrl+Shift+D = Copy Drop
     useEffect(() => {
@@ -848,274 +832,26 @@ export const CommandBuilderSummary = ({
                         </div>
                     )}
 
-                    {/* ── Terminal / Command Output ─────────────────────────────── */}
+                    {/* ── Bot Delivery & Commands ───────────────────────────────── */}
                     {showTerminal && (
-                        <div
-                            className="terminal-window rounded-4 shadow-sm mb-3 overflow-hidden border"
-                            style={{
-                                borderColor: 'rgba(55, 176, 109, 0.3)',
-                                background: '#1c2420',
-                            }}
-                        >
-                            {/* Terminal Top Window Bar */}
-                            <div
-                                className="d-flex align-items-center justify-content-between px-3 py-2"
-                                style={{
-                                    background: 'linear-gradient(90deg, #18201b 0%, #202b24 100%)',
-                                    borderBottom: '1px solid rgba(255,255,255,0.08)'
-                                }}
-                            >
-                                <div className="d-flex align-items-center gap-2">
-                                    <div className="d-flex gap-1">
-                                        <span className="rounded-circle" style={{ width: '10px', height: '10px', backgroundColor: '#ff5f56' }}></span>
-                                        <span className="rounded-circle" style={{ width: '10px', height: '10px', backgroundColor: '#ffbd2e' }}></span>
-                                        <span className="rounded-circle" style={{ width: '10px', height: '10px', backgroundColor: '#27c93f' }}></span>
-                                    </div>
-                                    <span className="font-monospace text-light fw-bold ms-2 tracking-wide" style={{ fontSize: '0.78rem' }}>
-                                        <i className="fa-solid fa-terminal me-1 text-success"></i>nook-os terminal
-                                    </span>
-                                </div>
-                                <span className="tiny-text text-muted font-monospace">ready</span>
-                            </div>
-
-                            {/* Terminal Body */}
-                            <div className="p-3">
-                                {/* Target Bot Switcher */}
-                                <div className="mb-3">
-                                    <div
-                                        className="d-flex p-1 rounded-4 border position-relative"
-                                        style={{
-                                            backgroundColor: '#111713',
-                                            borderColor: 'rgba(255, 255, 255, 0.12)',
-                                            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
-                                        }}
-                                    >
-                                        <button
-                                            type="button"
-                                            onClick={() => { setTerminalTab('all'); playChimeClick(); }}
-                                            className={`btn btn-xs rounded-3 flex-grow-1 py-1 px-2 fw-bold font-monospace transition-all d-flex align-items-center justify-content-center gap-1 ${terminalTab === 'all'
-                                                ? 'text-white shadow-sm'
-                                                : 'text-light border-0 opacity-60'
-                                                }`}
-                                            style={{
-                                                fontSize: '0.74rem',
-                                                backgroundColor: terminalTab === 'all' ? '#27342b' : 'transparent',
-                                                border: terminalTab === 'all' ? '1px solid rgba(255,255,255,0.15)' : 'none'
-                                            }}
-                                        >
-                                            <i className="fa-solid fa-list-check x-small"></i>
-                                            <span>All ({orderCount + dropCount})</span>
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => { setTerminalTab('drop'); playChimeClick(); }}
-                                            className={`btn btn-xs rounded-3 flex-grow-1 py-1 px-2 fw-bold font-monospace transition-all d-flex align-items-center justify-content-center gap-1 ${terminalTab === 'drop'
-                                                ? 'text-white shadow-sm'
-                                                : 'text-light border-0 opacity-60'
-                                                }`}
-                                            style={{
-                                                fontSize: '0.74rem',
-                                                background: terminalTab === 'drop' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'transparent',
-                                                boxShadow: terminalTab === 'drop' ? '0 2px 8px rgba(2, 132, 199, 0.35)' : 'none',
-                                                border: terminalTab === 'drop' ? '1px solid rgba(56, 189, 248, 0.4)' : 'none'
-                                            }}
-                                            title="View commands for in-game Treasure Island Drop Bot"
-                                        >
-                                            <i className="fa-solid fa-plane-arrival x-small text-info"></i>
-                                            <span>Drop Bot (Island)</span>
-                                            {dropCount > 0 && (
-                                                <span className="badge rounded-pill bg-info text-dark px-1 py-0 ms-1" style={{ fontSize: '0.65rem' }}>
-                                                    {dropCount}
-                                                </span>
-                                            )}
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => { setTerminalTab('order'); playChimeClick(); }}
-                                            className={`btn btn-xs rounded-3 flex-grow-1 py-1 px-2 fw-bold font-monospace transition-all d-flex align-items-center justify-content-center gap-1 ${terminalTab === 'order'
-                                                ? 'text-white shadow-sm'
-                                                : 'text-light border-0 opacity-60'
-                                                }`}
-                                            style={{
-                                                fontSize: '0.74rem',
-                                                background: terminalTab === 'order' ? 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)' : 'transparent',
-                                                boxShadow: terminalTab === 'order' ? '0 2px 8px rgba(22, 163, 74, 0.35)' : 'none',
-                                                border: terminalTab === 'order' ? '1px solid rgba(74, 222, 128, 0.4)' : 'none'
-                                            }}
-                                            title="View commands for Discord #order-bot channel queue"
-                                        >
-                                            <i className="fa-solid fa-box x-small text-success"></i>
-                                            <span>Order Bot (Discord)</span>
-                                            {orderCount > 0 && (
-                                                <span className="badge rounded-pill bg-success text-white px-1 py-0 ms-1" style={{ fontSize: '0.65rem' }}>
-                                                    {orderCount}
-                                                </span>
-                                            )}
-                                        </button>
-                                    </div>
-
-                                    {/* Contextual guidance banner based on selected tab */}
-                                    {terminalTab === 'drop' && (
-                                        <div
-                                            className="px-2 py-1 rounded-3 font-monospace mb-2 text-info d-flex align-items-center gap-2"
-                                            style={{ backgroundColor: 'rgba(2, 132, 199, 0.12)', border: '1px solid rgba(2, 132, 199, 0.25)', fontSize: '0.7rem' }}
-                                        >
-                                            <i className="fa-solid fa-info-circle flex-shrink-0"></i>
-                                            <span>Island Mode: Send in in-game chat on Treasure Islands to drop items at your feet.</span>
-                                        </div>
-                                    )}
-
-                                    {terminalTab === 'order' && (
-                                        <div
-                                            className="px-2 py-1 rounded-3 font-monospace mb-2 text-success d-flex align-items-center gap-2"
-                                            style={{ backgroundColor: 'rgba(22, 163, 74, 0.12)', border: '1px solid rgba(22, 163, 74, 0.25)', fontSize: '0.7rem' }}
-                                        >
-                                            <i className="fa-brands fa-discord flex-shrink-0"></i>
-                                            <span>Discord Mode: Paste in the <strong>#order-bot</strong> channel to get a private Dodo Code queue.</span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* 1. Primary Unified Order Command (Items FIRST + Villager LAST) */}
-                                {(terminalTab === 'all' || terminalTab === 'order') && (
-                                    <div className="mb-3">
-                                        <div className="d-flex justify-content-between align-items-center mb-1">
-                                            <span className="badge rounded-pill fw-bold font-monospace x-small bg-success text-white">
-                                                <i className="fa-solid fa-cart-flatbed me-1"></i>!order {orderItemsCount > 0 ? `(${orderItemsCount}/40 items${orderVillager ? ` + ${orderVillager.name}` : ''})` : orderVillager ? `(${orderVillager.name})` : ''}
-                                            </span>
-                                            <span className="tiny-text text-muted font-monospace">
-                                                <kbd className="bg-dark text-light border border-secondary px-1" style={{ fontSize: '0.65rem' }}>Ctrl+⇧+O</kbd>
-                                            </span>
-                                        </div>
-                                        <div className="tiny-text mb-1 font-monospace" style={{ fontSize: '0.68rem', color: '#86efac' }}>
-                                            <i className="fa-brands fa-discord me-1"></i>For Discord <strong>#order-bot</strong> queue (Items + Villager)
-                                        </div>
-                                        <div
-                                            className="p-2 rounded-3 font-monospace text-light mb-2 select-all"
-                                            style={{
-                                                backgroundColor: '#111713',
-                                                border: '1px solid rgba(255,255,255,0.08)',
-                                                fontSize: '0.8rem',
-                                                minHeight: '44px',
-                                                maxHeight: '76px',
-                                                overflowY: 'auto',
-                                                wordBreak: 'break-all',
-                                                color: '#a3e635'
-                                            }}
-                                        >
-                                            {unifiedOrderCmd || <span className="text-muted fst-italic">&gt; Add items or villager to generate !order command...</span>}
-                                        </div>
-                                        <button
-                                            type="button"
-                                            className={`btn w-100 rounded-pill py-2 fw-bold btn-sm shadow-sm transition-all d-flex align-items-center justify-content-center gap-2 ${copiedKey === 'orderUnified' ? 'btn-success text-white' : 'btn-nook text-white'}`}
-                                            onClick={() => copyToClipboardWithFeedback(unifiedOrderCmd, 'orderUnified', 'order')}
-                                            disabled={!unifiedOrderCmd}
-                                            title="Copy unified !order command (Ctrl+Shift+O)"
-                                        >
-                                            <i className={`fa-solid ${copiedKey === 'orderUnified' ? 'fa-check' : 'fa-box-open'}`}></i>
-                                            <span>{copiedKey === 'orderUnified' ? 'Copied !order Command!' : 'Copy !order Command'}</span>
-                                        </button>
-                                    </div>
-                                )}
-
-                                {/* 3. Drop Items Command */}
-                                {(terminalTab === 'all' || terminalTab === 'drop') && (
-                                    <div className={`mb-3 ${terminalTab === 'all' ? 'pt-2' : ''}`} style={{ borderTop: terminalTab === 'all' ? '1px solid rgba(255,255,255,0.08)' : undefined }}>
-                                        <div className="d-flex justify-content-between align-items-center mb-1">
-                                            <span className="badge rounded-pill fw-bold font-monospace x-small text-white" style={{ backgroundColor: '#0284c7' }}>
-                                                <i className="fa-solid fa-layer-group me-1"></i>!drop items ({dropPockets.filter(p => p.item.entityType !== 'villager').reduce((s, p) => s + p.quantity, 0)} slots)
-                                            </span>
-                                            <span className="tiny-text text-muted font-monospace">
-                                                <kbd className="bg-dark text-light border border-secondary px-1" style={{ fontSize: '0.65rem' }}>Ctrl+⇧+D</kbd>
-                                            </span>
-                                        </div>
-                                        <div className="tiny-text mb-1 font-monospace" style={{ fontSize: '0.68rem', color: '#7dd3fc' }}>
-                                            <i className="fa-solid fa-umbrella-beach me-1"></i>For in-game chat on <strong>Treasure Islands</strong> (9 slots)
-                                        </div>
-                                        <div
-                                            className="p-2 rounded-3 font-monospace text-light mb-2 select-all"
-                                            style={{
-                                                backgroundColor: '#111713',
-                                                border: '1px solid rgba(255,255,255,0.08)',
-                                                fontSize: '0.8rem',
-                                                minHeight: '44px',
-                                                maxHeight: '76px',
-                                                overflowY: 'auto',
-                                                wordBreak: 'break-all',
-                                                color: '#38bdf8'
-                                            }}
-                                        >
-                                            {dropItemsOnlyCmd || <span className="text-muted fst-italic">&gt; Add items to drop to generate !drop items command...</span>}
-                                        </div>
-                                        <button
-                                            type="button"
-                                            className={`btn w-100 rounded-pill py-2 fw-bold btn-sm shadow-sm transition-all d-flex align-items-center justify-content-center gap-2 text-white`}
-                                            style={{ backgroundColor: copiedKey === 'dropItems' ? '#198754' : '#0284c7', borderColor: '#0284c7' }}
-                                            onClick={() => copyToClipboardWithFeedback(dropItemsOnlyCmd, 'dropItems', 'drop')}
-                                            disabled={!dropItemsOnlyCmd}
-                                            title="Copy !drop items command (Ctrl+Shift+D)"
-                                        >
-                                            <i className={`fa-solid ${copiedKey === 'dropItems' ? 'fa-check' : 'fa-plane-arrival'}`}></i>
-                                            <span>{copiedKey === 'dropItems' ? 'Copied !drop Items!' : 'Copy !drop Items Command'}</span>
-                                        </button>
-                                    </div>
-                                )}
-
-                                {/* 4. Drop Villager Command (!injectvillager if 1, !mvi if 2+) */}
-                                {(terminalTab === 'all' || terminalTab === 'drop') && (
-                                    <div className="mb-3 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                                        <div className="d-flex justify-content-between align-items-center mb-1">
-                                            <span className="badge rounded-pill fw-bold font-monospace x-small bg-danger text-white">
-                                                <i className="fa-solid fa-person-falling me-1"></i>{villagerCount <= 1 ? '!injectvillager' : '!mvi'} {villagerCount > 0 ? `(${villagerCount} ${villagerCount === 1 ? 'villager' : 'villagers'})` : ''}
-                                            </span>
-                                        </div>
-                                        <div className="tiny-text mb-1 font-monospace" style={{ fontSize: '0.68rem', color: '#fca5a5' }}>
-                                            <i className="fa-solid fa-umbrella-beach me-1"></i>For in-game chat on <strong>Treasure Islands</strong>
-                                        </div>
-                                        <div
-                                            className="p-2 rounded-3 font-monospace text-light mb-2 select-all"
-                                            style={{
-                                                backgroundColor: '#111713',
-                                                border: '1px solid rgba(255,255,255,0.08)',
-                                                fontSize: '0.8rem',
-                                                minHeight: '44px',
-                                                maxHeight: '76px',
-                                                overflowY: 'auto',
-                                                wordBreak: 'break-all',
-                                                color: '#f87171'
-                                            }}
-                                        >
-                                            {dropVillagerOnlyCmd || <span className="text-muted fst-italic">&gt; Add a villager to generate {villagerCount <= 1 ? '!injectvillager' : '!mvi'} command...</span>}
-                                        </div>
-                                        <button
-                                            type="button"
-                                            className={`btn w-100 rounded-pill py-2 fw-bold btn-sm shadow-sm transition-all d-flex align-items-center justify-content-center gap-2 text-white ${copiedKey === 'dropVillager' ? 'btn-success' : 'btn-danger'}`}
-                                            onClick={() => copyToClipboardWithFeedback(dropVillagerOnlyCmd, 'dropVillager', 'drop')}
-                                            disabled={!dropVillagerOnlyCmd}
-                                            title={`Copy ${villagerCount <= 1 ? '!injectvillager' : '!mvi'} command`}
-                                        >
-                                            <i className={`fa-solid ${copiedKey === 'dropVillager' ? 'fa-check' : villagerCount <= 1 ? 'fa-syringe' : 'fa-house-user'}`}></i>
-                                            <span>{copiedKey === 'dropVillager' ? `Copied ${villagerCount <= 1 ? '!injectvillager' : '!mvi'}!` : `Copy ${villagerCount <= 1 ? '!injectvillager' : '!mvi'} Command`}</span>
-                                        </button>
-                                    </div>
-                                )}
-
-                                {/* Order Bot quick-link */}
-                                {(terminalTab === 'all' || terminalTab === 'order') && unifiedOrderCmd && (
-                                    <Link
-                                        to="/order"
-                                        className="btn w-100 rounded-pill py-2 fw-bold btn-sm d-flex align-items-center justify-content-center gap-2 mt-2"
-                                        style={{ background: 'rgba(74,222,128,.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,.25)' }}
-                                        title="Go to Order Bot page"
-                                    >
-                                        <i className="fa-solid fa-paper-plane" />
-                                        <span>Send to Order Bot →</span>
-                                    </Link>
-                                )}
-                            </div>
-                        </div>
+                        <ChoPaengDispatchCard
+                            orderPockets={orderPockets}
+                            dropPockets={dropPockets}
+                            unifiedOrderCmd={unifiedOrderCmd}
+                            dropItemsOnlyCmd={dropItemsOnlyCmd}
+                            dropVillagerOnlyCmd={dropVillagerOnlyCmd}
+                            orderCount={orderCount}
+                            dropCount={dropCount}
+                            copiedKey={copiedKey}
+                            onCopyCommand={copyToClipboardWithFeedback}
+                            onFillRemaining={onFillRemaining}
+                            onClearOrderPockets={onClearOrderPockets}
+                            onClearDropPockets={onClearDropPockets}
+                            onSortPockets={onSortPockets}
+                            onFlipOrderAndDrop={onFlipOrderAndDrop}
+                            onOpenShareModal={onOpenShareModal}
+                            onOpenBatchImportModal={onOpenBatchImportModal}
+                        />
                     )}
 
                     {/* Floating Bot Delivery Flow Notification Pop-up Toast */}

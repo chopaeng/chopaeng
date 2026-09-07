@@ -23,6 +23,7 @@ const CatalogDetail   = lazy(() => import("../pages/CatalogDetail.tsx"));
 const Contact         = lazy(() => import("../pages/Contact.tsx"));
 const DodoDecryptor   = lazy(() => import("../pages/DodoDecryptor.tsx"));
 const OrderBot        = lazy(() => import("../pages/OrderBot.tsx"));
+const DropBot         = lazy(() => import("../pages/DropBot.tsx"));
 const Profile         = lazy(() => import("../pages/Profile.tsx"));
 const PublicProfile   = lazy(() => import("../pages/PublicProfile.tsx"));
 const TripPlanner     = lazy(() => import("../pages/TripPlanner.tsx"));
@@ -95,6 +96,7 @@ const AppRoutes = () => {
                     <Route path="/contact" element={<Contact />} />
                     <Route path="/dodo" element={<DodoDecryptor />} />
                     <Route path="/order" element={<OrderBot />} />
+                    <Route path="/drop" element={<DropBot />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/u/:username" element={<PublicProfile />} />
                     <Route path="/profile/:username" element={<PublicProfile />} />

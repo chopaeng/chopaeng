@@ -70,12 +70,6 @@ export interface OrderQueueResponse {
     error?: string;
 }
 
-export interface SubmitDropResponse {
-    success: boolean;
-    islandName: string;
-    message: string;
-}
-
 export interface OrderHistoryItem {
     id: string;
     user_id: string;
@@ -392,47 +386,8 @@ export const fetchOrderQueue = async (
     }
 };
 
-// ─── Sub Island Drop ───────────────────────────────────────────────────────
-
-/**
- * Submits a drop command or villager injection to a specific Sub Island.
- */
-export const submitSubIslandDrop = async (
-    islandId: string,
-    islandName: string,
-    commandText: string,
-    plotNumber?: number,
-    token?: string | null
-): Promise<SubmitDropResponse> => {
-    try {
-        const res = await fetch(`${API_BASE}/api/order/drop-sub`, {
-            method: 'POST',
-            headers: getHeaders(token),
-            credentials: 'include',
-            body: JSON.stringify({
-                island_id: islandId,
-                island_name: islandName,
-                command: commandText,
-                plot_number: plotNumber,
-                timestamp: Date.now(),
-            }),
-        });
-
-        if (res.ok) {
-            const data = await res.json();
-            return {
-                success: true,
-                islandName,
-                message: data.message || `Items dropped on ${islandName}! Fly in now.`,
-            };
-        }
-
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData?.error || 'Drop request failed');
-    } catch (err) {
-        throw err;
-    }
-};
+// ─── Sub Island Drop (Operates via Discord bot commands) ────────────────────
+// Note: No backend web API exists for drop yet; commands are executed in-island via Discord.
 
 // ─── Browser Notifications ─────────────────────────────────────────────────
 export {

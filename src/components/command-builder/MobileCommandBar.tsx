@@ -57,7 +57,7 @@ export const MobileCommandBar: React.FC<MobileCommandBarProps> = ({
         },
         {
             id: 'command',
-            icon: 'fa-terminal',
+            icon: 'fa-clipboard-check',
             label: 'Command',
             badge: hasCommand ? '!' : undefined,
             badgeColor: COLORS.commandBadge,

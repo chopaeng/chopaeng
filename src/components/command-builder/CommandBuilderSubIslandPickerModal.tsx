@@ -2,8 +2,6 @@ import { useState, useMemo } from 'react';
 import type { PocketItem } from '../../hooks/useCommandBuilderPockets';
 import { useIslandData } from '../../context/useIslandData';
 import { useAuth } from '../../context/useAuth';
-import { getAuthToken } from '../../context/authToken';
-import { submitSubIslandDrop } from '../../utils/orderBotApi';
 
 interface CommandBuilderSubIslandPickerModalProps {
     isOpen: boolean;
@@ -23,7 +21,6 @@ export const CommandBuilderSubIslandPickerModal = ({
     const [selectedIslandId, setSelectedIslandId] = useState<string>('');
     const [plotNumber, setPlotNumber] = useState<number>(0);
     const [searchQuery, setSearchQuery] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [resultNotice, setResultNotice] = useState<{ success: boolean; message: string } | null>(null);
 
     // Filter Sub Islands only (cat === 'member' or type === 'sub')
@@ -55,37 +52,34 @@ export const CommandBuilderSubIslandPickerModal = ({
 
     const totalDropItems = dropPockets.reduce((s, p) => s + p.quantity, 0);
 
-    const handleConfirmDrop = async () => {
+    const handleConfirmDrop = () => {
         if (!activeIsland) return;
         if (!dropCommandText) {
             setResultNotice({ success: false, message: 'Drop pocket is empty.' });
             return;
         }
 
-        setIsSubmitting(true);
-        setResultNotice(null);
+        navigator.clipboard.writeText(dropCommandText).catch(() => {});
+        setResultNotice({
+            success: true,
+            message: `Copied drop command for ${activeIsland.name}! Opening Discord channel...`,
+        });
 
-        try {
-            const res = await submitSubIslandDrop(
-                activeIsland.id,
-                activeIsland.name,
-                dropCommandText,
-                villagerItem ? plotNumber : undefined,
-                getAuthToken()
-            );
+        setTimeout(() => {
+            const targetUrl = (activeIsland as any)?.channel_id
+                ? `https://discord.com/channels/729590421478703135/${(activeIsland as any).channel_id}`
+                : 'https://discord.gg/chopaeng';
+            window.open(targetUrl, '_blank');
+        }, 400);
+    };
 
-            setResultNotice({
-                success: true,
-                message: res.message || `Commands queued for ${activeIsland.name}!`,
-            });
-        } catch (err: any) {
-            setResultNotice({
-                success: false,
-                message: err?.message || 'Failed to send drop command.',
-            });
-        } finally {
-            setIsSubmitting(false);
-        }
+    const handleCopyOnly = () => {
+        if (!dropCommandText) return;
+        navigator.clipboard.writeText(dropCommandText).catch(() => {});
+        setResultNotice({
+            success: true,
+            message: 'Copied drop command to clipboard! Paste it into the Discord bot channel.',
+        });
     };
 
     if (!isOpen) return null;
@@ -262,33 +256,31 @@ export const CommandBuilderSubIslandPickerModal = ({
                     </div>
 
                     {/* Footer */}
-                    <div className="modal-footer border-0 bg-white px-4 py-3 d-flex align-items-center justify-content-between">
+                    <div className="modal-footer border-0 bg-white px-4 py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
                         <span className="tiny-text text-muted">
                             {activeIsland ? `Targeting: ${activeIsland.name}` : ''}
                         </span>
-                        <div className="d-flex gap-2">
-                            <button type="button" className="btn btn-outline-secondary rounded-pill px-4 fw-bold btn-sm" onClick={onClose}>
+                        <div className="d-flex gap-2 flex-wrap">
+                            <button type="button" className="btn btn-outline-secondary rounded-pill px-3 fw-bold btn-sm" onClick={onClose}>
                                 Close
                             </button>
-                            {user && totalDropItems > 0 && (
-                                <button
-                                    type="button"
-                                    className="btn btn-info text-dark rounded-pill px-4 fw-bold btn-sm shadow-sm border-0"
-                                    disabled={isSubmitting || activeIsland?.status !== 'ONLINE'}
-                                    onClick={handleConfirmDrop}
-                                >
-                                    {isSubmitting ? (
-                                        <>
-                                            <span className="spinner-border spinner-border-sm me-2" role="status" />
-                                            Sending to {activeIsland?.name}...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <i className="fa-solid fa-paper-plane me-1"></i>
-                                            Confirm Drop on {activeIsland?.name}
-                                        </>
-                                    )}
-                                </button>
+                            {totalDropItems > 0 && (
+                                <>
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline-dark rounded-pill px-3 fw-bold btn-sm d-flex align-items-center gap-1.5"
+                                        onClick={handleCopyOnly}
+                                    >
+                                        <i className="fa-solid fa-copy" /> Copy Command
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn btn-success text-white rounded-pill px-3 fw-bold btn-sm shadow-sm border-0 d-flex align-items-center gap-1.5"
+                                        onClick={handleConfirmDrop}
+                                    >
+                                        <i className="fa-brands fa-discord" /> Copy &amp; Open Discord
+                                    </button>
+                                </>
                             )}
                         </div>
                     </div>

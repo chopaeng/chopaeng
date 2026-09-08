@@ -11,9 +11,9 @@ import { parseItemCodes } from "../utils/itemCodeParser";
 import { parseDiscordNicknameToCharacters, formatCharactersToNickname } from "../utils/characterParser";
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
 import { fetchUserOrderHistory, type OrderHistoryItem } from "../utils/orderBotApi";
-import { getStoredPassport, savePassportToDb, fetchPublicPassportFromDb, fetchUserPassportFromDb, updateDiscordNickname, cleanPassportUsername, type PublicPassportData } from "../utils/userProfileApi";
+import { getStoredPassport, saveStoredPassport, savePassportToDb, fetchPublicPassportFromDb, fetchUserPassportFromDb, updateDiscordNickname, cleanPassportUsername, type PublicPassportData } from "../utils/userProfileApi";
 import { HowItWorksExplainer, PROFILE_EXPLAINER_CONFIG } from "../components/HowItWorksExplainer";
-import { ResidentPassportCard, FRUIT_ICONS, ZODIAC_SIGNS, PERSONALITY_THEMES } from "../components/passport/ResidentPassportCard";
+import { ResidentPassportCard, FRUIT_ICONS, ZODIAC_SIGNS, PERSONALITY_THEMES, PASSPORT_SKINS, PASSPORT_PATTERNS } from "../components/passport/ResidentPassportCard";
 import { setUserScopedItem } from "../utils/accountStorage";
 import "./Profile.css";
 
@@ -171,10 +171,18 @@ const Profile = () => {
     const [villagerSearchQuery, setVillagerSearchQuery] = useState('');
     const [passportLinkCopied, setPassportLinkCopied] = useState(false);
     const [studioViewMode, setStudioViewMode] = useState<"split" | "card" | "editor">("split");
-    const [studioSection, setStudioSection] = useState<"identity" | "vibe" | "motto" | "besties" | "privacy">("identity");
+    const [studioSection, setStudioSection] = useState<"identity" | "vibe" | "motto" | "besties" | "items" | "privacy">("identity");
+    const [itemSearchQuery, setItemSearchQuery] = useState('');
     const [passportDirty, setPassportDirty] = useState(false);
     const [lastSavedDbTime, setLastSavedDbTime] = useState<number | null>(() => passportData.updatedAt || null);
     const [passportNotice, setPassportNotice] = useState<{ type: "success" | "warning" | "error"; message: string } | null>(null);
+
+    // Auto-persist local passport updates as the user edits in studio
+    useEffect(() => {
+        if (passportDirty) {
+            saveStoredPassport(passportData);
+        }
+    }, [passportData, passportDirty]);
 
     // Orders History & Reorder State
     const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
@@ -305,6 +313,9 @@ const Profile = () => {
                         : cleanPassportUsername(prev.username, resolvedUsername);
                     return {
                         ...base,
+                        passportSkin: prev.passportSkin || base.passportSkin || 'nook',
+                        passportPattern: prev.passportPattern || base.passportPattern || 'dots',
+                        featuredItems: (prev.featuredItems && prev.featuredItems.length > 0) ? prev.featuredItems : (base.featuredItems || []),
                         username: chosenUsername,
                         avatarUrl: userAvatar || base.avatarUrl || "",
                         primaryIgn: activeCharacter.ign || base.primaryIgn || "",
@@ -1481,6 +1492,7 @@ const Profile = () => {
                                             <ResidentPassportCard
                                                 passport={passportData}
                                                 allVillagers={catalogData?.villagers || []}
+                                                allCatalogItems={catalogData?.items || []}
                                                 avatarUrl={profileUser?.avatar || authUser?.avatar || passportData.avatarUrl}
                                                 interactive={true}
                                                 onShareClick={() => {
@@ -1522,6 +1534,7 @@ const Profile = () => {
                                                         <ResidentPassportCard
                                                             passport={passportData}
                                                             allVillagers={catalogData?.villagers || []}
+                                                            allCatalogItems={catalogData?.items || []}
                                                             avatarUrl={profileUser?.avatar || authUser?.avatar || passportData.avatarUrl}
                                                             interactive={true}
                                                             onShareClick={() => {
@@ -1531,7 +1544,7 @@ const Profile = () => {
                                                                 navigator.clipboard.writeText(url);
                                                                 setPassportLinkCopied(true);
                                                                 setTimeout(() => setPassportLinkCopied(false), 2500);
-                                                            }}
+                             }}
                                                             shareCopied={passportLinkCopied}
                                                         />
 
@@ -1558,9 +1571,10 @@ const Profile = () => {
                                                 <div className="studio-nav-tabs">
                                                     {[
                                                         { id: "identity", label: "Identity & Island", icon: "fa-address-card" },
-                                                        { id: "vibe", label: "Vibe & Themes", icon: "fa-palette" },
+                                                        { id: "vibe", label: "Vibe & Cover", icon: "fa-palette" },
                                                         { id: "motto", label: "Motto & Bio", icon: "fa-quote-left" },
                                                         { id: "besties", label: `Besties (${passportData.favouriteVillagers.length}/10)`, icon: "fa-paw" },
+                                                        { id: "items", label: `Treasures (${(passportData.featuredItems || []).length}/3)`, icon: "fa-trophy" },
                                                         { id: "privacy", label: "Privacy & Link", icon: "fa-sliders" },
                                                     ].map((sec) => (
                                                         <button
@@ -1790,9 +1804,83 @@ const Profile = () => {
                                                         <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
                                                             <h3 className="h6 fw-black mb-0 ac-font d-flex align-items-center gap-2">
                                                                 <i className="fa-solid fa-palette text-primary"></i>
-                                                                Island Vibe &amp; Aesthetics
+                                                                Passport Skins &amp; Aesthetics
                                                             </h3>
-                                                            <span className="tiny-text text-muted">Visual Styling &amp; Sound</span>
+                                                            <span className="tiny-text text-muted">Covers, Patterns &amp; Sound</span>
+                                                        </div>
+
+                                                        {/* Passport Booklet Skin */}
+                                                        <div className="mb-4">
+                                                            <div className="d-flex align-items-center justify-content-between mb-2">
+                                                                <label className="form-label fw-bold small mb-0">
+                                                                    Passport Booklet Skin
+                                                                </label>
+                                                                <span className="tiny-text text-muted">7 Exclusive Covers</span>
+                                                            </div>
+                                                            <div className="studio-skin-grid">
+                                                                {Object.values(PASSPORT_SKINS).map((skin) => {
+                                                                    const isSelected = (passportData.passportSkin || 'nook') === skin.id;
+                                                                    return (
+                                                                        <button
+                                                                            key={skin.id}
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                playChimeClick();
+                                                                                setPassportDirty(true);
+                                                                                setPassportData({ ...passportData, passportSkin: skin.id });
+                                                                            }}
+                                                                            className={`studio-skin-card ${isSelected ? 'active' : ''}`}
+                                                                            title={skin.desc}
+                                                                        >
+                                                                            <div
+                                                                                className="studio-skin-swatch-bar"
+                                                                                style={{
+                                                                                    background: skin.headerGradient,
+                                                                                    borderBottom: `2px solid ${skin.headerBorder}`,
+                                                                                }}
+                                                                            >
+                                                                                <i className={`fa-solid ${skin.icon}`}></i>
+                                                                                {isSelected && <i className="fa-solid fa-circle-check"></i>}
+                                                                            </div>
+                                                                            <div>
+                                                                                <div className="studio-skin-name">{skin.label}</div>
+                                                                                <div className="studio-skin-desc">{skin.desc}</div>
+                                                                            </div>
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Passport Background Pattern */}
+                                                        <div className="mb-4">
+                                                            <div className="d-flex align-items-center justify-content-between mb-2">
+                                                                <label className="form-label fw-bold small mb-0">
+                                                                    Background Pattern
+                                                                </label>
+                                                                <span className="tiny-text text-muted">Booklet Texture</span>
+                                                            </div>
+                                                            <div className="studio-pattern-grid">
+                                                                {Object.values(PASSPORT_PATTERNS).map((pat) => {
+                                                                    const isSelected = (passportData.passportPattern || 'dots') === pat.id;
+                                                                    return (
+                                                                        <button
+                                                                            key={pat.id}
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                playChimeClick();
+                                                                                setPassportDirty(true);
+                                                                                setPassportData({ ...passportData, passportPattern: pat.id });
+                                                                            }}
+                                                                            className={`studio-pattern-btn ${isSelected ? 'active' : ''}`}
+                                                                            title={pat.label}
+                                                                        >
+                                                                            <i className={`fa-solid ${pat.icon}`}></i>
+                                                                            <span>{pat.label}</span>
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
                                                         </div>
 
                                                         {/* Personality Archetypes */}
@@ -2217,7 +2305,218 @@ const Profile = () => {
                                                     </div>
                                                 )}
 
-                                                {/* TAB 5: PRIVACY & PUBLISHING CONTROLS */}
+                                                {/* TAB 5: ISLAND TREASURES & TROPHY SHELF */}
+                                                {studioSection === "items" && (
+                                                    <div className="studio-tool-card animate-fade">
+                                                        <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+                                                            <h3 className="h6 fw-black mb-0 ac-font d-flex align-items-center gap-2">
+                                                                <i className="fa-solid fa-trophy text-warning"></i>
+                                                                Island Treasures &amp; Trophy Shelf ({(passportData.featuredItems || []).length}/3)
+                                                            </h3>
+                                                            <span className="badge bg-warning bg-opacity-15 text-warning rounded-pill x-small fw-bold">
+                                                                Max 3
+                                                            </span>
+                                                        </div>
+
+                                                        <p className="tiny-text text-muted mb-3">
+                                                            Showcase up to 3 prized catalog treasures, rare golden tools, crowns, or DIY crafts on your official resident passport.
+                                                        </p>
+
+                                                        {/* 3 Trophy Slots */}
+                                                        <div className="studio-trophy-shelf mb-4">
+                                                            {[0, 1, 2].map((slotIdx) => {
+                                                                const itemName = (passportData.featuredItems || [])[slotIdx];
+                                                                const matchedItem = itemName
+                                                                    ? (catalogData?.items || []).find((i) => i.name.toLowerCase() === itemName.toLowerCase())
+                                                                    : null;
+                                                                const sprite = matchedItem?.image || matchedItem?.variations?.[0]?.imageUrl;
+
+                                                                if (itemName) {
+                                                                    return (
+                                                                        <div key={slotIdx} className="studio-trophy-slot filled animate-fade">
+                                                                            <span className="studio-trophy-slot-num">#{slotIdx + 1}</span>
+                                                                            <button
+                                                                                type="button"
+                                                                                className="studio-trophy-remove-btn"
+                                                                                onClick={() => {
+                                                                                    playChimeClick();
+                                                                                    setPassportDirty(true);
+                                                                                    const next = (passportData.featuredItems || []).filter((_, idx) => idx !== slotIdx);
+                                                                                    setPassportData({ ...passportData, featuredItems: next });
+                                                                                }}
+                                                                                title={`Remove ${itemName}`}
+                                                                                aria-label={`Remove ${itemName}`}
+                                                                            >
+                                                                                <i className="fa-solid fa-xmark"></i>
+                                                                            </button>
+                                                                            {sprite ? (
+                                                                                <img src={sprite} alt={itemName} className="studio-trophy-item-img" />
+                                                                            ) : (
+                                                                                <div className="studio-trophy-item-img d-flex align-items-center justify-content-center text-warning fs-3">
+                                                                                    <i className="fa-solid fa-gem"></i>
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="studio-trophy-item-name" title={itemName}>
+                                                                                {itemName}
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                return (
+                                                                    <div key={slotIdx} className="studio-trophy-slot">
+                                                                        <span className="studio-trophy-slot-num">#{slotIdx + 1}</span>
+                                                                        <div className="text-muted opacity-40 mb-1 fs-4">
+                                                                            <i className="fa-solid fa-plus"></i>
+                                                                        </div>
+                                                                        <span className="tiny-text text-muted fw-bold">Empty Slot</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+
+                                                        {/* Quick Add Popular / Iconic ACNH Items */}
+                                                        {(passportData.featuredItems || []).length < 3 && (
+                                                            <div className="mb-4">
+                                                                <span className="tiny-text text-muted fw-bold d-block mb-1">
+                                                                    Quick Add Popular Treasures:
+                                                                </span>
+                                                                <div className="d-flex gap-1 flex-wrap">
+                                                                    {[
+                                                                        "Royal Crown",
+                                                                        "Crown",
+                                                                        "Nook Miles Ticket",
+                                                                        "100,000 Bells",
+                                                                        "Golden Axe",
+                                                                        "Golden Shovel",
+                                                                        "Golden Watering Can",
+                                                                        "Star Wand",
+                                                                        "Froggy Chair",
+                                                                        "Moon",
+                                                                        "Nova Light",
+                                                                        "Robot Hero",
+                                                                    ]
+                                                                        .filter((name) => !(passportData.featuredItems || []).includes(name))
+                                                                        .map((name) => {
+                                                                            const matched = (catalogData?.items || []).find(
+                                                                                (i) => i.name.toLowerCase() === name.toLowerCase()
+                                                                            );
+                                                                            const sprite = matched?.image || matched?.variations?.[0]?.imageUrl;
+
+                                                                            return (
+                                                                                <button
+                                                                                    key={name}
+                                                                                    type="button"
+                                                                                    className="studio-motto-chip shadow-2xs d-inline-flex align-items-center gap-1"
+                                                                                    style={{ fontSize: "0.74rem" }}
+                                                                                    onClick={() => {
+                                                                                        playChimeClick();
+                                                                                        setPassportDirty(true);
+                                                                                        const current = passportData.featuredItems || [];
+                                                                                        if (current.length < 3 && !current.includes(name)) {
+                                                                                            setPassportData({
+                                                                                                ...passportData,
+                                                                                                featuredItems: [...current, name],
+                                                                                            });
+                                                                                        }
+                                                                                    }}
+                                                                                >
+                                                                                    {sprite ? (
+                                                                                        <img
+                                                                                            src={sprite}
+                                                                                            alt=""
+                                                                                            style={{ width: 16, height: 16, objectFit: "contain" }}
+                                                                                        />
+                                                                                    ) : (
+                                                                                        <i className="fa-solid fa-plus text-success x-small"></i>
+                                                                                    )}
+                                                                                    <span>+{name}</span>
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Search Catalog Items Autocomplete */}
+                                                        {(passportData.featuredItems || []).length < 3 && (
+                                                            <div className="position-relative">
+                                                                <label className="form-label fw-bold small mb-1">
+                                                                    Search ACNH Catalog Items
+                                                                </label>
+                                                                <div className="input-group">
+                                                                    <span className="input-group-text border-2 border-end-0 text-muted">
+                                                                        <i className="fa-solid fa-magnifying-glass"></i>
+                                                                    </span>
+                                                                    <input
+                                                                        type="text"
+                                                                        className="form-control rounded-end-3 border-2 border-start-0"
+                                                                        placeholder="Type item name (e.g. Crescent-Moon Chair, Katana, Pagoda)..."
+                                                                        value={itemSearchQuery}
+                                                                        onChange={(e) => setItemSearchQuery(e.target.value)}
+                                                                    />
+                                                                </div>
+
+                                                                {/* Autocomplete Dropdown Popover */}
+                                                                {itemSearchQuery.trim().length > 0 && (
+                                                                    <div
+                                                                        className="position-absolute start-0 end-0 rounded-3 shadow-lg p-2 mt-1 z-3 studio-dropdown-popover"
+                                                                        style={{ maxHeight: "240px", overflowY: "auto" }}
+                                                                    >
+                                                                        {(catalogData?.items || [])
+                                                                            .filter(
+                                                                                (item) =>
+                                                                                    item.name.toLowerCase().includes(itemSearchQuery.trim().toLowerCase()) &&
+                                                                                    !(passportData.featuredItems || []).includes(item.name)
+                                                                            )
+                                                                            .slice(0, 8)
+                                                                            .map((item) => {
+                                                                                const sprite = item.image || item.variations?.[0]?.imageUrl;
+                                                                                return (
+                                                                                    <button
+                                                                                        key={item.id || item.name}
+                                                                                        type="button"
+                                                                                        className="studio-dropdown-item d-flex align-items-center justify-content-between p-2 rounded-2"
+                                                                                        onClick={() => {
+                                                                                            playChimeClick();
+                                                                                            setPassportDirty(true);
+                                                                                            const current = passportData.featuredItems || [];
+                                                                                            if (current.length < 3 && !current.includes(item.name)) {
+                                                                                                setPassportData({
+                                                                                                    ...passportData,
+                                                                                                    featuredItems: [...current, item.name],
+                                                                                                });
+                                                                                            }
+                                                                                            setItemSearchQuery("");
+                                                                                        }}
+                                                                                    >
+                                                                                        <div className="d-flex align-items-center gap-2">
+                                                                                            {sprite && (
+                                                                                                <img
+                                                                                                    src={sprite}
+                                                                                                    alt=""
+                                                                                                    style={{ width: 26, height: 26, objectFit: "contain" }}
+                                                                                                />
+                                                                                            )}
+                                                                                            <strong className="small">{item.name}</strong>
+                                                                                            {item.category && (
+                                                                                                <span className="tiny-text text-muted">({item.category})</span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                        <span className="badge bg-success bg-opacity-15 text-success rounded-pill x-small fw-bold">
+                                                                                            + Feature
+                                                                                        </span>
+                                                                                    </button>
+                                                                                );
+                                                                            })}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* TAB 6: PRIVACY & PUBLISHING CONTROLS */}
                                                 {studioSection === "privacy" && (
                                                     <div className="studio-tool-card animate-fade">
                                                         <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">

@@ -19,6 +19,9 @@ export interface PublicPassportData {
     favouriteShowsFilms: string;
     aboutYou: string; // Max 160 chars
     favouriteVillagers: string[]; // up to 10 villager names
+    passportSkin?: string; // 'nook' | 'celeste' | 'sakura' | 'sunset' | 'ocean' | 'midnight' | 'golden'
+    passportPattern?: string; // 'dots' | 'leaves' | 'stars' | 'waves' | 'grid' | 'none'
+    featuredItems?: string[]; // up to 3 catalog item names
     primaryIgn?: string;
     primaryIsland?: string;
     avatarUrl?: string;
@@ -44,6 +47,9 @@ export const DEFAULT_PASSPORT_DATA: PublicPassportData = {
     favouriteShowsFilms: '',
     aboutYou: 'Living my best island life in Animal Crossing: New Horizons!',
     favouriteVillagers: ['Raymond', 'Shino', 'Marshal'],
+    passportSkin: 'nook',
+    passportPattern: 'dots',
+    featuredItems: [],
     updatedAt: Date.now(),
 };
 
@@ -59,6 +65,44 @@ export const cleanPassportUsername = (raw?: string | null, fallback = ''): strin
     return sanitized || fallback;
 };
 
+export const parsePassportVibeMeta = (rawStr?: string) => {
+    if (!rawStr) return null;
+    const match = rawStr.match(/\[vibe:([^\]]+)\]/);
+    if (!match) return null;
+    try {
+        const params = new URLSearchParams(match[1].replace(/;/g, '&'));
+        const skin = params.get('skin') || undefined;
+        const pattern = params.get('pat') || undefined;
+        const itemsStr = params.get('items');
+        const featuredItems = itemsStr ? itemsStr.split(',').filter(Boolean) : undefined;
+        return { skin, pattern, featuredItems };
+    } catch {
+        return null;
+    }
+};
+
+export const stripPassportVibeMeta = (rawStr?: string): string => {
+    if (!rawStr) return '';
+    return rawStr.replace(/\s*\[vibe:[^\]]+\]\s*/g, '').trim();
+};
+
+export const injectPassportVibeMeta = (
+    baseStr: string,
+    skin?: string,
+    pattern?: string,
+    featuredItems?: string[]
+): string => {
+    const clean = stripPassportVibeMeta(baseStr);
+    const params = new URLSearchParams();
+    if (skin && skin !== 'nook') params.set('skin', skin);
+    if (pattern && pattern !== 'dots') params.set('pat', pattern);
+    if (featuredItems && featuredItems.length > 0) params.set('items', featuredItems.join(','));
+    const paramStr = params.toString().replace(/&/g, ';');
+    if (!paramStr) return clean;
+    const tag = `[vibe:${paramStr}]`;
+    return clean ? `${clean} ${tag}` : tag;
+};
+
 export const getStoredPassport = (username?: string): PublicPassportData => {
     const cleanUser = cleanPassportUsername(username);
     try {
@@ -69,6 +113,7 @@ export const getStoredPassport = (username?: string): PublicPassportData => {
                 return {
                     ...DEFAULT_PASSPORT_DATA,
                     ...parsed,
+                    favouriteShowsFilms: stripPassportVibeMeta(parsed.favouriteShowsFilms),
                     username: cleanPassportUsername(parsed.username, cleanUser),
                 };
             }
@@ -79,6 +124,7 @@ export const getStoredPassport = (username?: string): PublicPassportData => {
             return {
                 ...DEFAULT_PASSPORT_DATA,
                 ...parsed,
+                favouriteShowsFilms: stripPassportVibeMeta(parsed.favouriteShowsFilms),
                 username: cleanPassportUsername(parsed.username, cleanUser),
             };
         }
@@ -147,10 +193,18 @@ export const savePassportToDb = async (
         headers['Authorization'] = `Bearer ${authToken}`;
     }
 
+    const encodedShowsFilms = injectPassportVibeMeta(
+        cleanedData.favouriteShowsFilms || '',
+        cleanedData.passportSkin,
+        cleanedData.passportPattern,
+        cleanedData.featuredItems
+    );
+
     const payload = {
         ...cleanedData,
-        passport: cleanedData,
-        public_passport: cleanedData,
+        favouriteShowsFilms: encodedShowsFilms,
+        passport: { ...cleanedData, favouriteShowsFilms: encodedShowsFilms },
+        public_passport: { ...cleanedData, favouriteShowsFilms: encodedShowsFilms },
         preferences: { passport: cleanedData },
         username: cleanUser,
         custom_username: cleanUser,
@@ -177,6 +231,10 @@ export const savePassportToDb = async (
                         const savedPassport: PublicPassportData = {
                             ...cleanedData,
                             ...(resJson.passport || {}),
+                            favouriteShowsFilms: stripPassportVibeMeta(cleanedData.favouriteShowsFilms),
+                            passportSkin: cleanedData.passportSkin,
+                            passportPattern: cleanedData.passportPattern,
+                            featuredItems: cleanedData.featuredItems,
                             username: cleanUser,
                         };
                         saveStoredPassport(savedPassport);
@@ -212,6 +270,7 @@ export const fetchPublicPassportFromDb = async (
     const cleanUser = cleanPassportUsername(username);
     if (!cleanUser) return null;
 
+    const localExisting = getStoredPassport(cleanUser);
     const authToken = token || getAuthToken();
     const headers: Record<string, string> = {};
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
@@ -235,9 +294,36 @@ export const fetchPublicPassportFromDb = async (
                     const data = await resp.json().catch(() => null);
                     if (data && !data.error && (data.passport || data.public_passport || data.data)) {
                         const passport = data.passport || data.public_passport || data.data;
+                        const meta = parsePassportVibeMeta(passport.favouriteShowsFilms) ||
+                                     parsePassportVibeMeta(passport.hobbies) ||
+                                     parsePassportVibeMeta(passport.aboutYou);
+                        const skin = passport.passportSkin ||
+                                     passport.preferences?.passport?.passportSkin ||
+                                     data.preferences?.passport?.passportSkin ||
+                                     meta?.skin ||
+                                     localExisting.passportSkin ||
+                                     DEFAULT_PASSPORT_DATA.passportSkin;
+                        const pattern = passport.passportPattern ||
+                                        passport.preferences?.passport?.passportPattern ||
+                                        data.preferences?.passport?.passportPattern ||
+                                        meta?.pattern ||
+                                        localExisting.passportPattern ||
+                                        DEFAULT_PASSPORT_DATA.passportPattern;
+                        const items = passport.featuredItems ||
+                                      passport.preferences?.passport?.featuredItems ||
+                                      data.preferences?.passport?.featuredItems ||
+                                      meta?.featuredItems ||
+                                      localExisting.featuredItems ||
+                                      DEFAULT_PASSPORT_DATA.featuredItems;
+
                         const sanitized: PublicPassportData = {
                             ...DEFAULT_PASSPORT_DATA,
+                            ...localExisting,
                             ...passport,
+                            favouriteShowsFilms: stripPassportVibeMeta(passport.favouriteShowsFilms || localExisting.favouriteShowsFilms),
+                            passportSkin: skin,
+                            passportPattern: pattern,
+                            featuredItems: items,
                             username: cleanPassportUsername(passport.username, cleanUser),
                         };
                         saveStoredPassport(sanitized);
@@ -251,16 +337,8 @@ export const fetchPublicPassportFromDb = async (
     }
 
     // Check local storage fallback
-    try {
-        const local = localStorage.getItem(`${STORAGE_KEY}_${cleanUser.toLowerCase()}`);
-        if (local) {
-            const parsed = JSON.parse(local);
-            if (parsed && (parsed.isPublic || parsed.username?.toLowerCase() === cleanUser.toLowerCase())) {
-                return parsed;
-            }
-        }
-    } catch {
-        // Ignore
+    if (localExisting && (localExisting.isPublic || (cleanUser && localExisting.username.toLowerCase() === cleanUser.toLowerCase()))) {
+        return localExisting;
     }
 
     return null;
@@ -275,6 +353,7 @@ export const fetchUserPassportFromDb = async (
     const authToken = token || getAuthToken();
     if (!authToken) return null;
 
+    const localExisting = getStoredPassport();
     const headers: Record<string, string> = {
         Authorization: `Bearer ${authToken}`,
     };
@@ -297,9 +376,36 @@ export const fetchUserPassportFromDb = async (
                     const data = await resp.json().catch(() => null);
                     if (data && !data.error && (data.passport || data.public_passport || data.data)) {
                         const passport = data.passport || data.public_passport || data.data;
+                        const meta = parsePassportVibeMeta(passport.favouriteShowsFilms) ||
+                                     parsePassportVibeMeta(passport.hobbies) ||
+                                     parsePassportVibeMeta(passport.aboutYou);
+                        const skin = passport.passportSkin ||
+                                     passport.preferences?.passport?.passportSkin ||
+                                     data.preferences?.passport?.passportSkin ||
+                                     meta?.skin ||
+                                     localExisting.passportSkin ||
+                                     DEFAULT_PASSPORT_DATA.passportSkin;
+                        const pattern = passport.passportPattern ||
+                                        passport.preferences?.passport?.passportPattern ||
+                                        data.preferences?.passport?.passportPattern ||
+                                        meta?.pattern ||
+                                        localExisting.passportPattern ||
+                                        DEFAULT_PASSPORT_DATA.passportPattern;
+                        const items = passport.featuredItems ||
+                                      passport.preferences?.passport?.featuredItems ||
+                                      data.preferences?.passport?.featuredItems ||
+                                      meta?.featuredItems ||
+                                      localExisting.featuredItems ||
+                                      DEFAULT_PASSPORT_DATA.featuredItems;
+
                         const sanitized: PublicPassportData = {
                             ...DEFAULT_PASSPORT_DATA,
+                            ...localExisting,
                             ...passport,
+                            favouriteShowsFilms: stripPassportVibeMeta(passport.favouriteShowsFilms || localExisting.favouriteShowsFilms),
+                            passportSkin: skin,
+                            passportPattern: pattern,
+                            featuredItems: items,
                             username: cleanPassportUsername(passport.username, ''),
                         };
                         saveStoredPassport(sanitized);
@@ -312,7 +418,7 @@ export const fetchUserPassportFromDb = async (
         }
     }
 
-    return null;
+    return localExisting.username ? localExisting : null;
 };
 
 export interface UpdateNicknameResult {

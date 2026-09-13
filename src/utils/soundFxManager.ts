@@ -76,9 +76,9 @@ const STORAGE_KEY_VOL = 'chopaeng_sound_fx_volume';
 const STORAGE_KEY_TYPING = 'chopaeng_typing_sounds_enabled';
 const STORAGE_KEY_TYPING_VOICE = 'chopaeng_typing_sound_voice';
 
-let cachedTheme: SoundFxTheme = 'animalese';
+let cachedTheme: SoundFxTheme = 'muted';
 let cachedVolume: number = 0.5;
-let cachedTypingEnabled: boolean = true;
+let cachedTypingEnabled: boolean = false;
 let cachedTypingVoice: AnimaleseSoundType = 'default';
 
 // Initialize from localStorage

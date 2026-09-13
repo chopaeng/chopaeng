@@ -55,9 +55,13 @@ const AdBanner: React.FC<AdBannerProps> = ({
     className,
     style,
 }) => {
-    const { user, canAccessIsland } = useAuth();
-    const { islands } = useIslandData();
+    const { user, loading: authLoading, canAccessIsland } = useAuth();
+    const { islands, loading: islandsLoading } = useIslandData();
     const pushed = useRef(false);
+
+    // Both auth and island data must have settled before we can correctly
+    // determine subscriber status. While either is loading, hold off.
+    const isReady = !authLoading && !islandsLoading;
 
     // ── Subscriber gate ─────────────────────────────────────────────────────
     // Suppress ads for users who can access at least one member-gated island.
@@ -78,6 +82,9 @@ const AdBanner: React.FC<AdBannerProps> = ({
 
     // ── Push AdSense unit ────────────────────────────────────────────────────
     useEffect(() => {
+        // Wait until both auth and island data are fully loaded so we don't
+        // accidentally serve an ad to a subscriber during the loading window.
+        if (!isReady) return;
         // Don't push if subscriber or already pushed for this mount
         if (isSubscriber || pushed.current) return;
         try {
@@ -86,20 +93,21 @@ const AdBanner: React.FC<AdBannerProps> = ({
         } catch (e) {
             console.error("AdSense push error:", e);
         }
-    }, [isSubscriber]);
+    }, [isReady, isSubscriber]);
 
-    // Subscribers see nothing
-    if (isSubscriber) return null;
+    // Show nothing while loading (prevents flash of ad for subscribers)
+    // or once we know the user is a subscriber.
+    if (!isReady || isSubscriber) return null;
 
     return (
         <div
             className={className}
-            style={{ overflow: "hidden", textAlign: "center", ...style }}
+            style={{ display: "block", overflow: "hidden", textAlign: "center", minHeight: "90px", ...style }}
             aria-hidden="true"
         >
             <ins
                 className="adsbygoogle"
-                style={{ display: "block" }}
+                style={{ display: "block", minHeight: "90px" }}
                 data-ad-client="ca-pub-2383698626071146"
                 data-ad-slot={slot}
                 data-ad-format={format}

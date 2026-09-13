@@ -398,6 +398,18 @@ export const NookPhoneDock: React.FC = () => {
             badge: occupancy.totalVisitors > 0,
         },
         {
+            name: 'Item Tracker',
+            icon: 'fa-satellite-dish',
+            bg: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+            action: () => {
+                navigate('/find');
+                // Small delay so FindItems mounts before the event fires
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('chopaeng_open_item_tracker'));
+                }, 120);
+            },
+        },
+        {
             name: 'K.K. Jukebox',
             icon: 'fa-guitar',
             bg: 'linear-gradient(135deg, #f59e0b, #d97706)',

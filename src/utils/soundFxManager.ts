@@ -81,32 +81,21 @@ let cachedVolume: number = 0.5;
 let cachedTypingEnabled: boolean = false;
 let cachedTypingVoice: AnimaleseSoundType = 'default';
 
-// Initialize from localStorage
+// Click and typing sounds are disabled site-wide.
+// localStorage restores for theme/typing are intentionally skipped
+// so no previously-saved user preference can re-enable them.
 if (typeof window !== 'undefined') {
     try {
-        const storedTheme = localStorage.getItem(STORAGE_KEY_THEME) as SoundFxTheme;
-        if (storedTheme && SOUND_FX_THEMES.some((t) => t.id === storedTheme)) {
-            cachedTheme = storedTheme;
-        }
-
         const storedVol = localStorage.getItem(STORAGE_KEY_VOL);
         if (storedVol !== null) {
             const v = parseFloat(storedVol);
             if (!isNaN(v)) cachedVolume = Math.max(0, Math.min(1, v));
         }
 
-        const storedTyping = localStorage.getItem(STORAGE_KEY_TYPING);
-        if (storedTyping !== null) {
-            cachedTypingEnabled = storedTyping === 'true';
-        }
-
         const storedTypingVoice = localStorage.getItem(STORAGE_KEY_TYPING_VOICE) as AnimaleseSoundType;
         if (storedTypingVoice && ['default', 'deep', 'squeaky', 'robot', 'tired', 'tired_alt'].includes(storedTypingVoice)) {
             cachedTypingVoice = storedTypingVoice;
         }
-
-        // Pre-warm default typing voice
-        preloadSoundType(cachedTypingVoice).catch(() => {});
     } catch {}
 }
 
@@ -196,30 +185,18 @@ export function setTypingVoice(voice: AnimaleseSoundType): void {
 }
 
 /**
- * Plays a live typing phoneme blip corresponding to a pressed key.
+ * Typing sounds are disabled site-wide. This function is intentionally a no-op.
  */
-export function playTypingKeystroke(key: string): void {
-    if (!cachedTypingEnabled || cachedTheme === 'muted' || cachedVolume <= 0.01) return;
-
-    try {
-        const lower = key.toLowerCase();
-        if (/^[a-z0-9]$/.test(lower)) {
-            playSingleSoundBlip(cachedTypingVoice, lower, cachedVolume * 0.55);
-        } else if (key === ' ' || key === 'Space') {
-            playSingleSoundBlip(cachedTypingVoice, 'a', cachedVolume * 0.4);
-        } else if (key === 'Backspace' || key === 'Delete') {
-            playSingleSoundBlip(cachedTypingVoice, 'd', cachedVolume * 0.45);
-        } else if (key === 'Enter') {
-            playSingleSoundBlip(cachedTypingVoice, 'o', cachedVolume * 0.6);
-        }
-    } catch {}
+export function playTypingKeystroke(_key: string): void {
+    // no-op: typing sounds removed
 }
 
 /**
- * Plays the user-selected tactile UI click sound.
+ * Click sounds are disabled site-wide. This function is intentionally a no-op.
  */
 export function playCustomClickSound(): void {
-    if (cachedTheme === 'muted' || cachedVolume <= 0.01) return;
+    // no-op: click sounds removed
+    return;
 
     try {
         if (cachedTheme === 'animalese') {

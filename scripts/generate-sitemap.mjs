@@ -110,6 +110,7 @@ function getStaticPages() {
         { loc: `${SITE}/`, changefreq: 'daily', priority: '1.0', lastmod: now, image: { loc: `${SITE}/logo.webp`, title: 'ChoPaeng Animal Crossing Community' } },
         { loc: `${SITE}/islands`, changefreq: 'daily', priority: '0.95', lastmod: now },
         { loc: `${SITE}/order`, changefreq: 'daily', priority: '0.95', lastmod: now },
+        { loc: `${SITE}/drop`, changefreq: 'daily', priority: '0.95', lastmod: now },
         { loc: `${SITE}/command-builder`, changefreq: 'weekly', priority: '0.90', lastmod: now },
         { loc: `${SITE}/trip-planner`, changefreq: 'daily', priority: '0.90', lastmod: now },
 

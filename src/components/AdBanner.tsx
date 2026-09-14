@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useAuth } from "../context/useAuth";
 import { useIslandData } from "../context/useIslandData";
+import { checkIsSubscriberOrStaff } from "../utils/subscriberUtils";
 
 // Augment the Window interface so TypeScript knows about adsbygoogle
 declare global {
@@ -64,21 +65,8 @@ const AdBanner: React.FC<AdBannerProps> = ({
     const isReady = !authLoading && !islandsLoading;
 
     // ── Subscriber gate ─────────────────────────────────────────────────────
-    // Suppress ads for users who can access at least one member-gated island.
-    // Member islands require Discord roles (ChoFries+), so this naturally gates
-    // on paid tiers without hardcoding specific role IDs that may change.
-    const isSubscriber: boolean = (() => {
-        if (!user) return false;
-        // Mods / admins always get ad-free experience
-        if (user.is_mod || user.is_admin) return true;
-        // Check if the user has access to any member-category island with required roles
-        return islands.some(
-            (island) =>
-                island.cat === "member" &&
-                island.requiredRoles.length > 0 &&
-                canAccessIsland(island.requiredRoles)
-        );
-    })();
+    // Suppress ads for users who are subscribers (ChoFries, ChoSoup, etc.) or staff.
+    const isSubscriber = checkIsSubscriberOrStaff(user, islands, canAccessIsland);
 
     // ── Push AdSense unit ────────────────────────────────────────────────────
     useEffect(() => {

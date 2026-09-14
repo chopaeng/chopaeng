@@ -7,6 +7,7 @@ import {
     pollPendingWaves,
     broadcastResidentWave,
     setActivePresenceUser,
+    recordSiteVisit,
     type WaveNotification,
 } from '../../utils/communityPresenceApi';
 import { playWaveChime, playWaveBackChime, playChimeClick } from '../../utils/kkAudioSynthesizer';
@@ -30,9 +31,10 @@ export const PresenceHeartbeatTracker: React.FC = () => {
         setActivePresenceUser(user);
     }, [user]);
 
-    // Heartbeat on route navigation or user auth state update
+    // Heartbeat & site visit record on route navigation or user auth state update
     useEffect(() => {
         sendPresenceHeartbeat(location.pathname, user);
+        recordSiteVisit();
     }, [location.pathname, user]);
 
     // Periodic heartbeat every 25 seconds

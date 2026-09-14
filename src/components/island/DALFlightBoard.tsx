@@ -1,6 +1,7 @@
 import React from "react";
 import { DODO_PLACEHOLDER } from "../../config/constants";
 import type { BotStatusResponse } from "../../utils/orderBotApi";
+import { openCommunityModal } from "../../utils/communityPresenceApi";
 
 interface DALFlightBoardProps {
     island: any;
@@ -85,7 +86,19 @@ export const DALFlightBoard: React.FC<DALFlightBoardProps> = ({
                 ) : (
                     <div className="flight-row">
                         <span className="flight-label">PASSENGERS</span>
-                        <span className="flight-value">{formatPassengerCount(live?.visitors)}</span>
+                        <div className="d-flex align-items-center gap-2">
+                            <span className="flight-value">{formatPassengerCount(live?.visitors)}</span>
+                            <button
+                                type="button"
+                                onClick={() => openCommunityModal('islands')}
+                                className="badge bg-primary text-white rounded-pill px-2 py-0.5 border-0 shadow-2xs d-inline-flex align-items-center gap-1 cursor-pointer hover-scale"
+                                style={{ fontSize: '0.65rem', textDecoration: 'none' }}
+                                title="Open DAL Live Island Occupancy Radar"
+                            >
+                                <i className="fa-solid fa-plane-departure" style={{ fontSize: '0.6rem' }}></i>
+                                <span>Live Radar</span>
+                            </button>
+                        </div>
                     </div>
                 )}
 
@@ -99,10 +112,20 @@ export const DALFlightBoard: React.FC<DALFlightBoardProps> = ({
                 </div>
 
             </div>
-            <div className="dal-footer">
+            <div className="dal-footer d-flex align-items-center justify-content-between flex-wrap gap-1">
                 <small>Dodo Airlines • We make travel a breeze!</small>
+                <button
+                    type="button"
+                    onClick={() => openCommunityModal('islands')}
+                    className="btn btn-link btn-sm p-0 tiny-text text-decoration-none text-white-50 hover-text-white fw-bold d-inline-flex align-items-center gap-1"
+                    title="Open ChoPaeng Live Radar"
+                >
+                    <span className="live-dot bg-success" style={{ width: 6, height: 6 }}></span>
+                    <span>Airport Radar</span>
+                    <i className="fa-solid fa-arrow-right" style={{ fontSize: '0.6rem' }}></i>
+                </button>
                 {island.updatedAt && (
-                    <small className="d-block mt-1 text-muted opacity-75">
+                    <small className="d-block w-100 mt-1 text-muted opacity-75">
                         Updated {new Date(island.updatedAt).toLocaleString()}
                     </small>
                 )}

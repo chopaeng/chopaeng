@@ -603,12 +603,23 @@ export const OnlineCommunityModal: React.FC = () => {
             const res = await fetchOnlinePresence(user, location.pathname);
             setResidents(res.residents);
             setIsServerLive(res.isLive);
+            if (res.totalOnline > 0) {
+                setTrafficStats((prev) => ({
+                    ...prev,
+                    activeOnlineCount: res.totalOnline,
+                }));
+            }
         } catch {
             // fallback handled inside fetchOnlinePresence
         } finally {
             setPresenceLoading(false);
         }
     }, [location.pathname, user]);
+
+    // Initial presence fetch on mount so counters are instantly accurate
+    useEffect(() => {
+        refreshPresence();
+    }, [refreshPresence]);
 
     // Refresh presence & poll pending waves when modal is open
     useEffect(() => {
@@ -1185,7 +1196,7 @@ export const OnlineCommunityModal: React.FC = () => {
                                     color: activeTab === 'online' ? '#ffffff' : theme.countPillInactiveColor,
                                 }}
                             >
-                                {trafficStats.activeOnlineCount}
+                                {residents.length > 0 ? residents.length : trafficStats.activeOnlineCount}
                             </span>
                         </button>
 
@@ -1241,7 +1252,9 @@ export const OnlineCommunityModal: React.FC = () => {
                                     color: activeTab === 'visits' ? '#ffffff' : theme.countPillInactiveColor,
                                 }}
                             >
-                                2.8M+
+                                {trafficStats.allTimeVisits >= 1_000_000
+                                    ? `${(trafficStats.allTimeVisits / 1_000_000).toFixed(1)}M+`
+                                    : trafficStats.allTimeVisits.toLocaleString()}
                             </span>
                         </button>
                     </div>
@@ -2017,7 +2030,7 @@ export const OnlineCommunityModal: React.FC = () => {
                                             Active
                                         </div>
                                         <div className="fs-4 fs-sm-3 fw-black mt-0.5 mt-sm-1" style={{ color: theme.digitBoxColor }}>
-                                            {trafficStats.activeOnlineCount}
+                                            {residents.length > 0 ? residents.length : trafficStats.activeOnlineCount}
                                         </div>
                                         <div className="tiny-text text-truncate d-none d-sm-block" style={{ color: theme.mutedColor }}>Online now</div>
                                     </div>

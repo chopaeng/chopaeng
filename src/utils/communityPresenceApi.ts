@@ -211,11 +211,16 @@ export const getTrafficStats = (): TrafficStats => {
             const todayDate = new Date().toDateString();
             const isNewDay = lastUpdatedDate !== todayDate;
 
+            const baseToday = Math.max(
+                1200,
+                Math.round(BASE_TODAY_VISITS * ((new Date().getHours() + 1) / 24))
+            );
+
             return {
-                allTimeVisits: Number(parsed.allTimeVisits) || BASE_ALL_TIME_VISITS,
-                visitsToday: isNewDay ? Math.floor(Math.random() * 80) + 120 : Number(parsed.visitsToday) || BASE_TODAY_VISITS,
-                visitsThisWeek: Number(parsed.visitsThisWeek) || BASE_WEEK_VISITS,
-                activeOnlineCount: !Number(parsed.activeOnlineCount) || Number(parsed.activeOnlineCount) === 48 ? 1 : Number(parsed.activeOnlineCount),
+                allTimeVisits: Math.max(BASE_ALL_TIME_VISITS, Number(parsed.allTimeVisits) || BASE_ALL_TIME_VISITS),
+                visitsToday: isNewDay ? baseToday : Math.max(1, Number(parsed.visitsToday) || BASE_TODAY_VISITS),
+                visitsThisWeek: Math.max(BASE_WEEK_VISITS, Number(parsed.visitsThisWeek) || BASE_WEEK_VISITS),
+                activeOnlineCount: Number(parsed.activeOnlineCount) > 0 ? Number(parsed.activeOnlineCount) : 1,
                 islandOccupantsCount: Number(parsed.islandOccupantsCount) || 0,
                 lastUpdated: now,
             };
@@ -224,9 +229,15 @@ export const getTrafficStats = (): TrafficStats => {
         // storage fallback
     }
 
+    const currentHour = new Date().getHours();
+    const initialToday = Math.max(
+        1200,
+        Math.round(BASE_TODAY_VISITS * ((currentHour + 1) / 24))
+    );
+
     const initial: TrafficStats = {
         allTimeVisits: BASE_ALL_TIME_VISITS,
-        visitsToday: BASE_TODAY_VISITS,
+        visitsToday: initialToday,
         visitsThisWeek: BASE_WEEK_VISITS,
         activeOnlineCount: 1,
         islandOccupantsCount: 0,
@@ -479,27 +490,33 @@ export const calculateIslandOccupancy = (islands: IslandData[]): IslandOccupancy
     }> = [];
 
     for (const island of islands) {
-        const isOnline = island.status === 'ONLINE' || !island.status;
-        const isRefreshing = island.status === 'REFRESHING';
+        const statusUpper = (island.status || 'ONLINE').toUpperCase();
+        const isOffline = statusUpper === 'OFFLINE';
+        const isRefreshing = statusUpper === 'REFRESHING';
+        const isSubOnly = statusUpper.includes('SUB') || statusUpper.includes('PATREON') || island.cat === 'member';
+        const isOnline = !isOffline && !isRefreshing;
         const v = Math.max(0, Math.min(7, island.visitors ?? 0));
 
         if (isOnline) {
             onlineIslandCount++;
             totalVisitors += v;
-            if (island.cat === 'public') publicVisitors += v;
-            else if (island.cat === 'member') memberVisitors += v;
+            if (isSubOnly) {
+                memberVisitors += v;
+            } else {
+                publicVisitors += v;
+            }
         }
         if (isRefreshing) {
             refreshingCount++;
         }
 
-        if (isOnline || isRefreshing) {
+        if (!isOffline) {
             islandRows.push({
                 name: island.name,
                 visitors: v,
                 max: 7,
                 status: island.status,
-                cat: island.cat || 'public',
+                cat: island.cat || (isSubOnly ? 'member' : 'public'),
                 theme: island.theme || 'teal',
                 dodoCode: island.dodoCode,
             });

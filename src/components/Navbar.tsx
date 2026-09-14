@@ -160,7 +160,7 @@ export const Navbar: React.FC = () => {
         { name: "Find Items", path: "/find", icon: "fa-magnifying-glass", color: "#6366f1", desc: "Instant item search" },
         { name: "Critters", path: "/critters", icon: "fa-fish-fins", color: "#0ea5e9", desc: "Availability calendar" },
         { name: "Events", path: "/events", icon: "fa-calendar-days", color: "#f59e0b", desc: "Seasons & holidays" },
-        { name: "NPCs", path: "/npcs", icon: "fa-users", color: "#ec4899", desc: "Villager gallery" },
+        { name: "NPCs", path: "/npcs", icon: "fa-users", color: "#64748b", desc: "Special characters & birthdays" },
         { name: "Guides", path: "/guides", icon: "fa-book-open", color: "#8b5cf6", desc: "Tips & tutorials" },
     ], []);
 
@@ -1798,6 +1798,19 @@ export const Navbar: React.FC = () => {
                             >
                                 <i className="fa-brands fa-discord text-primary" aria-hidden="true" />
                             </a>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    playChimeClick();
+                                    window.dispatchEvent(new CustomEvent('chopaeng_open_shortcuts_modal'));
+                                }}
+                                className="chopaeng-toolbar-btn"
+                                title="Keyboard Shortcuts (?)"
+                                aria-label="Keyboard Shortcuts"
+                            >
+                                <i className="fa-solid fa-keyboard text-muted" aria-hidden="true" />
+                            </button>
                         </div>
 
                         {/* Mobile Menu Toggle */}

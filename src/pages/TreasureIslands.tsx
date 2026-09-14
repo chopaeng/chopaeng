@@ -118,7 +118,10 @@ const TreasureIslands = () => {
     // Telemetry stats
     const stats = useMemo(() => {
         const total = islands.length;
-        const online = islands.filter(i => i.status === "ONLINE" || !i.status).length;
+        const online = islands.filter(i => {
+            const s = (i.status || "ONLINE").toUpperCase();
+            return s !== "OFFLINE" && s !== "REFRESHING";
+        }).length;
         const publicCount = islands.filter(isPublicIsland).length;
         const memberCount = islands.filter(i => i.cat === "member").length;
         const totalVisitors = islands.reduce((acc, curr) => acc + (curr.visitors || 0), 0);

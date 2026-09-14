@@ -4,10 +4,13 @@ import Footer from "../components/Footer.tsx";
 import { SuggestionModal } from "../components/suggestions/SuggestionModal.tsx";
 import CommandPalette from "../components/CommandPalette.tsx";
 import OfflineIndicator from "../components/OfflineIndicator.tsx";
+import KeyboardShortcutsModal from "../components/KeyboardShortcutsModal.tsx";
+import AdSenseManager from "../components/AdSenseManager.tsx";
 
 export function IndexLayout() {
     return (
         <>
+            <AdSenseManager />
             <Navbar />
             <main id="wrapper" style={{ minHeight: '100vh' }}>
                 <Outlet />
@@ -16,6 +19,7 @@ export function IndexLayout() {
             <SuggestionModal />
             <CommandPalette />
             <OfflineIndicator />
+            <KeyboardShortcutsModal />
         </>
     );
 }

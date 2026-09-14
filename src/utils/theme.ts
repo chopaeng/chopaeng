@@ -110,3 +110,12 @@ export const initTheme = (): ThemeMode => {
     applyTheme(theme);
     return theme;
 };
+
+export const cycleTheme = (): ThemeMode => {
+    const current = getStoredTheme();
+    const idx = THEME_OPTIONS.findIndex(o => o.id === current);
+    const nextIdx = idx === -1 ? 0 : (idx + 1) % THEME_OPTIONS.length;
+    const nextTheme = THEME_OPTIONS[nextIdx].id;
+    setStoredTheme(nextTheme);
+    return nextTheme;
+};

@@ -5,7 +5,9 @@ const env = import.meta.env;
 const DEFAULT_API_BASE = "https://console.chopaeng.com";
 
 export const API_BASE = trimTrailingSlash(
-    env.VITE_API_BASE || DEFAULT_API_BASE
+    env.DEV
+        ? (env.VITE_API_BASE ?? "")
+        : (env.VITE_API_BASE || DEFAULT_API_BASE)
 );
 
 export const DODO_API_BASE = API_BASE;

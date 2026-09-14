@@ -10,6 +10,7 @@ import { useCatalogData } from '../hooks/useCatalogData';
 import { useFavorites } from '../hooks/useFavorites';
 import { DROP_MAX } from '../constants/limits';
 import { playChimeClick } from '../utils/kkAudioSynthesizer';
+import { triggerConfetti } from '../utils/confetti';
 import { DODO_API_BASE } from '../config/api';
 import { CommandBuilderVariantModal } from '../components/command-builder/CommandBuilderVariantModal';
 import { DropBotHouseGrid } from '../components/drop/DropBotHouseGrid';
@@ -258,6 +259,7 @@ export const DropBot: React.FC = () => {
             const rawCode = String(data.dodo_code || '');
             const code = rawCode.split(': ').pop() || rawCode;
             setDropDodoCode(code);
+            triggerConfetti({ theme: 'gold', particleCount: 65 });
         } catch (e) {
             console.error(e);
             setDropDodoError('Network error while retrieving Dodo code. Please try again.');

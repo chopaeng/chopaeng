@@ -348,20 +348,34 @@ const IslandDetail = () => {
                         </span>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={(e) => toggleFavoriteIsland(island.id, e)}
-                        className={`btn btn-sm rounded-pill px-3 py-2 fw-bold d-flex align-items-center gap-2 shadow-sm transition-all ${
-                            isFavoriteIsland(island.id)
-                                ? "btn-warning text-dark border-warning"
-                                : "btn-white bg-white text-muted border border-light-subtle hover-shadow-sm"
-                        }`}
-                        title={isFavoriteIsland(island.id) ? "Remove from Favorites" : "Add to Favorites"}
-                        aria-label={isFavoriteIsland(island.id) ? "Favorited" : "Add to Favorites"}
-                    >
-                        <i className={`${isFavoriteIsland(island.id) ? "fa-solid text-dark" : "fa-regular text-warning"} fa-star`}></i>
-                        <span>{isFavoriteIsland(island.id) ? "Favorited" : "Add to Favorites"}</span>
-                    </button>
+                    <div className="d-flex align-items-center gap-2">
+                        {!isOrderIsland && (
+                            <button
+                                type="button"
+                                onClick={() => setShowImageModal(true)}
+                                className="btn btn-sm btn-nook rounded-pill px-3 py-2 fw-bold text-white d-flex align-items-center gap-1.5 shadow-sm transition-all hover-scale"
+                                title={`Launch ${island.name} Interactive Ground Radar`}
+                            >
+                                <i className="fa-solid fa-satellite-dish"></i>
+                                <span className="d-none d-sm-inline">Interactive Radar</span>
+                                <span className="d-sm-none">Radar</span>
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={(e) => toggleFavoriteIsland(island.id, e)}
+                            className={`btn btn-sm rounded-pill px-3 py-2 fw-bold d-flex align-items-center gap-2 shadow-sm transition-all ${
+                                isFavoriteIsland(island.id)
+                                    ? "btn-warning text-dark border-warning"
+                                    : "btn-white bg-white text-muted border border-light-subtle hover-shadow-sm"
+                            }`}
+                            title={isFavoriteIsland(island.id) ? "Remove from Favorites" : "Add to Favorites"}
+                            aria-label={isFavoriteIsland(island.id) ? "Favorited" : "Add to Favorites"}
+                        >
+                            <i className={`${isFavoriteIsland(island.id) ? "fa-solid text-dark" : "fa-regular text-warning"} fa-star`}></i>
+                            <span>{isFavoriteIsland(island.id) ? "Favorited" : "Add to Favorites"}</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div className="row g-4">
@@ -369,11 +383,65 @@ const IslandDetail = () => {
                     <div className="col-lg-5">
                         {/* Map Polaroid – hidden for order-bot islands */}
                         {!isOrderIsland && (
-                            <IslandMapPolaroid 
-                                mapImageSrc={mapImageSrc} 
-                                islandName={island.name} 
-                                onClick={() => setShowImageModal(true)} 
-                            />
+                            <>
+                                <IslandMapPolaroid 
+                                    mapImageSrc={mapImageSrc} 
+                                    islandName={island.name} 
+                                    onClick={() => setShowImageModal(true)} 
+                                />
+
+                                {/* Interactive Ground Radar Hero Action Card */}
+                                <div
+                                    className="card rounded-4 border-0 p-3 mb-4 shadow-sm interactive-radar-launcher-card position-relative overflow-hidden cursor-pointer animate-up"
+                                    onClick={() => setShowImageModal(true)}
+                                    role="button"
+                                    tabIndex={0}
+                                    title={`Scan ${island.name} with Interactive Ground Radar`}
+                                >
+                                    <div className="d-flex align-items-center justify-content-between mb-2">
+                                        <div className="d-flex align-items-center gap-2">
+                                            <span
+                                                className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 text-white shadow-xs"
+                                                style={{
+                                                    width: 36,
+                                                    height: 36,
+                                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                                }}
+                                            >
+                                                <i className="fa-solid fa-satellite-dish"></i>
+                                            </span>
+                                            <div>
+                                                <div className="fw-black text-dark ac-font d-flex align-items-center gap-1.5" style={{ fontSize: '0.92rem' }}>
+                                                    <span>Interactive Island Radar</span>
+                                                    <span className="badge bg-success text-white rounded-pill px-1.5 py-0.5" style={{ fontSize: '0.62rem' }}>
+                                                        A1-G6
+                                                    </span>
+                                                </div>
+                                                <div className="tiny-text text-muted">Acre Grid &middot; Item Pins &middot; Ground Search</div>
+                                            </div>
+                                        </div>
+                                        <span className="badge rounded-pill bg-success-subtle text-success border border-success border-opacity-25 px-2 py-0.5 tiny-text fw-bold">
+                                            RADAR
+                                        </span>
+                                    </div>
+                                    <p className="tiny-text text-muted mb-2.5">
+                                        Explore 15,000+ items on the ground with interactive acre sectors, coordinates, and live pin inspection.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        className="btn btn-nook w-100 py-2 rounded-pill fw-bold text-white d-flex align-items-center justify-content-center gap-2 shadow-2xs transition-all hover-scale"
+                                        style={{ fontSize: '0.85rem' }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowImageModal(true);
+                                        }}
+                                    >
+                                        <i className="fa-solid fa-crosshairs"></i>
+                                        <span>Launch Interactive Radar</span>
+                                        <i className="fa-solid fa-arrow-right small ms-1"></i>
+                                    </button>
+                                </div>
+                            </>
                         )}
 
                         {/* DAL Flight Board */}
@@ -394,9 +462,45 @@ const IslandDetail = () => {
                             <div className="passport-header">
                                 <div className="d-flex justify-content-between align-items-start position-relative z-2">
                                     <div>
-                                        <div className="passport-stamp mb-2">VERIFIED</div>
+                                        <div className="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                            <div className="passport-stamp">VERIFIED</div>
+                                            {!isOrderIsland && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowImageModal(true)}
+                                                    className="btn btn-xs rounded-pill px-2.5 py-1 fw-bold text-white border-0 shadow-2xs d-inline-flex align-items-center gap-1.5 hover-scale"
+                                                    style={{
+                                                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                                        fontSize: '0.72rem',
+                                                    }}
+                                                    title="Launch Interactive Ground Radar Map"
+                                                >
+                                                    <span className="live-dot bg-white" style={{ width: 6, height: 6 }}></span>
+                                                    <i className="fa-solid fa-satellite-dish"></i>
+                                                    <span>Interactive Radar</span>
+                                                </button>
+                                            )}
+                                        </div>
                                         <h1 className="island-title">{island.name}</h1>
-                                        <span className="island-badge">{island.type}</span>
+                                        <div className="d-flex align-items-center gap-2 flex-wrap">
+                                            <span className="island-badge">{island.type}</span>
+                                            {!isOrderIsland && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowImageModal(true)}
+                                                    className="btn btn-xs rounded-pill px-2.5 py-1 fw-bold text-white border border-white border-opacity-40 d-inline-flex align-items-center gap-1 hover-scale"
+                                                    style={{
+                                                        background: 'rgba(255, 255, 255, 0.2)',
+                                                        fontSize: '0.74rem',
+                                                        backdropFilter: 'blur(4px)',
+                                                    }}
+                                                    title="Scan items on interactive map"
+                                                >
+                                                    <i className="fa-solid fa-crosshairs text-warning"></i>
+                                                    <span>Scan Ground Items</span>
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="d-flex align-items-center gap-2">
                                         <button
@@ -427,14 +531,36 @@ const IslandDetail = () => {
                                 </div>
 
                                 <div className="mb-4">
-                                    <h5 className="notebook-heading">
-                                        <i className="fa-solid fa-gem me-2 text-nook"></i>
-                                        Available Loot
-                                    </h5>
+                                    <div className="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                                        <h5 className="notebook-heading mb-0">
+                                            <i className="fa-solid fa-gem me-2 text-nook"></i>
+                                            Available Loot
+                                        </h5>
+                                        {!isOrderIsland && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowImageModal(true)}
+                                                className="btn btn-xs btn-outline-success rounded-pill px-3 py-1 fw-bold d-inline-flex align-items-center gap-1.5 shadow-2xs hover-scale"
+                                                style={{ fontSize: '0.75rem' }}
+                                                title="Locate items on the interactive island ground map"
+                                            >
+                                                <i className="fa-solid fa-crosshairs text-success"></i>
+                                                <span>Locate on Ground Radar</span>
+                                            </button>
+                                        )}
+                                    </div>
                                     <div className="d-flex flex-wrap gap-2">
                                         {(island.items ?? []).map((item) => (
-                                            <div key={item} className="item-pill">
+                                            <div
+                                                key={item}
+                                                className="item-pill cursor-pointer hover-shadow-sm transition-all"
+                                                onClick={() => setShowImageModal(true)}
+                                                title={`Click to locate ${item} on the interactive ground radar`}
+                                                role="button"
+                                                tabIndex={0}
+                                            >
                                                 <span className="dot"></span> {item}
+                                                <i className="fa-solid fa-magnifying-glass ms-1.5 opacity-50" style={{ fontSize: '0.65rem' }}></i>
                                             </div>
                                         ))}
                                     </div>

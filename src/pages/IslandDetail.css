@@ -240,3 +240,62 @@
     color: #f8fafc !important;
 }
 
+/* ── Interactive Radar Launcher Card ── */
+.interactive-radar-launcher-card {
+    background: #ffffff !important;
+    border: 1.5px solid rgba(34, 197, 94, 0.4) !important;
+    box-shadow: 0 8px 24px rgba(34, 197, 94, 0.12) !important;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.interactive-radar-launcher-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(34, 197, 94, 0.22) !important;
+    border-color: #16a34a !important;
+}
+
+[data-theme="celeste"] .interactive-radar-launcher-card {
+    background: #18233a !important;
+    border: 1.5px solid rgba(167, 139, 250, 0.35) !important;
+    color: #f8fafc !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+}
+
+[data-theme="celeste"] .interactive-radar-launcher-card .text-dark {
+    color: #f8fafc !important;
+}
+
+[data-theme="celeste"] .interactive-radar-launcher-card .text-muted {
+    color: #a5b4fc !important;
+}
+
+[data-theme="roost"] .interactive-radar-launcher-card {
+    background: #292524 !important;
+    border: 1.5px solid rgba(217, 119, 6, 0.35) !important;
+    color: #fafaf9 !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+}
+
+[data-theme="roost"] .interactive-radar-launcher-card .text-dark {
+    color: #fafaf9 !important;
+}
+
+[data-theme="roost"] .interactive-radar-launcher-card .text-muted {
+    color: #d6d3d1 !important;
+}
+
+[data-theme="nooklink"] .interactive-radar-launcher-card {
+    background: #111827 !important;
+    border: 1.5px solid rgba(16, 185, 129, 0.35) !important;
+    color: #f8fafc !important;
+}
+
+[data-theme="nooklink"] .interactive-radar-launcher-card .text-dark {
+    color: #f8fafc !important;
+}
+
+[data-theme="nooklink"] .interactive-radar-launcher-card .text-muted {
+    color: #9ca3af !important;
+}
+
+

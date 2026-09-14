@@ -34,7 +34,7 @@ const PrivacyPolicy   = lazy(() => import("../pages/PrivacyPolicy.tsx"));
 const TermsOfService  = lazy(() => import("../pages/TermsOfService.tsx"));
 const CookiesPolicy   = lazy(() => import("../pages/CookiesPolicy.tsx"));
 
-// --- Phase 2 pages (lazy-loaded) ---
+// --- Community & Phase 2 pages (lazy-loaded) ---
 const Critters        = lazy(() => import("../pages/Critters.tsx"));
 const Events          = lazy(() => import("../pages/Events.tsx"));
 const NPCs            = lazy(() => import("../pages/NPCs.tsx"));

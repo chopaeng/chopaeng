@@ -676,7 +676,7 @@ export const NookPhoneDock: React.FC = () => {
                                     </span>
                                     <span className="d-inline-flex align-items-center gap-1">
                                         <i className="fa-solid fa-plane-departure text-info" aria-hidden="true" />
-                                        <span><strong>2.8M</strong> Visits</span>
+                                        <span><strong>{trafficStats.allTimeVisits >= 1_000_000 ? `${(trafficStats.allTimeVisits / 1_000_000).toFixed(1)}M` : trafficStats.allTimeVisits.toLocaleString()}</strong> Visits</span>
                                     </span>
                                 </div>
                             </div>

@@ -3,6 +3,7 @@ import { DODO_API_BASE } from "../config/api";
 import { AuthContext, type AuthUser } from "./authContextShared";
 import { clearAuthToken, getAuthToken } from "./authToken";
 import { handleAccountSwitchCheck, handleLogoutStorageCleanup } from "../utils/accountStorage";
+import { checkIsSubscriberOrStaff } from "../utils/subscriberUtils";
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<AuthUser | null>(null);
@@ -26,6 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     roles:    data.roles ?? [],
                     is_mod:   data.is_mod ?? false,
                     is_admin: data.is_admin ?? false,
+                    is_subscriber: Boolean(data.is_subscriber || checkIsSubscriberOrStaff(data)),
                 };
                 handleAccountSwitchCheck(authedUser.user_id);
                 setUser(authedUser);
@@ -129,8 +131,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return hasRole(requiredRoles);
     };
 
+    const isSubscriber = checkIsSubscriberOrStaff(user);
+
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout, refreshAuth, hasRole, canAccessIsland }}>
+        <AuthContext.Provider value={{ user, loading, isSubscriber, login, logout, refreshAuth, hasRole, canAccessIsland }}>
             {children}
         </AuthContext.Provider>
     );

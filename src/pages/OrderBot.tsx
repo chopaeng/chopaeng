@@ -20,6 +20,7 @@ import { DiscordNicknameModal } from '../components/DiscordNicknameModal';
 import { isValidAcnhNickname, parseDiscordNicknameToCharacters, formatCharactersToNickname } from '../utils/characterParser';
 import { updateDiscordNickname } from '../utils/userProfileApi';
 import { type PocketBundleItem } from '../data/pocketBundles';
+import { triggerConfetti } from '../utils/confetti';
 import {
     getActiveUserId,
     getUserScopedItem,
@@ -1112,6 +1113,9 @@ const OrderBot: React.FC = () => {
         // Broadcast to NookPhone Dock, Global Tracker, and all other active tabs/widgets
         window.dispatchEvent(new CustomEvent('chopaeng_order_created', { detail: { orderId: res.orderId } }));
         window.dispatchEvent(new Event('storage'));
+
+        // Celebrate with Animal Crossing leaf & bell confetti!
+        triggerConfetti({ theme: 'nook', particleCount: 75 });
 
         triggerInAppToast({
             type: 'success',

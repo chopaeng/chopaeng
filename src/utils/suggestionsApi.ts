@@ -2,9 +2,8 @@ import type {
     SuggestionFormData,
     SuggestionSendResult,
 } from '../types/suggestion';
-
-export const DISCORD_SUGGESTIONS_WEBHOOK_URL =
-    'https://discord.com/api/webhooks/1540189827004235806/vzfPpTFLA0yKcuDRs8AS_w2HmQn4zxhaZlCXoebZpBj6-h9tHiah-fXxGnnc0gq0Xczq';
+import { DODO_API_BASE } from '../config/api';
+import { getAuthToken } from '../context/authToken';
 
 const LAST_SUBMIT_KEY = 'chopaeng_last_suggestion_timestamp';
 const COOLDOWN_SECONDS = 15;
@@ -27,7 +26,8 @@ export const getSuggestionCooldownRemaining = (): number => {
 };
 
 /**
- * Dispatches a formatted rich embed to the Discord webhook.
+ * Dispatches a resident suggestion securely through ChoBot backend (/api/suggestions).
+ * No Discord webhook URLs are exposed on the client side.
  */
 export const sendDiscordSuggestion = async (
     data: SuggestionFormData
@@ -41,67 +41,31 @@ export const sendDiscordSuggestion = async (
         };
     }
 
-    // Sender display formatting
-    const senderIdentity = data.discordUsername?.trim()
-        ? `\`${data.discordUsername.trim()}\``
-        : 'Anonymous Resident';
-
-    const inGameInfo = [
-        data.inGameName?.trim() ? `IGN: **${data.inGameName.trim()}**` : null,
-        data.islandName?.trim() ? `Island: **${data.islandName.trim()}**` : null,
-    ]
-        .filter(Boolean)
-        .join(' • ');
-
-    const fields: Array<{ name: string; value: string; inline?: boolean }> = [
-        {
-            name: '👤 Submitted By',
-            value: inGameInfo ? `${senderIdentity}\n${inGameInfo}` : senderIdentity,
-            inline: true,
-        },
-        {
-            name: '📝 Details / Feedback',
-            value: data.description.trim().slice(0, 1024),
-            inline: false,
-        },
-    ];
-
-    if (data.pageUrl) {
-        fields.push({
-            name: '🌐 Submitted From',
-            value: `[${data.pageUrl}](${data.pageUrl})`,
-            inline: false,
-        });
-    }
-
-    const payload = {
-        username: 'Chopaeng Suggestion Box',
-        avatar_url: 'https://www.chopaeng.com/logo.png',
-        embeds: [
-            {
-                title: `💡 Suggestion: ${data.title.trim()}`,
-                description: `A new resident suggestion has been submitted from **Chopaeng**!`,
-                color: 0x198754,
-                fields,
-                footer: {
-                    text: 'Chopaeng Resident Feedback System • Live Dispatcher',
-                    icon_url: 'https://www.chopaeng.com/logo.png',
-                },
-                timestamp: new Date().toISOString(),
-            },
-        ],
-    };
-
     try {
-        const response = await fetch(DISCORD_SUGGESTIONS_WEBHOOK_URL, {
+        const token = getAuthToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${DODO_API_BASE}/api/suggestions`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload),
+            headers,
+            body: JSON.stringify({
+                title: data.title.trim(),
+                description: data.description.trim(),
+                discordUsername: data.discordUsername?.trim() || undefined,
+                inGameName: data.inGameName?.trim() || undefined,
+                islandName: data.islandName?.trim() || undefined,
+                pageUrl: data.pageUrl || window.location.href,
+            }),
         });
 
-        if (response.ok || response.status === 204) {
+        const resData = await response.json().catch(() => null);
+
+        if (response.ok && resData?.success !== false) {
             try {
                 localStorage.setItem(LAST_SUBMIT_KEY, Date.now().toString());
             } catch {
@@ -111,14 +75,15 @@ export const sendDiscordSuggestion = async (
         } else {
             return {
                 success: false,
-                error: `Discord webhook returned error status ${response.status}`,
+                error: resData?.error || `Server returned error status ${response.status}`,
+                cooldownSeconds: resData?.cooldownSeconds,
             };
         }
     } catch (err: any) {
-        console.error('Error sending suggestion to Discord webhook:', err);
+        console.error('Error submitting suggestion to ChoBot API:', err);
         return {
             success: false,
-            error: err?.message || 'Could not connect to Discord webhook. Please check your internet connection.',
+            error: err?.message || 'Could not connect to suggestion service. Please check your connection.',
         };
     }
 };

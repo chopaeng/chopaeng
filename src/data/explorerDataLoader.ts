@@ -65,15 +65,17 @@ export const loadExplorerItems = async (): Promise<CatalogEntity[]> => {
     }
 
     try {
-        const [itemsMod, recipesMod, creaturesMod, reactionsMod, constructionMod, achievementsMod] = await Promise.all([
-            import('@bitress/animal-crossing/lib/data/Items.json'),
+        // Items.json is served as a static public asset (/Items.json) rather than
+        // bundled, to stay under the Cloudflare Workers 25 MiB per-asset limit.
+        const [itemsRes, recipesMod, creaturesMod, reactionsMod, constructionMod, achievementsMod] = await Promise.all([
+            fetch('/Items.json').then((r) => r.json()),
             import('@bitress/animal-crossing/lib/data/Recipes.json'),
             import('@bitress/animal-crossing/lib/data/Creatures.json'),
             import('@bitress/animal-crossing/lib/data/Reactions.json'),
             import('@bitress/animal-crossing/lib/data/Construction.json'),
             import('@bitress/animal-crossing/lib/data/Achievements.json'),
         ]);
-        const items = (itemsMod.default || itemsMod) as any[];
+        const items = itemsRes as any[];
         const recipes = (recipesMod.default || recipesMod) as any[];
         const creatures = (creaturesMod.default || creaturesMod) as any[];
         const reactions = (reactionsMod.default || reactionsMod) as any[];

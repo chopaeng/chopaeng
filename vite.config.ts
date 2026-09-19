@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import fs from 'fs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -28,7 +29,25 @@ export default defineConfig({
             { find: /^@bitress\/animal-crossing$/, replacement: path.resolve(__dirname, 'node_modules/@bitress/animal-crossing/lib/index.js') },
         ]
     },
-    plugins: [react()],
+    plugins: [
+        react(),
+        {
+            // Copy Items.json from node_modules to public/ so it's served as a static
+            // asset instead of being bundled (the raw file is ~29 MB, exceeding the
+            // Cloudflare Workers 25 MiB per-asset limit when bundled).
+            name: 'copy-items-json',
+            buildStart() {
+                const src = path.resolve(__dirname, 'node_modules/@bitress/animal-crossing/lib/data/Items.json');
+                const dest = path.resolve(__dirname, 'public/Items.json');
+                if (fs.existsSync(src)) {
+                    fs.copyFileSync(src, dest);
+                    console.log('[copy-items-json] Copied Items.json to public/');
+                } else {
+                    console.warn('[copy-items-json] Items.json not found in node_modules');
+                }
+            },
+        },
+    ],
     build: {
         rollupOptions: {
             output: {
@@ -50,9 +69,9 @@ export default defineConfig({
                         if (id.includes('Construction.json') || id.includes('Reactions.json') || id.includes('Achievements.json')) {
                             return 'ac-misc';
                         }
-                        if (id.includes('Items.json')) {
-                            return 'ac-items';
-                        }
+                        // Items.json is NOT bundled — it is served as a static public
+                        // asset (public/Items.json) and fetched at runtime to stay under
+                        // the Cloudflare Workers 25 MiB per-asset limit.
                         if (id.includes('Translations.json')) {
                             return 'ac-translations';
                         }

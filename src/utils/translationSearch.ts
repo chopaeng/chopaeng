@@ -34,9 +34,10 @@ let _cachedIndex: Map<string, TranslationIndex> | null = null;
 export const buildTranslationIndex = async (): Promise<Map<string, TranslationIndex>> => {
     if (_cachedIndex) return _cachedIndex;
 
-    // Items.json is served as a static public asset (/Items.json) rather than
-    // bundled, to stay under the Cloudflare Workers 25 MiB per-asset limit.
-    const items = await fetch('/Items.json').then((r) => r.json()) as any[];
+    // Items-translations.json is a build-time-generated static asset containing only
+    // { name, translations } per item, served from public/ to stay under the
+    // Cloudflare Workers 25 MiB per-asset limit.
+    const items = await fetch('/Items-translations.json').then((r) => r.json()) as any[];
     const index = new Map<string, TranslationIndex>();
 
     for (const lang of SUPPORTED_LANGUAGES) {

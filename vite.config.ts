@@ -32,19 +32,40 @@ export default defineConfig({
     plugins: [
         react(),
         {
-            // Copy Items.json from node_modules to public/ so it's served as a static
-            // asset instead of being bundled (the raw file is ~29 MB, exceeding the
-            // Cloudflare Workers 25 MiB per-asset limit when bundled).
-            name: 'copy-items-json',
+            // Split Items.json from node_modules into two lean public assets:
+            //   • Items-data.json        – all fields except `translations` (used by explorerDataLoader)
+            //   • Items-translations.json – only `name` + `translations`   (used by translationSearch)
+            //
+            // The raw Items.json is ~29 MiB which exceeds Cloudflare Workers' 25 MiB per-asset
+            // limit even as a plain static file, so we cannot serve it directly.
+            name: 'split-items-json',
             buildStart() {
                 const src = path.resolve(__dirname, 'node_modules/@bitress/animal-crossing/lib/data/Items.json');
-                const dest = path.resolve(__dirname, 'public/Items.json');
-                if (fs.existsSync(src)) {
-                    fs.copyFileSync(src, dest);
-                    console.log('[copy-items-json] Copied Items.json to public/');
-                } else {
-                    console.warn('[copy-items-json] Items.json not found in node_modules');
+                if (!fs.existsSync(src)) {
+                    console.warn('[split-items-json] Items.json not found in node_modules');
+                    return;
                 }
+
+                const items: any[] = JSON.parse(fs.readFileSync(src, 'utf-8'));
+
+                // Items-data.json — strip translations to keep the catalog data lean
+                const dataItems = items.map(({ translations: _t, ...rest }) => rest);
+                fs.writeFileSync(
+                    path.resolve(__dirname, 'public/Items-data.json'),
+                    JSON.stringify(dataItems),
+                );
+
+                // Items-translations.json — only the fields needed for cross-language search
+                const translationItems = items.map((item: any) => ({
+                    name: item.name,
+                    translations: item.translations ?? {},
+                }));
+                fs.writeFileSync(
+                    path.resolve(__dirname, 'public/Items-translations.json'),
+                    JSON.stringify(translationItems),
+                );
+
+                console.log('[split-items-json] Wrote Items-data.json and Items-translations.json to public/');
             },
         },
     ],

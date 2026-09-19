@@ -28,5 +28,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Generated at build time by the copy-items-json Vite plugin
-public/Items.json
+# Generated at build time by the split-items-json Vite plugin
+public/Items-data.json
+public/Items-translations.json

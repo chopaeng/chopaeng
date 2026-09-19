@@ -65,10 +65,10 @@ export const loadExplorerItems = async (): Promise<CatalogEntity[]> => {
     }
 
     try {
-        // Items.json is served as a static public asset (/Items.json) rather than
-        // bundled, to stay under the Cloudflare Workers 25 MiB per-asset limit.
+        // Items-data.json is a build-time-generated static asset (translations stripped)
+        // served from public/ to stay under the Cloudflare Workers 25 MiB per-asset limit.
         const [itemsRes, recipesMod, creaturesMod, reactionsMod, constructionMod, achievementsMod] = await Promise.all([
-            fetch('/Items.json').then((r) => r.json()),
+            fetch('/Items-data.json').then((r) => r.json()),
             import('@bitress/animal-crossing/lib/data/Recipes.json'),
             import('@bitress/animal-crossing/lib/data/Creatures.json'),
             import('@bitress/animal-crossing/lib/data/Reactions.json'),

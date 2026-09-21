@@ -4,6 +4,7 @@ import {
     searchIslandMapItems,
     type IslandMapResponse,
     type IslandMapItem,
+    type IslandSectorSummary,
 } from '../../utils/islandMapApi';
 import './InteractiveIslandMap.css';
 
@@ -16,6 +17,52 @@ interface InteractiveIslandMapModalProps {
 
 const SECTOR_COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
 const SECTOR_ROWS = [1, 2, 3, 4, 5, 6];
+
+const CATEGORY_ICONS: Record<string, string> = {
+    all: 'fa-solid fa-layer-group',
+    insects: 'fa-solid fa-bug',
+    fish: 'fa-solid fa-fish',
+    'sea creatures': 'fa-solid fa-shrimp',
+    fossils: 'fa-solid fa-bone',
+    artwork: 'fa-solid fa-palette',
+    housewares: 'fa-solid fa-couch',
+    photos: 'fa-solid fa-camera',
+    posters: 'fa-solid fa-image',
+    music: 'fa-solid fa-music',
+    'tools/goods': 'fa-solid fa-wrench',
+    fencing: 'fa-solid fa-bars',
+    rugs: 'fa-solid fa-rug',
+    wallpaper: 'fa-solid fa-paint-roller',
+    floors: 'fa-solid fa-border-all',
+    bags: 'fa-solid fa-bag-shopping',
+    shoes: 'fa-solid fa-shoe-prints',
+    'dress-up': 'fa-solid fa-shirt',
+    tops: 'fa-solid fa-shirt',
+    headwear: 'fa-solid fa-hat-wizard',
+    socks: 'fa-solid fa-socks',
+    'wall-mounted': 'fa-solid fa-tv',
+    miscellaneous: 'fa-solid fa-box-open',
+    other: 'fa-solid fa-cubes',
+};
+
+const getCategoryIcon = (cat: string): string => {
+    return CATEGORY_ICONS[cat.toLowerCase()] || 'fa-solid fa-tag';
+};
+
+const getPinColorClass = (cat?: string): string => {
+    if (!cat) return 'pin-default';
+    const c = cat.toLowerCase();
+    if (c.includes('insect')) return 'pin-insect';
+    if (c.includes('fish') || c.includes('sea')) return 'pin-fish';
+    if (c.includes('fossil')) return 'pin-fossil';
+    if (c.includes('art')) return 'pin-art';
+    if (c.includes('photo') || c.includes('poster')) return 'pin-photo';
+    if (c.includes('house') || c.includes('furni')) return 'pin-furniture';
+    if (c.includes('music')) return 'pin-music';
+    if (c.includes('tool')) return 'pin-tool';
+    if (c.includes('fenc')) return 'pin-fence';
+    return 'pin-default';
+};
 
 export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps> = ({
     isOpen,
@@ -32,6 +79,7 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [showGrid, setShowGrid] = useState<boolean>(true);
     const [showPins, setShowPins] = useState<boolean>(true);
+    const [enableRadarSweep, setEnableRadarSweep] = useState<boolean>(true);
     const [copiedFeedback, setCopiedFeedback] = useState<string | null>(null);
     const [activeHoveredPin, setActiveHoveredPin] = useState<IslandMapItem | null>(null);
 
@@ -50,11 +98,82 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
     // Feature: Live Acre inspection state
     const [hoveredSector, setHoveredSector] = useState<string | null>(null);
 
+    // Feature: Cursor coordinate HUD tracking
+    const [hoverCoords, setHoverCoords] = useState<{ x: number; y: number; sector: string } | null>(null);
+
     // Feature: Item Detail Inspector
     const [inspectingItem, setInspectingItem] = useState<IslandMapItem | null>(null);
 
     // Feature: Map wrapper DOM ref for Mini-Radar HUD
     const mapWrapperRef = useRef<HTMLDivElement | null>(null);
+
+// Helper to correct item coordinates from column-major ACNH memory layout.
+// In ACNH, the 43,008 item grid is 224 tiles wide (7 acres x 32) and 192 tiles high (6 acres x 32).
+// The raw memory is column-major: record_index = x * 192 + y (stride of 192 per column).
+// The backend mistakenly interpreted the array as row-major (x = idx % 224, y = idx / 224),
+// causing items along columns (like critters on the vertical acres) to rotate onto the top row.
+const normalizeItemCoordinates = (item: IslandMapItem): IslandMapItem => {
+    let recordIndex = item.record_index;
+    if (recordIndex === undefined && item.x !== undefined && item.y !== undefined) {
+        // Recover original record_index from backend row-major decoding
+        recordIndex = item.y * 224 + item.x;
+    }
+
+    if (recordIndex !== undefined && recordIndex >= 0 && recordIndex < 43008) {
+        const x = Math.floor(recordIndex / 192);
+        const y = recordIndex % 192;
+        const colIdx = Math.floor(x / 32);
+        const rowIdx = Math.floor(y / 32);
+        const sector = (colIdx >= 0 && colIdx < 7 && rowIdx >= 0 && rowIdx < 6)
+            ? `${SECTOR_COLS[colIdx]}${SECTOR_ROWS[rowIdx]}`
+            : item.sector;
+        return {
+            ...item,
+            record_index: recordIndex,
+            x,
+            y,
+            sector,
+        };
+    }
+    return item;
+};
+
+const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
+    const items = (data.items || []).map(normalizeItemCoordinates);
+    const sectors: Record<string, IslandMapItem[]> = {};
+    const sector_summary: Record<string, IslandSectorSummary> = {};
+
+    for (const item of items) {
+        if (item.sector) {
+            if (!sectors[item.sector]) sectors[item.sector] = [];
+            sectors[item.sector].push(item);
+        }
+    }
+
+    for (const [sec, secItems] of Object.entries(sectors)) {
+        const catCounts: Record<string, number> = {};
+        for (const it of secItems) {
+            const c = it.category || 'Other';
+            catCounts[c] = (catCounts[c] || 0) + 1;
+        }
+        const top_categories = Object.entries(catCounts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([c]) => c);
+        const sample_items = secItems.slice(0, 5).map((it) => it.name);
+        sector_summary[sec] = {
+            total_items: secItems.length,
+            top_categories,
+            sample_items,
+        };
+    }
+
+    return {
+        ...data,
+        items,
+        sectors,
+        sector_summary,
+    };
+};
 
     // Fetch live map data on modal open
     useEffect(() => {
@@ -76,10 +195,11 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
         fetchIslandMap(islandName)
             .then((data) => {
                 if (isMounted) {
-                    setMapData(data);
+                    const normalized = normalizeMapData(data);
+                    setMapData(normalized);
                     // Default select first populated sector if available
-                    if (data.sectors) {
-                        const populated = Object.keys(data.sectors);
+                    if (normalized.sectors) {
+                        const populated = Object.keys(normalized.sectors);
                         if (populated.length > 0) {
                             setSelectedSector(populated[0]);
                         }
@@ -121,7 +241,8 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
         const timer = setTimeout(() => {
             searchIslandMapItems(islandName, query)
                 .then((res) => {
-                    const matches = res.matches || [];
+                    const rawMatches = res.matches || [];
+                    const matches = rawMatches.map(normalizeItemCoordinates);
                     setSearchResults(matches);
                     // Highlight first matching sector if exists
                     if (matches.length > 0 && matches[0].sector) {
@@ -275,6 +396,29 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
         setPanOffset({ x: newPanX, y: newPanY });
     };
 
+    // Live cursor coordinate tracking over map
+    const handleMapMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+        handleMouseMove(e);
+        if (!mapWrapperRef.current) return;
+        const rect = mapWrapperRef.current.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+        const normX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const normY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+        const gridW = mapData?.grid?.width || 224;
+        const gridH = mapData?.grid?.height || 192;
+        const x = Math.floor(normX * gridW);
+        const y = Math.floor(normY * gridH);
+        const colIdx = Math.max(0, Math.min(6, Math.floor(x / 32)));
+        const rowIdx = Math.max(0, Math.min(5, Math.floor(y / 32)));
+        const sector = `${SECTOR_COLS[colIdx]}${SECTOR_ROWS[rowIdx]}`;
+        setHoverCoords({ x, y, sector });
+    };
+
+    const handleMapMouseLeave = () => {
+        handleMouseUp();
+        setHoverCoords(null);
+    };
+
     if (!isOpen) return null;
 
     const totalItemsCount = mapData?.stats?.total_items ?? mapData?.items?.length ?? 0;
@@ -292,12 +436,15 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                 <div className="island-radar-header">
                     <div className="d-flex align-items-center gap-2 flex-wrap">
                         <h4 className="island-radar-header-title">
-                            <i className="fa-solid fa-satellite-dish text-info"></i>
+                            <i className="fa-solid fa-satellite-dish text-info island-radar-pulsing-icon"></i>
                             <span>{islandName.toUpperCase()} Ground Radar</span>
                         </h4>
 
                         <div className="island-radar-header-meta">
-
+                            <span className="island-radar-tag live">
+                                <span className="island-radar-live-dot"></span>
+                                Live Scanner
+                            </span>
 
                             {totalItemsCount > 0 && (
                                 <span className="badge bg-white bg-opacity-20 text-white rounded-pill px-2.5 py-1 small fw-bold">
@@ -360,6 +507,16 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                             <span>Pins</span>
                         </button>
 
+                        <button
+                            type="button"
+                            className={`island-radar-toggle-btn ${enableRadarSweep ? 'active' : ''}`}
+                            onClick={() => setEnableRadarSweep(!enableRadarSweep)}
+                            title="Toggle Holographic Radar Sweep Beam"
+                        >
+                            <i className="fa-solid fa-radar"></i>
+                            <span>Sweep</span>
+                        </button>
+
                         {selectedSector && (
                             <button
                                 type="button"
@@ -413,6 +570,7 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                         className={`island-radar-cat-chip ${selectedCategory === 'all' ? 'active' : ''}`}
                         onClick={() => setSelectedCategory('all')}
                     >
+                        <i className={getCategoryIcon('all')}></i>
                         <span>All Categories</span>
                         {totalItemsCount > 0 && (
                             <span className="island-radar-cat-count">{totalItemsCount.toLocaleString()}</span>
@@ -426,6 +584,7 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                             className={`island-radar-cat-chip ${selectedCategory === cat ? 'active' : ''}`}
                             onClick={() => setSelectedCategory(selectedCategory === cat ? 'all' : cat)}
                         >
+                            <i className={getCategoryIcon(cat)}></i>
                             <span>{cat}</span>
                             <span className="island-radar-cat-count">{count}</span>
                         </button>
@@ -441,10 +600,35 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                     <div
                         className="island-radar-viewport-container"
                         onMouseDown={handleMouseDown}
-                        onMouseMove={handleMouseMove}
+                        onMouseMove={handleMapMouseMove}
                         onMouseUp={handleMouseUp}
-                        onMouseLeave={handleMouseUp}
+                        onMouseLeave={handleMapMouseLeave}
                     >
+                        {/* Live Coordinates HUD Bar */}
+                        <div className="island-radar-hud-bar">
+                            <div className="island-radar-coords-display">
+                                <i className="fa-solid fa-crosshairs text-info me-1.5"></i>
+                                {hoverCoords ? (
+                                    <span>
+                                        <span className="island-radar-hud-axis">X:</span> {hoverCoords.x}&nbsp;
+                                        <span className="island-radar-hud-axis">Y:</span> {hoverCoords.y}
+                                        <span className="island-radar-hud-sep">•</span>
+                                        <span className="island-radar-hud-axis">Sector:</span> {hoverCoords.sector}
+                                    </span>
+                                ) : (
+                                    <span className="text-secondary opacity-75">
+                                        Hover map for live coordinates
+                                    </span>
+                                )}
+                            </div>
+                            {selectedSector && (
+                                <div className="island-radar-active-sector-tag">
+                                    <i className="fa-solid fa-vector-square text-warning me-1"></i>
+                                    Sector {selectedSector}
+                                </div>
+                            )}
+                        </div>
+
                         {/* Zoom Controls */}
                         <div className="island-radar-zoom-controls">
                             <button
@@ -501,6 +685,9 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                                 }}
                             />
 
+                            {/* Holographic Radar Sweep Beam */}
+                            {enableRadarSweep && <div className="island-radar-sweep-beam" />}
+
                             {/* Sector Overlay Grid (7x6) */}
                             {showGrid && (
                                 <div className="island-radar-grid-overlay">
@@ -546,11 +733,12 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                                             const leftPercent = Math.max(2, Math.min(98, (item.x / gridW) * 100));
                                             const topPercent = Math.max(2, Math.min(98, (item.y / gridH) * 100));
                                             const isHovered = activeHoveredPin === item;
+                                            const pinColorClass = getPinColorClass(item.category);
 
                                             return (
                                                 <div
                                                     key={`pin-${idx}-${item.x}-${item.y}`}
-                                                    className={`island-radar-pin-container ${isHovered ? 'active-pin' : ''}`}
+                                                    className={`island-radar-pin-container ${pinColorClass} ${isHovered ? 'active-pin' : ''}`}
                                                     style={{ left: `${leftPercent}%`, top: `${topPercent}%` }}
                                                 >
                                                     <div
@@ -561,10 +749,18 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                                                         }}
                                                     />
                                                     <div className="island-radar-pin-tooltip">
-                                                        <span className="d-block">{item.name}</span>
-                                                        <small className="opacity-75">
-                                                            {item.sector ? `${item.sector} ` : ''}({item.x}, {item.y})
-                                                        </small>
+                                                        {item.imageUrl && (
+                                                            <div className="island-radar-pin-tooltip-thumb">
+                                                                <img src={item.imageUrl} alt={item.name} />
+                                                            </div>
+                                                        )}
+                                                        <div className="island-radar-pin-tooltip-info">
+                                                            <span className="island-radar-pin-tooltip-name">{item.name}</span>
+                                                            <div className="island-radar-pin-tooltip-meta">
+                                                                <span className="island-radar-pin-cat-tag">{item.category}</span>
+                                                                <span>{item.sector ? `${item.sector} ` : ''}({item.x}, {item.y})</span>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             );
@@ -665,7 +861,7 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                                     </>
                                 ) : (
                                     <>
-                                        <i className="fa-solid fa-cubes text-primary"></i>
+                                        <i className="fa-solid fa-cubes text-info"></i>
                                         All Island Items ({drawerItems.length})
                                     </>
                                 )}
@@ -674,7 +870,7 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                             {drawerItems.length > 0 && (
                                 <button
                                     type="button"
-                                    className="btn btn-sm btn-outline-secondary py-0.5 px-2 small rounded-pill"
+                                    className="island-radar-drawer-copy-btn"
                                     onClick={() => {
                                         const names = drawerItems.slice(0, 40).map((i) => i.name).join(', ');
                                         handleCopy(names, 'First 40 items');
@@ -688,8 +884,8 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
 
                         <div className="island-radar-drawer-body">
                             {copiedFeedback && (
-                                <div className="alert alert-success py-1.5 px-3 mb-2 small text-center fw-bold rounded-pill shadow-xs animate-up">
-                                    <i className="fa-solid fa-circle-check me-1.5"></i>
+                                <div className="island-radar-feedback-toast animate-up">
+                                    <i className="fa-solid fa-circle-check me-1.5 text-success"></i>
                                     {copiedFeedback}
                                 </div>
                             )}
@@ -708,22 +904,22 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
 
                             {loading ? (
                                 <div className="island-radar-empty">
-                                    <div className="spinner-border text-primary mb-3" role="status"></div>
-                                    <p className="fw-bold mb-0">Scanning Ground Layer...</p>
-                                    <small className="text-muted">Loading item manifest</small>
+                                    <div className="spinner-border text-info mb-3" role="status"></div>
+                                    <p className="fw-bold mb-0 text-light">Scanning Ground Layer...</p>
+                                    <small className="text-secondary">Loading item manifest</small>
                                 </div>
                             ) : searching ? (
                                 <div className="island-radar-empty">
                                     <div className="spinner-border text-warning mb-3" role="status"></div>
-                                    <p className="fw-bold mb-0">Searching island items...</p>
+                                    <p className="fw-bold mb-0 text-light">Searching island items...</p>
                                 </div>
                             ) : drawerItems.length === 0 ? (
                                 <div className="island-radar-empty">
                                     <i className="fa-solid fa-box-open"></i>
-                                    <p className="fw-bold mb-1">
+                                    <p className="fw-bold mb-1 text-light">
                                         {searchQuery ? 'No matching items found' : 'No Items In This Sector'}
                                     </p>
-                                    <small className="text-muted">
+                                    <small className="text-secondary">
                                         {searchQuery
                                             ? `No items matching "${searchQuery}" on ${islandName}.`
                                             : 'Click on any highlighted sector (e.g. B2, C3) or clear category filter.'}
@@ -752,29 +948,29 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                                                                 }}
                                                             />
                                                         ) : (
-                                                            <i className="fa-solid fa-gift text-primary opacity-75"></i>
+                                                            <i className="fa-solid fa-gift text-info opacity-75"></i>
                                                         )}
                                                     </div>
 
                                                     <div className="island-radar-item-text">
                                                         <span className="island-radar-item-name">{item.name}</span>
                                                         <div className="island-radar-item-sub">
-                                                            <span>{item.category}</span>
+                                                            <span className="island-radar-item-cat">{item.category}</span>
                                                             {item.x !== undefined && item.y !== undefined ? (
                                                                 <>
-                                                                    <span>•</span>
-                                                                    <span>
+                                                                    <span className="island-radar-dot-sep">•</span>
+                                                                    <span className="island-radar-coord-tag">
                                                                         ({item.x}, {item.y})
                                                                     </span>
                                                                 </>
                                                             ) : item.record_index !== undefined ? (
                                                                 <>
-                                                                    <span>•</span>
+                                                                    <span className="island-radar-dot-sep">•</span>
                                                                     <span>Slot #{item.record_index}</span>
                                                                 </>
                                                             ) : (item.itemIdHex || item.internalId) ? (
                                                                 <>
-                                                                    <span>•</span>
+                                                                    <span className="island-radar-dot-sep">•</span>
                                                                     <span>0x{(item.itemIdHex || item.internalId || '').slice(-4).toUpperCase()}</span>
                                                                 </>
                                                             ) : null}
@@ -806,7 +1002,7 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                                     })}
 
                                     {drawerItems.length > 150 && (
-                                        <div className="text-center py-2 text-muted small">
+                                        <div className="text-center py-2 text-secondary small">
                                             Showing first 150 of {drawerItems.length.toLocaleString()} matching items
                                         </div>
                                     )}
@@ -816,22 +1012,25 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                     </div>
                 </div>
 
-                {/* Item Detail Inspector Modal Dialog */}
+                {/* Holographic Item Detail Inspector Modal Dialog */}
                 {inspectingItem && (
                     <div className="island-radar-inspect-backdrop" onClick={() => setInspectingItem(null)}>
                         <div className="island-radar-inspect-card animate-up" onClick={(e) => e.stopPropagation()}>
                             <div className="island-radar-inspect-header">
                                 <div className="d-flex align-items-center gap-2">
-                                    <h5 className="island-radar-inspect-title mb-0 text-white text-truncate" style={{ maxWidth: '300px' }}>
+                                    <i className="fa-solid fa-crosshairs text-info"></i>
+                                    <h5 className="island-radar-inspect-title mb-0 text-truncate" style={{ maxWidth: '300px' }}>
                                         {inspectingItem.name}
                                     </h5>
                                 </div>
                                 <button
                                     type="button"
-                                    className="btn-close btn-close-white"
+                                    className="island-radar-close-btn"
                                     onClick={() => setInspectingItem(null)}
                                     aria-label="Close"
-                                />
+                                >
+                                    <i className="fa-solid fa-xmark"></i>
+                                </button>
                             </div>
 
                             <div className="island-radar-inspect-body">
@@ -839,21 +1038,22 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                                     {inspectingItem.imageUrl ? (
                                         <img src={inspectingItem.imageUrl} alt={inspectingItem.name} />
                                     ) : (
-                                        <i className="fa-solid fa-gift fa-3x text-primary opacity-50"></i>
+                                        <i className="fa-solid fa-gift fa-3x text-info opacity-75"></i>
                                     )}
                                 </div>
 
                                 <div className="island-radar-inspect-badges">
-                                    <span className="badge bg-primary px-2.5 py-1">
+                                    <span className="badge bg-primary bg-opacity-30 text-info border border-info border-opacity-40 px-2.5 py-1">
+                                        <i className={`${getCategoryIcon(inspectingItem.category)} me-1`}></i>
                                         {inspectingItem.category || 'Item'}
                                     </span>
                                     {inspectingItem.sector && (
-                                        <span className="badge bg-info-subtle text-info-emphasis border border-info-subtle px-2 py-1">
+                                        <span className="badge bg-info bg-opacity-20 text-info border border-info border-opacity-30 px-2 py-1">
                                             Sector {inspectingItem.sector}
                                         </span>
                                     )}
                                     {inspectingItem.record_index !== undefined && (
-                                        <span className="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
+                                        <span className="badge bg-warning bg-opacity-20 text-warning border border-warning border-opacity-30 px-2 py-1">
                                             Slot #{inspectingItem.record_index}
                                         </span>
                                     )}
@@ -868,7 +1068,7 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                                     </div>
                                     <div className="island-radar-inspect-grid-cell">
                                         <span className="island-radar-inspect-grid-label">Coordinates (X, Y)</span>
-                                        <span className="island-radar-inspect-grid-value">
+                                        <span className="island-radar-inspect-grid-value text-light">
                                             {inspectingItem.x !== undefined && inspectingItem.y !== undefined
                                                 ? `(${inspectingItem.x}, ${inspectingItem.y})`
                                                 : 'N/A'}
@@ -882,7 +1082,7 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                                     </div>
                                     <div className="island-radar-inspect-grid-cell">
                                         <span className="island-radar-inspect-grid-label">Item ID (Hex)</span>
-                                        <span className="island-radar-inspect-grid-value font-monospace text-primary">
+                                        <span className="island-radar-inspect-grid-value font-monospace text-info">
                                             {inspectingItem.itemIdHex
                                                 ? inspectingItem.itemIdHex
                                                 : inspectingItem.internalId
@@ -893,7 +1093,7 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                                     {(inspectingItem.raw_A !== undefined || inspectingItem.raw_B !== undefined) && (
                                         <div className="island-radar-inspect-grid-cell" style={{ gridColumn: 'span 2' }}>
                                             <span className="island-radar-inspect-grid-label">Raw 32-bit Words</span>
-                                            <span className="island-radar-inspect-grid-value font-monospace small">
+                                            <span className="island-radar-inspect-grid-value font-monospace small text-secondary">
                                                 A: {inspectingItem.raw_A !== undefined ? `0x${inspectingItem.raw_A.toString(16).toUpperCase()}` : '--'},
                                                 B: {inspectingItem.raw_B !== undefined ? `0x${inspectingItem.raw_B.toString(16).toUpperCase()}` : '--'}
                                             </span>
@@ -902,13 +1102,37 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
                                 </div>
 
                                 <div className="island-radar-inspect-actions">
-                                    <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-secondary w-100 py-2 fw-bold"
-                                        onClick={() => setInspectingItem(null)}
-                                    >
-                                        Close
-                                    </button>
+                                    <div className="d-flex gap-2 w-100">
+                                        <button
+                                            type="button"
+                                            className="island-radar-inspect-btn secondary"
+                                            onClick={() => handleCopy(inspectingItem.name, 'Item Name')}
+                                            title="Copy item name"
+                                        >
+                                            <i className="fa-solid fa-copy me-1"></i> Name
+                                        </button>
+                                        {inspectingItem.x !== undefined && inspectingItem.y !== undefined && (
+                                            <button
+                                                type="button"
+                                                className="island-radar-inspect-btn secondary"
+                                                onClick={() => handleCopy(`(${inspectingItem.x}, ${inspectingItem.y})`, 'Coordinates')}
+                                                title="Copy coordinates"
+                                            >
+                                                <i className="fa-solid fa-location-crosshairs me-1"></i> Coords
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            className="island-radar-inspect-btn primary"
+                                            onClick={() => {
+                                                handleFocusItem(inspectingItem);
+                                                setInspectingItem(null);
+                                            }}
+                                            title="Highlight on map"
+                                        >
+                                            <i className="fa-solid fa-crosshairs me-1"></i> Focus
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

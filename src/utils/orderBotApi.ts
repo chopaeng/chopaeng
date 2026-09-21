@@ -171,6 +171,15 @@ export const fetchBotStatus = async (
         });
         if (res.ok) {
             const data = await res.json();
+            const island = typeof data?.island_name === 'string' ? data.island_name.trim().toLowerCase().replace(/\.$/, '') : '';
+            if (island === 'no town name yet' || data?.success === false) {
+                return {
+                    ...data,
+                    success: false,
+                    is_running: false,
+                    accepting_commands: false,
+                };
+            }
             return { success: true, ...data };
         }
         const err = await res.json().catch(() => ({}));

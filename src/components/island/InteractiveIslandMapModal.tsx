@@ -49,9 +49,10 @@ const getCategoryIcon = (cat: string): string => {
     return CATEGORY_ICONS[cat.toLowerCase()] || 'fa-solid fa-tag';
 };
 
-const getPinColorClass = (cat?: string): string => {
-    if (!cat) return 'pin-default';
-    const c = cat.toLowerCase();
+const getPinColorClass = (item?: IslandMapItem | { category?: string; diy?: boolean }): string => {
+    if (!item) return 'pin-default';
+    if (item.diy) return 'pin-diy';
+    const c = (item.category || '').toLowerCase();
     if (c.includes('insect')) return 'pin-insect';
     if (c.includes('fish') || c.includes('sea')) return 'pin-fish';
     if (c.includes('fossil')) return 'pin-fossil';
@@ -94,6 +95,9 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
 
     // Desktop drawer toggle
     const [isDrawerCollapsed, setIsDrawerCollapsed] = useState<boolean>(false);
+
+    // Fullscreen / maximize toggle
+    const [isMaximized, setIsMaximized] = useState<boolean>(false);
 
     // Feature: Live Acre inspection state
     const [hoveredSector, setHoveredSector] = useState<string | null>(null);
@@ -228,7 +232,7 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, onClose]);
 
-    // Debounced search query against live endpoint
+    // Debounced search query against live endpoint + local map items
     useEffect(() => {
         const query = searchQuery.trim();
         if (!query) {
@@ -239,9 +243,36 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
 
         setSearching(true);
         const timer = setTimeout(() => {
+            const queryLower = query.toLowerCase();
+            const isDiyQuery = queryLower === 'diy' || queryLower === 'diys' || queryLower === 'recipe' || queryLower === 'recipes';
+
             searchIslandMapItems(islandName, query)
                 .then((res) => {
-                    const rawMatches = res.matches || [];
+                    let rawMatches = res.matches || [];
+
+                    // Always supplement with local mapData items, especially for DIY recipes
+                    // where backend search fails because category is e.g. "Housewares" while diy=true
+                    if (mapData?.items) {
+                        const localMatches = mapData.items.filter((item) => {
+                            if (isDiyQuery && item.diy) return true;
+                            if (item.diy && (queryLower.includes('diy') || queryLower.includes('recipe'))) return true;
+                            const nameLower = (item.name || '').toLowerCase();
+                            const catLower = (item.category || '').toLowerCase();
+                            return nameLower.includes(queryLower) || catLower.includes(queryLower);
+                        });
+
+                        const seen = new Set<string>();
+                        const combined: IslandMapItem[] = [];
+                        for (const it of [...rawMatches, ...localMatches]) {
+                            const key = `${it.record_index ?? ''}-${it.x ?? ''}-${it.y ?? ''}-${it.name}`;
+                            if (!seen.has(key)) {
+                                seen.add(key);
+                                combined.push(it);
+                            }
+                        }
+                        rawMatches = combined;
+                    }
+
                     const matches = rawMatches.map(normalizeItemCoordinates);
                     setSearchResults(matches);
                     // Highlight first matching sector if exists
@@ -251,7 +282,23 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
                 })
                 .catch((err) => {
                     console.error('[InteractiveIslandMapModal] Search error:', err);
-                    setSearchResults([]);
+                    // Fallback to local filtering
+                    if (mapData?.items) {
+                        const localMatches = mapData.items
+                            .filter((item) => {
+                                if (isDiyQuery && item.diy) return true;
+                                const nameLower = (item.name || '').toLowerCase();
+                                const catLower = (item.category || '').toLowerCase();
+                                return nameLower.includes(queryLower) || catLower.includes(queryLower);
+                            })
+                            .map(normalizeItemCoordinates);
+                        setSearchResults(localMatches);
+                        if (localMatches.length > 0 && localMatches[0].sector) {
+                            setSelectedSector(localMatches[0].sector);
+                        }
+                    } else {
+                        setSearchResults([]);
+                    }
                 })
                 .finally(() => {
                     setSearching(false);
@@ -259,7 +306,12 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
         }, 280);
 
         return () => clearTimeout(timer);
-    }, [searchQuery, islandName]);
+    }, [searchQuery, islandName, mapData]);
+
+    // Count DIY recipes on the island
+    const diyCount = useMemo(() => {
+        return (mapData?.items || []).filter((i) => i.diy).length;
+    }, [mapData]);
 
     // Extract top categories from mapData
     const topCategories = useMemo(() => {
@@ -296,7 +348,9 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
             list = (mapData?.items || []).filter(isCleanItem);
         }
 
-        if (selectedCategory !== 'all') {
+        if (selectedCategory === 'diy') {
+            list = list.filter((i) => i.diy);
+        } else if (selectedCategory !== 'all') {
             list = list.filter((i) => i.category.toLowerCase() === selectedCategory.toLowerCase());
         }
 
@@ -310,9 +364,9 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
         setTimeout(() => setCopiedFeedback(null), 2000);
     }, []);
 
-    // Zoom Handlers
+    // Zoom Handlers (up to 4.0x for fine-grained tile accuracy)
     const handleZoomIn = () => {
-        setZoomLevel((prev) => Math.min(2.5, Math.round((prev + 0.25) * 100) / 100));
+        setZoomLevel((prev) => Math.min(4.0, Math.round((prev + 0.25) * 100) / 100));
     };
 
     const handleZoomOut = () => {
@@ -326,6 +380,19 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
     const handleResetZoom = () => {
         setZoomLevel(1.0);
         setPanOffset({ x: 0, y: 0 });
+    };
+
+    // Smooth mouse wheel zoom over map
+    const handleWheel = (e: React.WheelEvent) => {
+        if (e.deltaY < 0) {
+            setZoomLevel((prev) => Math.min(4.0, Math.round((prev + 0.25) * 100) / 100));
+        } else {
+            setZoomLevel((prev) => {
+                const next = Math.max(0.5, Math.round((prev - 0.25) * 100) / 100);
+                if (next === 1.0) setPanOffset({ x: 0, y: 0 });
+                return next;
+            });
+        }
     };
 
     // Pan (drag) handlers
@@ -431,7 +498,7 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
             aria-modal="true"
             aria-label={`${islandName} Interactive Ground Radar`}
         >
-            <div className="island-radar-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className={`island-radar-modal-dialog ${isMaximized ? 'is-maximized' : ''}`} onClick={(e) => e.stopPropagation()}>
                 {/* ─── HEADER ─── */}
                 <div className="island-radar-header">
                     <div className="d-flex align-items-center gap-2 flex-wrap">
@@ -454,14 +521,25 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
                         </div>
                     </div>
 
-                    <button
-                        type="button"
-                        className="island-radar-close-btn"
-                        onClick={onClose}
-                        aria-label="Close modal"
-                    >
-                        <i className="fa-solid fa-xmark"></i>
-                    </button>
+                    <div className="d-flex align-items-center gap-2">
+                        <button
+                            type="button"
+                            className="island-radar-header-action-btn"
+                            onClick={() => setIsMaximized(!isMaximized)}
+                            title={isMaximized ? 'Restore Default Size' : 'Maximize Map (Full Screen)'}
+                            aria-label={isMaximized ? 'Restore Default Size' : 'Maximize Map'}
+                        >
+                            <i className={`fa-solid ${isMaximized ? 'fa-compress' : 'fa-expand'}`}></i>
+                        </button>
+                        <button
+                            type="button"
+                            className="island-radar-close-btn"
+                            onClick={onClose}
+                            aria-label="Close modal"
+                        >
+                            <i className="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
                 </div>
 
                 {/* ─── TOOLBAR CONTROLS ─── */}
@@ -577,6 +655,18 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
                         )}
                     </button>
 
+                    {diyCount > 0 && (
+                        <button
+                            type="button"
+                            className={`island-radar-cat-chip cat-chip-diy ${selectedCategory === 'diy' ? 'active' : ''}`}
+                            onClick={() => setSelectedCategory(selectedCategory === 'diy' ? 'all' : 'diy')}
+                        >
+                            <i className="fa-solid fa-scroll text-warning"></i>
+                            <span>DIY Recipes</span>
+                            <span className="island-radar-cat-count">{diyCount.toLocaleString()}</span>
+                        </button>
+                    )}
+
                     {topCategories.map(([cat, count]) => (
                         <button
                             key={cat}
@@ -603,6 +693,7 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
                         onMouseMove={handleMapMouseMove}
                         onMouseUp={handleMouseUp}
                         onMouseLeave={handleMapMouseLeave}
+                        onWheel={handleWheel}
                     >
                         {/* Live Coordinates HUD Bar */}
                         <div className="island-radar-hud-bar">
@@ -636,7 +727,7 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
                                 className="island-radar-zoom-btn"
                                 onClick={handleZoomIn}
                                 title="Zoom in"
-                                disabled={zoomLevel >= 2.5}
+                                disabled={zoomLevel >= 4.0}
                             >
                                 <i className="fa-solid fa-plus"></i>
                             </button>
@@ -733,7 +824,7 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
                                             const leftPercent = Math.max(2, Math.min(98, (item.x / gridW) * 100));
                                             const topPercent = Math.max(2, Math.min(98, (item.y / gridH) * 100));
                                             const isHovered = activeHoveredPin === item;
-                                            const pinColorClass = getPinColorClass(item.category);
+                                            const pinColorClass = getPinColorClass(item);
 
                                             return (
                                                 <div
@@ -755,9 +846,14 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
                                                             </div>
                                                         )}
                                                         <div className="island-radar-pin-tooltip-info">
-                                                            <span className="island-radar-pin-tooltip-name">{item.name}</span>
+                                                            <span className="island-radar-pin-tooltip-name">
+                                                                {item.name}
+                                                                {item.diy && <span className="text-warning ms-1">📜</span>}
+                                                            </span>
                                                             <div className="island-radar-pin-tooltip-meta">
-                                                                <span className="island-radar-pin-cat-tag">{item.category}</span>
+                                                                <span className={`island-radar-pin-cat-tag ${item.diy ? 'diy-tag' : ''}`}>
+                                                                    {item.diy ? 'DIY Recipe' : item.category}
+                                                                </span>
                                                                 <span>{item.sector ? `${item.sector} ` : ''}({item.x}, {item.y})</span>
                                                             </div>
                                                         </div>
@@ -953,9 +1049,18 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
                                                     </div>
 
                                                     <div className="island-radar-item-text">
-                                                        <span className="island-radar-item-name">{item.name}</span>
+                                                        <span className="island-radar-item-name">
+                                                            {item.name}
+                                                            {item.diy && (
+                                                                <span className="island-radar-diy-tag ms-1.5">
+                                                                    <i className="fa-solid fa-scroll me-1"></i>DIY
+                                                                </span>
+                                                            )}
+                                                        </span>
                                                         <div className="island-radar-item-sub">
-                                                            <span className="island-radar-item-cat">{item.category}</span>
+                                                            <span className={`island-radar-item-cat ${item.diy ? 'text-warning fw-bold' : ''}`}>
+                                                                {item.diy ? 'DIY Recipe' : item.category}
+                                                            </span>
                                                             {item.x !== undefined && item.y !== undefined ? (
                                                                 <>
                                                                     <span className="island-radar-dot-sep">•</span>
@@ -1043,6 +1148,12 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
                                 </div>
 
                                 <div className="island-radar-inspect-badges">
+                                    {inspectingItem.diy && (
+                                        <span className="badge bg-warning text-dark px-2.5 py-1 fw-bold">
+                                            <i className="fa-solid fa-scroll me-1"></i>
+                                            DIY Recipe Card
+                                        </span>
+                                    )}
                                     <span className="badge bg-primary bg-opacity-30 text-info border border-info border-opacity-40 px-2.5 py-1">
                                         <i className={`${getCategoryIcon(inspectingItem.category)} me-1`}></i>
                                         {inspectingItem.category || 'Item'}

@@ -80,6 +80,7 @@ export const InteractiveIslandMapModal: React.FC<InteractiveIslandMapModalProps>
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [showGrid, setShowGrid] = useState<boolean>(true);
     const [showPins, setShowPins] = useState<boolean>(true);
+    const [showMapBg, setShowMapBg] = useState<boolean>(true);
     const [enableRadarSweep, setEnableRadarSweep] = useState<boolean>(true);
     const [copiedFeedback, setCopiedFeedback] = useState<string | null>(null);
     const [activeHoveredPin, setActiveHoveredPin] = useState<IslandMapItem | null>(null);
@@ -382,6 +383,28 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
         setPanOffset({ x: 0, y: 0 });
     };
 
+    // Quick zoom & center onto a specific sector square
+    const handleZoomToSector = (secKey: string) => {
+        setSelectedSector(secKey);
+        const colLetter = secKey.charAt(0).toUpperCase();
+        const rowNum = parseInt(secKey.slice(1), 10);
+        const colIdx = SECTOR_COLS.indexOf(colLetter);
+        const rowIdx = SECTOR_ROWS.indexOf(rowNum);
+        if (colIdx === -1 || rowIdx === -1) return;
+
+        const targetZoom = 2.2;
+        const normX = (colIdx + 0.5) / 7;
+        const normY = (rowIdx + 0.5) / 6;
+        const wrapperW = mapWrapperRef.current?.offsetWidth || 700;
+        const wrapperH = mapWrapperRef.current?.offsetHeight || 600;
+
+        const newPanX = (0.5 - normX) * wrapperW * targetZoom;
+        const newPanY = (0.5 - normY) * wrapperH * targetZoom;
+
+        setZoomLevel(targetZoom);
+        setPanOffset({ x: newPanX, y: newPanY });
+    };
+
     // Smooth mouse wheel zoom over map
     const handleWheel = (e: React.WheelEvent) => {
         if (e.deltaY < 0) {
@@ -429,8 +452,14 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
     const hoveredSectorData = useMemo(() => {
         if (!hoveredSector || !mapData) return null;
         const secItems = (mapData.sectors?.[hoveredSector] || mapData.items?.filter((i) => i.sector === hoveredSector) || []);
-        const secSummary = mapData.sector_summary?.[hoveredSector];
-        const topCats = secSummary?.top_categories || [];
+        const catCounts: Record<string, number> = {};
+        for (const it of secItems) {
+            const c = it.category || 'Other';
+            catCounts[c] = (catCounts[c] || 0) + 1;
+        }
+        const topCats = Object.entries(catCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
         const preview = secItems.slice(0, 5);
         return {
             sector: hoveredSector,
@@ -565,6 +594,16 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
                     </div>
 
                     <div className="island-radar-toggles">
+                        <button
+                            type="button"
+                            className={`island-radar-toggle-btn ${showMapBg ? 'active' : ''}`}
+                            onClick={() => setShowMapBg(!showMapBg)}
+                            title="Toggle Island Aerial Map Background"
+                        >
+                            <i className="fa-solid fa-map"></i>
+                            <span>Map BG</span>
+                        </button>
+
                         <button
                             type="button"
                             className={`island-radar-toggle-btn ${showGrid ? 'active' : ''}`}
@@ -767,7 +806,7 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
                             <img
                                 src={mapImageSrc}
                                 alt={`${islandName} aerial map`}
-                                className="island-radar-base-img"
+                                className={`island-radar-base-img ${!showMapBg ? 'hidden-bg' : ''}`}
                                 onError={(e) => {
                                     const target = e.target as HTMLImageElement;
                                     if (target.src.includes('.png')) target.src = target.src.replace('.png', '.jpg');
@@ -795,9 +834,10 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
                                                     className={`island-radar-sector-cell ${isSelected ? 'active-sector' : ''
                                                         } ${hasMatches ? 'has-search-match' : ''}`}
                                                     onClick={() => setSelectedSector(secKey)}
+                                                    onDoubleClick={() => handleZoomToSector(secKey)}
                                                     onMouseEnter={() => setHoveredSector(secKey)}
                                                     onMouseLeave={() => setHoveredSector(null)}
-                                                    title={`Sector ${secKey} (${sectorItemsCount.toLocaleString()} items) - Click to inspect`}
+                                                    title={`Sector ${secKey} (${sectorItemsCount.toLocaleString()} items) - Click to select, Double-click to zoom`}
                                                 >
                                                     <span className="island-radar-sector-badge">{secKey}</span>
                                                     {sectorItemsCount > 0 && (
@@ -909,7 +949,15 @@ const normalizeMapData = (data: IslandMapResponse): IslandMapResponse => {
                                         className="island-radar-acre-btn primary"
                                         onClick={() => setSelectedSector(hoveredSectorData.sector)}
                                     >
-                                        <i className="fa-solid fa-arrow-right me-1"></i> View Sector In Drawer
+                                        <i className="fa-solid fa-list-ul me-1"></i> View In Drawer
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="island-radar-acre-btn secondary"
+                                        onClick={() => handleZoomToSector(hoveredSectorData.sector)}
+                                        title="Zoom directly into this sector square"
+                                    >
+                                        <i className="fa-solid fa-magnifying-glass-plus me-1"></i> Zoom In
                                     </button>
                                 </div>
                             </div>

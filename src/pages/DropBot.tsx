@@ -48,7 +48,7 @@ const DROP_PRESETS = [
 ];
 
 export const DropBot: React.FC = () => {
-    const { user, login } = useAuth();
+    const { user, loading: authLoading, login } = useAuth();
     const { islands, loading: islandsLoading } = useIslandData();
     const { data: catalogData, isLoading: catalogLoading } = useCatalogData();
     const { favorites, isFavorite, toggleFavorite } = useFavorites();
@@ -353,7 +353,7 @@ export const DropBot: React.FC = () => {
 
     const handleCopyCommand = (command: string, label = 'command') => {
         if (!command) return;
-        navigator.clipboard.writeText(command).catch(() => {});
+        navigator.clipboard.writeText(command).catch(() => { });
         playSound();
         setSubmissionNotice({
             type: 'success',
@@ -364,7 +364,7 @@ export const DropBot: React.FC = () => {
     const handleCopyDiscordDrop = (command?: string, label = '!drop') => {
         const cmd = command || dropCommandText;
         if (!cmd) return;
-        navigator.clipboard.writeText(cmd).catch(() => {});
+        navigator.clipboard.writeText(cmd).catch(() => { });
         playSound();
         const targetIsland = selectedDropIsland?.name || 'ChoPaeng';
         setSubmissionNotice({
@@ -375,6 +375,105 @@ export const DropBot: React.FC = () => {
             window.open(getDiscordTargetUrl(selectedDropIsland), '_blank');
         }, 400);
     };
+
+    // ── Auth loading skeleton ──
+    if (authLoading) {
+        return (
+            <div className="nook-bg min-vh-100 d-flex align-items-center justify-content-center p-4">
+                <div className="text-center bg-white rounded-4 shadow-sm border p-5">
+                    <div className="spinner-border text-success mb-3" role="status" />
+                    <p className="fw-bold text-muted mb-0">Connecting to ChoPaeng...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // ── Full-page login wall: Treasure Island Drop Bot requires authentication ──
+    if (!user) {
+        return (
+            <>
+                <Helmet>
+                    <title>Treasure Island Drop Bot · ChoPaeng</title>
+                    <meta
+                        name="description"
+                        content="Login with Discord to access the ChoPaeng Treasure Island Drop Bot and Villager Injector."
+                    />
+                </Helmet>
+                <div className="nook-bg min-vh-100 py-5 px-3 d-flex align-items-center justify-content-center font-nunito">
+                    <div className="container" style={{ maxWidth: 640 }}>
+                        <div className="bg-white rounded-5 shadow-sm border p-4 p-md-5 text-center mb-4 animate-fade">
+                            <div
+                                className="d-inline-flex align-items-center justify-content-center rounded-circle text-white mb-4 shadow-sm"
+                                style={{ width: 76, height: 76, backgroundColor: '#5865F2' }}
+                            >
+                                <i className="fa-brands fa-discord fa-2x" />
+                            </div>
+
+                            <h1 className="ac-font h2 text-dark mb-2 fw-black">
+                                Treasure Island Drop Bot
+                            </h1>
+                            <p className="text-muted fw-bold mb-4" style={{ fontSize: '0.95rem', lineHeight: 1.6 }}>
+                                Connect your Discord account to access the Treasure Island Drop Bot, spawn up to 9 custom items in real-time, and inject moving-in villagers directly into Sub Island house plots.
+                            </p>
+
+                            <div className="d-flex gap-2 flex-wrap justify-content-center mb-4">
+                                <span className="badge bg-light text-dark border rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
+                                    <i className="fa-solid fa-parachute-box text-success me-1"></i> Max 9 Drop Slots
+                                </span>
+                                <span className="badge bg-light text-dark border rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
+                                    <i className="fa-solid fa-house-user text-warning me-1"></i> House Plots 0–9 Injector
+                                </span>
+                                <span className="badge bg-light text-dark border rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
+                                    <i className="fa-solid fa-shield-halved text-primary me-1"></i> Sub Member Access
+                                </span>
+                                <span className="badge bg-light text-dark border rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
+                                    <i className="fa-solid fa-ticket text-info me-1"></i> Boarding Pass &amp; Dodo
+                                </span>
+                            </div>
+
+                            <div className="mb-3">
+                                <button
+                                    id="dropbot-discord-login-wall-btn"
+                                    type="button"
+                                    onClick={() => {
+                                        playSound();
+                                        login();
+                                    }}
+                                    className="btn btn-success rounded-pill fw-black px-5 py-3 shadow-sm d-inline-flex align-items-center gap-2 hover-scale transition-all"
+                                    style={{ fontSize: '1.05rem', backgroundColor: '#37b06d', borderColor: '#37b06d' }}
+                                >
+                                    <i className="fa-brands fa-discord me-1" />
+                                    <span>Login with Discord</span>
+                                </button>
+                            </div>
+
+                            <div className="d-flex align-items-center justify-content-center gap-3 mt-3 flex-wrap">
+                                <Link
+                                    to="/order"
+                                    className="text-decoration-none small fw-bold text-muted d-inline-flex align-items-center gap-1 hover-text-dark"
+                                >
+                                    <i className="fa-solid fa-paper-plane text-primary" />
+                                    <span>Switch to 40-Slot Order Bot</span>
+                                </Link>
+                                <span className="text-muted small">•</span>
+                                <Link
+                                    to="/membership"
+                                    className="text-decoration-none small fw-bold text-muted d-inline-flex align-items-center gap-1 hover-text-dark"
+                                >
+                                    <i className="fa-solid fa-crown text-warning" />
+                                    <span>Sub Member Benefits</span>
+                                </Link>
+                            </div>
+
+                            <p className="text-muted tiny-text mt-4 mb-0">
+                                Requires verified Discord login. Sub Member tier is required for in-island drops.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </>
+        );
+    }
 
     return (
         <div className="ob-page">
@@ -432,13 +531,12 @@ export const DropBot: React.FC = () => {
                     >
                         <div className="d-flex align-items-center gap-2">
                             <i
-                                className={`fa-solid ${
-                                    submissionNotice.type === 'success'
-                                        ? 'fa-circle-check text-success'
-                                        : submissionNotice.type === 'danger'
+                                className={`fa-solid ${submissionNotice.type === 'success'
+                                    ? 'fa-circle-check text-success'
+                                    : submissionNotice.type === 'danger'
                                         ? 'fa-triangle-exclamation text-danger'
                                         : 'fa-circle-info text-primary'
-                                } fs-5`}
+                                    } fs-5`}
                             />
                             <span className="fw-bold text-dark small">{submissionNotice.message}</span>
                         </div>
@@ -466,11 +564,10 @@ export const DropBot: React.FC = () => {
                                         playSound();
                                         setActiveTab('items');
                                     }}
-                                    className={`btn rounded-pill fw-black px-3 py-2 transition-all d-flex align-items-center gap-2 ${
-                                        activeTab === 'items'
-                                            ? 'btn-success text-white shadow-2xs'
-                                            : 'btn-light text-muted border-0'
-                                    }`}
+                                    className={`btn rounded-pill fw-black px-3 py-2 transition-all d-flex align-items-center gap-2 ${activeTab === 'items'
+                                        ? 'btn-success text-white shadow-2xs'
+                                        : 'btn-light text-muted border-0'
+                                        }`}
                                     style={{ fontSize: '0.82rem' }}
                                 >
                                     <i className="fa-solid fa-boxes-stacked" />
@@ -483,11 +580,10 @@ export const DropBot: React.FC = () => {
                                         playSound();
                                         setActiveTab('favorites');
                                     }}
-                                    className={`btn rounded-pill fw-black px-3 py-2 transition-all d-flex align-items-center gap-2 ${
-                                        activeTab === 'favorites'
-                                            ? 'btn-success text-white shadow-2xs'
-                                            : 'btn-light text-muted border-0'
-                                    }`}
+                                    className={`btn rounded-pill fw-black px-3 py-2 transition-all d-flex align-items-center gap-2 ${activeTab === 'favorites'
+                                        ? 'btn-success text-white shadow-2xs'
+                                        : 'btn-light text-muted border-0'
+                                        }`}
                                     style={{ fontSize: '0.82rem' }}
                                 >
                                     <i className="fa-solid fa-star text-warning" />
@@ -500,11 +596,10 @@ export const DropBot: React.FC = () => {
                                         playSound();
                                         setActiveTab('villagers');
                                     }}
-                                    className={`btn rounded-pill fw-black px-3 py-2 transition-all d-flex align-items-center gap-2 ${
-                                        activeTab === 'villagers'
-                                            ? 'btn-success text-white shadow-2xs'
-                                            : 'btn-light text-muted border-0'
-                                    }`}
+                                    className={`btn rounded-pill fw-black px-3 py-2 transition-all d-flex align-items-center gap-2 ${activeTab === 'villagers'
+                                        ? 'btn-success text-white shadow-2xs'
+                                        : 'btn-light text-muted border-0'
+                                        }`}
                                     style={{ fontSize: '0.82rem' }}
                                 >
                                     <i className="fa-solid fa-house-chimney text-info" />
@@ -574,11 +669,10 @@ export const DropBot: React.FC = () => {
                                                 return (
                                                     <div key={item.id} className="col-6 col-sm-4 col-md-3">
                                                         <div
-                                                            className={`h-100 p-2 rounded-4 text-center border position-relative transition-all d-flex flex-column justify-content-between ${
-                                                                inDrop > 0
-                                                                    ? 'bg-success-subtle border-success shadow-2xs'
-                                                                    : 'bg-white hover-shadow'
-                                                            }`}
+                                                            className={`h-100 p-2 rounded-4 text-center border position-relative transition-all d-flex flex-column justify-content-between ${inDrop > 0
+                                                                ? 'bg-success-subtle border-success shadow-2xs'
+                                                                : 'bg-white hover-shadow'
+                                                                }`}
                                                             style={{ minHeight: 140 }}
                                                         >
                                                             {/* Favorite button */}
@@ -594,11 +688,10 @@ export const DropBot: React.FC = () => {
                                                                 title="Toggle favorite"
                                                             >
                                                                 <i
-                                                                    className={`fa-solid fa-star ${
-                                                                        isFavorite(item.id)
-                                                                            ? 'text-warning'
-                                                                            : 'text-black-50 opacity-25'
-                                                                    }`}
+                                                                    className={`fa-solid fa-star ${isFavorite(item.id)
+                                                                        ? 'text-warning'
+                                                                        : 'text-black-50 opacity-25'
+                                                                        }`}
                                                                 />
                                                             </button>
 
@@ -783,6 +876,7 @@ export const DropBot: React.FC = () => {
                                         <div className="row g-2">
                                             {favoriteItems.map((item) => {
                                                 const inDrop = getDropPocketQuantity(item.id);
+                                                const hasVariants = Array.isArray(item.variations) && item.variations.length > 0;
                                                 return (
                                                     <div key={item.id} className="col-6 col-sm-4 col-md-3">
                                                         <div className="p-2 rounded-4 text-center border bg-white h-100 d-flex flex-column justify-content-between">
@@ -804,18 +898,32 @@ export const DropBot: React.FC = () => {
                                                                 </span>
                                                             </div>
                                                             <div className="mt-2 pt-1 border-top">
-                                                                <button
-                                                                    type="button"
-                                                                    disabled={totalDropCount >= DROP_MAX}
-                                                                    onClick={() => {
-                                                                        playSound();
-                                                                        addItemToDropPockets(item);
-                                                                    }}
-                                                                    className="btn btn-xs btn-light border rounded-pill w-100 fw-bold py-1"
-                                                                    style={{ fontSize: '0.72rem' }}
-                                                                >
-                                                                    {inDrop > 0 ? `In Drop (${inDrop})` : '+ Add to Drop'}
-                                                                </button>
+                                                                {hasVariants ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            playSound();
+                                                                            setVariantModalItem(item);
+                                                                        }}
+                                                                        className="btn btn-xs btn-outline-success rounded-pill w-100 fw-bold py-1"
+                                                                        style={{ fontSize: '0.72rem' }}
+                                                                    >
+                                                                        Variants {inDrop > 0 && `(${inDrop})`}
+                                                                    </button>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={totalDropCount >= DROP_MAX}
+                                                                        onClick={() => {
+                                                                            playSound();
+                                                                            addItemToDropPockets(item);
+                                                                        }}
+                                                                        className="btn btn-xs btn-light border rounded-pill w-100 fw-bold py-1"
+                                                                        style={{ fontSize: '0.72rem' }}
+                                                                    >
+                                                                        {inDrop > 0 ? `In Drop (${inDrop})` : '+ Add to Drop'}
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -873,13 +981,12 @@ export const DropBot: React.FC = () => {
                                                                 playSound();
                                                                 setSelectedVillager(v);
                                                             }}
-                                                            className={`p-2 rounded-4 text-center cursor-pointer transition-all border ${
-                                                                isSelected
-                                                                    ? 'bg-success-subtle border-2 border-success shadow-sm'
-                                                                    : isAssigned
+                                                            className={`p-2 rounded-4 text-center cursor-pointer transition-all border ${isSelected
+                                                                ? 'bg-success-subtle border-2 border-success shadow-sm'
+                                                                : isAssigned
                                                                     ? 'bg-light border-primary-subtle'
                                                                     : 'bg-white hover-shadow'
-                                                            }`}
+                                                                }`}
                                                             style={{ cursor: 'pointer', minHeight: 120 }}
                                                         >
                                                             <img
@@ -977,11 +1084,10 @@ export const DropBot: React.FC = () => {
                                             playSound();
                                             setDropFilter('all');
                                         }}
-                                        className={`btn btn-xs rounded-pill fw-bold px-2 py-1 ${
-                                            dropFilter === 'all'
-                                                ? 'btn-dark text-white'
-                                                : 'text-muted border-0 bg-transparent'
-                                        }`}
+                                        className={`btn btn-xs rounded-pill fw-bold px-2 py-1 ${dropFilter === 'all'
+                                            ? 'btn-dark text-white'
+                                            : 'text-muted border-0 bg-transparent'
+                                            }`}
                                         style={{ fontSize: '0.72rem' }}
                                     >
                                         All ({subMemberIslands.length})
@@ -992,11 +1098,10 @@ export const DropBot: React.FC = () => {
                                             playSound();
                                             setDropFilter('unlocked');
                                         }}
-                                        className={`btn btn-xs rounded-pill fw-bold px-2 py-1 ${
-                                            dropFilter === 'unlocked'
-                                                ? 'btn-dark text-white'
-                                                : 'text-muted border-0 bg-transparent'
-                                        }`}
+                                        className={`btn btn-xs rounded-pill fw-bold px-2 py-1 ${dropFilter === 'unlocked'
+                                            ? 'btn-dark text-white'
+                                            : 'text-muted border-0 bg-transparent'
+                                            }`}
                                         style={{ fontSize: '0.72rem' }}
                                     >
                                         My Islands
@@ -1007,30 +1112,30 @@ export const DropBot: React.FC = () => {
                             {/* Non-subscriber Notice */}
                             {(!user ||
                                 subMemberIslands.every((i) => !user || !canAccessIsland(i.requiredRoles))) && (
-                                <div className="alert alert-warning rounded-4 border-0 p-3 mb-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 shadow-2xs">
-                                    <span className="small fw-bold text-dark">
-                                        {user
-                                            ? 'Sub Member pass required for in-island drops.'
-                                            : 'Log in with Discord to access Sub Islands.'}
-                                    </span>
-                                    {user ? (
-                                        <Link
-                                            to="/membership"
-                                            className="btn btn-xs btn-dark rounded-pill fw-bold px-3 py-1 text-nowrap"
-                                        >
-                                            View Tiers
-                                        </Link>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            onClick={login}
-                                            className="btn btn-xs btn-dark rounded-pill fw-bold px-3 py-1 text-nowrap"
-                                        >
-                                            <i className="fa-brands fa-discord me-1" /> Log In
-                                        </button>
-                                    )}
-                                </div>
-                            )}
+                                    <div className="alert alert-warning rounded-4 border-0 p-3 mb-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 shadow-2xs">
+                                        <span className="small fw-bold text-dark">
+                                            {user
+                                                ? 'Sub Member pass required for in-island drops.'
+                                                : 'Log in with Discord to access Sub Islands.'}
+                                        </span>
+                                        {user ? (
+                                            <Link
+                                                to="/membership"
+                                                className="btn btn-xs btn-dark rounded-pill fw-bold px-3 py-1 text-nowrap"
+                                            >
+                                                View Tiers
+                                            </Link>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={login}
+                                                className="btn btn-xs btn-dark rounded-pill fw-bold px-3 py-1 text-nowrap"
+                                            >
+                                                <i className="fa-brands fa-discord me-1" /> Log In
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
 
                             {/* Island Dropdown */}
                             {islandsLoading ? (
@@ -1097,11 +1202,10 @@ export const DropBot: React.FC = () => {
                                             playSound();
                                             setAlreadyOnIsland(true);
                                         }}
-                                        className={`btn btn-sm rounded-pill fw-bold px-3 py-1 transition-all ${
-                                            alreadyOnIsland
-                                                ? 'btn-success text-white'
-                                                : 'btn-outline-dark'
-                                        }`}
+                                        className={`btn btn-sm rounded-pill fw-bold px-3 py-1 transition-all ${alreadyOnIsland
+                                            ? 'btn-success text-white'
+                                            : 'btn-outline-dark'
+                                            }`}
                                         style={{ fontSize: '0.78rem' }}
                                     >
                                         <i className="fa-solid fa-location-dot me-1" />
@@ -1294,7 +1398,7 @@ export const DropBot: React.FC = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    navigator.clipboard.writeText(dropCommandText).catch(() => {});
+                                                    navigator.clipboard.writeText(dropCommandText).catch(() => { });
                                                     playSound();
                                                 }}
                                                 className="btn btn-link p-0 text-success fw-bold text-decoration-none"
@@ -1343,18 +1447,14 @@ export const DropBot: React.FC = () => {
                     item={variantModalItem}
                     isOpen={!!variantModalItem}
                     onClose={() => setVariantModalItem(null)}
-                    onOpenFullDetail={() => {}}
-                    addItemToOrderPockets={addItemToOrderPockets}
+                    onOpenFullDetail={() => { }}
+                    showOrder={false}
+                    mode="drop-only"
                     addItemToDropPockets={addItemToDropPockets}
-                    decreaseOrderQuantity={decreaseOrderQuantity}
-                    increaseOrderQuantity={increaseOrderQuantity}
                     decreaseDropQuantity={decreaseDropQuantity}
                     increaseDropQuantity={increaseDropQuantity}
-                    totalOrderCount={totalOrderCount}
                     totalDropCount={totalDropCount}
-                    canIncreaseOrder={canIncreaseOrder}
                     canIncreaseDrop={canIncreaseDrop}
-                    getOrderPocketQuantity={getOrderPocketQuantity}
                     getDropPocketQuantity={getDropPocketQuantity}
                     isFavorite={isFavorite(variantModalItem.id)}
                     onToggleFavorite={(id) => toggleFavorite(id)}

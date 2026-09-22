@@ -450,7 +450,6 @@
     user-select: none;
     min-height: 0;
     min-width: 0;
-    container-type: size;
 }
 
 /* Subtle blueprint grid in background */
@@ -569,13 +568,11 @@
 /* Map Wrapper (Scale & Pan Container - expands to max available viewport) */
 .island-radar-map-wrapper {
     position: relative;
+    aspect-ratio: 7 / 6;
     width: auto;
     height: 100%;
     max-width: 100%;
     max-height: 100%;
-    aspect-ratio: 7 / 6;
-    width: min(calc(100cqw - 0.5rem), calc((100cqh - 0.5rem) * (7 / 6)));
-    height: min(calc(100cqh - 0.5rem), calc((100cqw - 0.5rem) * (6 / 7)));
     border-radius: 0.85rem;
     overflow: hidden;
     box-shadow: 0 20px 45px rgba(0, 0, 0, 0.75), 0 0 0 2px rgba(56, 189, 248, 0.25);
@@ -597,9 +594,14 @@
 .island-radar-base-img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: fill;
     display: block;
     pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+.island-radar-base-img.hidden-bg {
+    opacity: 0;
 }
 
 /* ─── HOLOGRAPHIC RADAR SWEEP BEAM ─── */
@@ -637,41 +639,47 @@
     position: absolute;
     inset: 0;
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    grid-template-rows: repeat(6, 1fr);
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-rows: repeat(6, minmax(0, 1fr));
     pointer-events: auto;
     z-index: 10;
+    width: 100%;
+    height: 100%;
 }
 
 .island-radar-sector-cell {
     position: relative;
-    border: 1px dashed rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(56, 189, 248, 0.35);
     cursor: pointer;
     transition: all 0.18s ease;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: clamp(0.2rem, 0.5vw, 0.4rem);
+    padding: clamp(0.15rem, 0.4vw, 0.35rem);
+    overflow: hidden;
+    min-width: 0;
+    min-height: 0;
+    box-sizing: border-box;
 }
 
 .island-radar-sector-cell:hover {
-    background: rgba(2, 132, 199, 0.32);
+    background: rgba(2, 132, 199, 0.36);
     border: 1.5px solid #38bdf8;
-    box-shadow: inset 0 0 16px rgba(56, 189, 248, 0.45);
+    box-shadow: inset 0 0 16px rgba(56, 189, 248, 0.55);
     z-index: 12;
 }
 
 .island-radar-sector-cell.active-sector {
     background: rgba(14, 165, 233, 0.45);
     border: 2px solid #38bdf8;
-    box-shadow: inset 0 0 22px rgba(14, 165, 233, 0.7), 0 0 16px rgba(56, 189, 248, 0.8);
+    box-shadow: inset 0 0 20px rgba(14, 165, 233, 0.75), 0 0 14px rgba(56, 189, 248, 0.85);
     z-index: 14;
 }
 
 .island-radar-sector-cell.has-search-match {
-    background: rgba(234, 179, 8, 0.32);
+    background: rgba(234, 179, 8, 0.35);
     border: 2px solid #facc15;
-    box-shadow: inset 0 0 16px rgba(250, 204, 21, 0.55);
+    box-shadow: inset 0 0 16px rgba(250, 204, 21, 0.6);
     z-index: 13;
     animation: searchPulse 1.8s infinite ease-in-out;
 }
@@ -686,30 +694,33 @@
 }
 
 .island-radar-sector-badge {
-    font-size: clamp(0.6rem, 1.1vw, 0.75rem);
+    font-size: clamp(0.6rem, 1vw, 0.85rem);
     font-weight: 900;
     color: #ffffff;
-    background: rgba(15, 23, 42, 0.85);
+    background: rgba(15, 23, 42, 0.88);
     backdrop-filter: blur(4px);
-    padding: 0.1rem clamp(0.25rem, 0.5vw, 0.4rem);
+    padding: 0.1rem 0.35rem;
     border-radius: 0.35rem;
     display: inline-block;
     width: fit-content;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(56, 189, 248, 0.4);
     line-height: 1.2;
+    white-space: nowrap;
 }
 
 .island-radar-sector-item-count {
-    font-size: clamp(0.55rem, 0.9vw, 0.68rem);
+    font-size: clamp(0.55rem, 0.85vw, 0.75rem);
     font-weight: 800;
     color: #ffffff;
     background: linear-gradient(135deg, #0284c7, #0369a1);
-    padding: 0.1rem 0.4rem;
+    padding: 0.08rem 0.35rem;
     border-radius: 9999px;
     align-self: flex-end;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.25);
     line-height: 1.2;
+    white-space: nowrap;
 }
 
 /* ─── PINS LAYER & TOOLTIPS ─── */
@@ -912,7 +923,7 @@
 
 /* ─── RIGHT DRAWER (ITEMS MANIFEST) ─── */
 .island-radar-drawer {
-    width: 360px;
+    width: 330px;
     background: #0b1329;
     border-left: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
@@ -920,6 +931,12 @@
     overflow: hidden;
     flex-shrink: 0;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (max-width: 1400px) {
+    .island-radar-drawer {
+        width: 290px;
+    }
 }
 
 .island-radar-drawer.collapsed {
@@ -1246,11 +1263,11 @@
 }
 
 .island-radar-acre-preview-thumb {
-    width: 38px;
-    height: 38px;
-    border-radius: 0.5rem;
+    width: 46px;
+    height: 46px;
+    border-radius: 0.6rem;
     background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
     display: flex;
     align-items: center;
     justify-content: center;

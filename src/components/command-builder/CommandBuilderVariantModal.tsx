@@ -16,20 +16,23 @@ interface CommandBuilderVariantModalProps {
     isOpen: boolean;
     onClose: () => void;
     onOpenFullDetail: (item: CatalogEntity, variantKey?: string) => void;
-    addItemToOrderPockets: (item: PocketItem) => { success: boolean; message: string };
+    addItemToOrderPockets?: (item: PocketItem) => { success: boolean; message: string };
     addItemToDropPockets: (item: PocketItem) => { success: boolean; message: string };
-    decreaseOrderQuantity: (id: string) => void;
-    increaseOrderQuantity: (id: string) => void;
+    decreaseOrderQuantity?: (id: string) => void;
+    increaseOrderQuantity?: (id: string) => void;
     decreaseDropQuantity: (id: string) => void;
     increaseDropQuantity: (id: string) => void;
-    totalOrderCount: number;
-    totalDropCount: number;
-    canIncreaseOrder: boolean;
-    canIncreaseDrop: boolean;
-    getOrderPocketQuantity: (id: string) => number;
-    getDropPocketQuantity: (id: string) => number;
+    totalOrderCount?: number;
+    totalDropCount?: number;
+    canIncreaseOrder?: boolean;
+    canIncreaseDrop?: boolean;
+    getOrderPocketQuantity?: (id: string) => number;
+    getDropPocketQuantity?: (id: string) => number;
     isFavorite?: boolean;
     onToggleFavorite?: (id: string, e: React.MouseEvent) => void;
+    showOrder?: boolean;
+    showDrop?: boolean;
+    mode?: 'both' | 'order-only' | 'drop-only';
 }
 
 export const CommandBuilderVariantModal: React.FC<CommandBuilderVariantModalProps> = ({
@@ -43,17 +46,23 @@ export const CommandBuilderVariantModal: React.FC<CommandBuilderVariantModalProp
     increaseOrderQuantity,
     decreaseDropQuantity,
     increaseDropQuantity,
-    totalOrderCount,
-    totalDropCount,
-    canIncreaseOrder,
-    canIncreaseDrop,
+    totalOrderCount = 0,
+    totalDropCount = 0,
+    canIncreaseOrder = true,
+    canIncreaseDrop = true,
     getOrderPocketQuantity,
     getDropPocketQuantity,
     isFavorite = false,
     onToggleFavorite,
+    showOrder = true,
+    showDrop = true,
+    mode = 'both',
 }) => {
     const [selectedVariantKey, setSelectedVariantKey] = useState<string | null>(null);
     const [statusMessage, setStatusMessage] = useState<string>('');
+
+    const effectiveShowOrder = showOrder && mode !== 'drop-only' && !!addItemToOrderPockets;
+    const effectiveShowDrop = showDrop && mode !== 'order-only';
 
     // Reset selected variant when opened with a new item
     useEffect(() => {
@@ -97,8 +106,8 @@ export const CommandBuilderVariantModal: React.FC<CommandBuilderVariantModalProp
     const activeImage = getAcnhcdnUrl(selectedVariant?.imageUrl || item.image);
 
     const pocketItemId = selectedVariantKey ? `${item.id}:${selectedVariantKey}` : item.id;
-    const currentOrderQty = getOrderPocketQuantity(pocketItemId);
-    const currentDropQty = getDropPocketQuantity(pocketItemId);
+    const currentOrderQty = (effectiveShowOrder && getOrderPocketQuantity) ? getOrderPocketQuantity(pocketItemId) : 0;
+    const currentDropQty = getDropPocketQuantity ? getDropPocketQuantity(pocketItemId) : 0;
 
     const buildPocketItem = (): PocketItem => {
         return {
@@ -112,6 +121,7 @@ export const CommandBuilderVariantModal: React.FC<CommandBuilderVariantModalProp
     };
 
     const handleAddOrder = () => {
+        if (!addItemToOrderPockets) return;
         const pocketItem = buildPocketItem();
         const res = addItemToOrderPockets(pocketItem);
         setStatusMessage(res.message);
@@ -225,87 +235,91 @@ export const CommandBuilderVariantModal: React.FC<CommandBuilderVariantModalProp
                         {/* High-Contrast Order vs Drop Stepper Actions */}
                         <div className="row g-2 mt-3 pt-3 border-top">
                             {/* Order Action ($order 40 Max) */}
-                            <div className="col-6">
-                                {currentOrderQty > 0 ? (
-                                    <div className="btn-group rounded-pill w-100 border border-success overflow-hidden" style={{ backgroundColor: '#f0fdf4' }}>
-                                        <button
-                                            type="button"
-                                            className="btn btn-sm text-success fw-bold px-3 py-2 border-0 hover-bg-success hover-text-white transition-all"
-                                            onClick={() => decreaseOrderQuantity(pocketItemId)}
-                                            title="Decrease order quantity"
-                                        >
-                                            −
-                                        </button>
-                                        <div className="d-flex align-items-center justify-content-center fw-bold px-2 text-success flex-grow-1 font-monospace" style={{ fontSize: '0.85rem' }}>
-                                            <i className="fa-solid fa-box me-1 small"></i>
-                                            <span>{currentOrderQty}</span>
+                            {effectiveShowOrder && (
+                                <div className={effectiveShowDrop ? "col-6" : "col-12"}>
+                                    {currentOrderQty > 0 ? (
+                                        <div className="btn-group rounded-pill w-100 border border-success overflow-hidden" style={{ backgroundColor: '#f0fdf4' }}>
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm text-success fw-bold px-3 py-2 border-0 hover-bg-success hover-text-white transition-all"
+                                                onClick={() => decreaseOrderQuantity?.(pocketItemId)}
+                                                title="Decrease order quantity"
+                                            >
+                                                −
+                                            </button>
+                                            <div className="d-flex align-items-center justify-content-center fw-bold px-2 text-success flex-grow-1 font-monospace" style={{ fontSize: '0.85rem' }}>
+                                                <i className="fa-solid fa-box me-1 small"></i>
+                                                <span>{currentOrderQty}</span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm text-success fw-bold px-3 py-2 border-0 hover-bg-success hover-text-white transition-all"
+                                                onClick={() => increaseOrderQuantity?.(pocketItemId)}
+                                                disabled={!canIncreaseOrder}
+                                                title={!canIncreaseOrder ? 'Order full (40/40)' : 'Increase order quantity'}
+                                            >
+                                                +
+                                            </button>
                                         </div>
+                                    ) : (
                                         <button
                                             type="button"
-                                            className="btn btn-sm text-success fw-bold px-3 py-2 border-0 hover-bg-success hover-text-white transition-all"
-                                            onClick={() => increaseOrderQuantity(pocketItemId)}
-                                            disabled={!canIncreaseOrder}
-                                            title={!canIncreaseOrder ? 'Order full (40/40)' : 'Increase order quantity'}
+                                            className="btn btn-sm btn-outline-success rounded-pill w-100 py-2 fw-bold d-flex align-items-center justify-content-center gap-2 transition-all"
+                                            onClick={handleAddOrder}
+                                            disabled={totalOrderCount >= 40}
+                                            title={totalOrderCount >= 40 ? 'Order bot full (40/40)' : 'Add variant to Order ($order)'}
                                         >
-                                            +
+                                            <i className="fa-solid fa-box"></i>
+                                            <span>+ Order ({totalOrderCount}/40)</span>
                                         </button>
-                                    </div>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-success rounded-pill w-100 py-2 fw-bold d-flex align-items-center justify-content-center gap-2 transition-all"
-                                        onClick={handleAddOrder}
-                                        disabled={totalOrderCount >= 40}
-                                        title={totalOrderCount >= 40 ? 'Order bot full (40/40)' : 'Add variant to Order ($order)'}
-                                    >
-                                        <i className="fa-solid fa-box"></i>
-                                        <span>+ Order ({totalOrderCount}/40)</span>
-                                    </button>
-                                )}
-                            </div>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Drop Action ($drop 9 Max) */}
-                            <div className="col-6">
-                                {currentDropQty > 0 ? (
-                                    <div className="btn-group rounded-pill w-100 border border-info overflow-hidden" style={{ backgroundColor: '#f0f9ff', borderColor: '#0284c7' }}>
-                                        <button
-                                            type="button"
-                                            className="btn btn-sm text-info fw-bold px-3 py-2 border-0 hover-bg-info hover-text-white transition-all"
-                                            style={{ color: '#0284c7' }}
-                                            onClick={() => decreaseDropQuantity(pocketItemId)}
-                                            title="Decrease drop quantity"
-                                        >
-                                            −
-                                        </button>
-                                        <div className="d-flex align-items-center justify-content-center fw-bold px-2 flex-grow-1 font-monospace" style={{ fontSize: '0.85rem', color: '#0284c7' }}>
-                                            <i className="fa-solid fa-plane-arrival me-1 small"></i>
-                                            <span>{currentDropQty}</span>
+                            {effectiveShowDrop && (
+                                <div className={effectiveShowOrder ? "col-6" : "col-12"}>
+                                    {currentDropQty > 0 ? (
+                                        <div className="btn-group rounded-pill w-100 border border-info overflow-hidden" style={{ backgroundColor: '#f0f9ff', borderColor: '#0284c7' }}>
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm text-info fw-bold px-3 py-2 border-0 hover-bg-info hover-text-white transition-all"
+                                                style={{ color: '#0284c7' }}
+                                                onClick={() => decreaseDropQuantity(pocketItemId)}
+                                                title="Decrease drop quantity"
+                                            >
+                                                −
+                                            </button>
+                                            <div className="d-flex align-items-center justify-content-center fw-bold px-2 flex-grow-1 font-monospace" style={{ fontSize: '0.85rem', color: '#0284c7' }}>
+                                                <i className="fa-solid fa-plane-arrival me-1 small"></i>
+                                                <span>{currentDropQty}</span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm text-info fw-bold px-3 py-2 border-0 hover-bg-info hover-text-white transition-all"
+                                                style={{ color: '#0284c7' }}
+                                                onClick={() => increaseDropQuantity(pocketItemId)}
+                                                disabled={!canIncreaseDrop}
+                                                title={!canIncreaseDrop ? 'Drop full (9/9)' : 'Increase drop quantity'}
+                                            >
+                                                +
+                                            </button>
                                         </div>
+                                    ) : (
                                         <button
                                             type="button"
-                                            className="btn btn-sm text-info fw-bold px-3 py-2 border-0 hover-bg-info hover-text-white transition-all"
-                                            style={{ color: '#0284c7' }}
-                                            onClick={() => increaseDropQuantity(pocketItemId)}
-                                            disabled={!canIncreaseDrop}
-                                            title={!canIncreaseDrop ? 'Drop full (9/9)' : 'Increase drop quantity'}
+                                            className="btn btn-sm btn-outline-info rounded-pill w-100 py-2 fw-bold d-flex align-items-center justify-content-center gap-2 transition-all"
+                                            style={{ color: '#0284c7', borderColor: '#0284c7' }}
+                                            onClick={handleAddDrop}
+                                            disabled={totalDropCount >= 9}
+                                            title={totalDropCount >= 9 ? 'Drop bot full (9/9)' : 'Add variant to Drop ($drop)'}
                                         >
-                                            +
+                                            <i className="fa-solid fa-plane-arrival"></i>
+                                            <span>+ Drop ({totalDropCount}/9)</span>
                                         </button>
-                                    </div>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-info rounded-pill w-100 py-2 fw-bold d-flex align-items-center justify-content-center gap-2 transition-all"
-                                        style={{ color: '#0284c7', borderColor: '#0284c7' }}
-                                        onClick={handleAddDrop}
-                                        disabled={totalDropCount >= 9}
-                                        title={totalDropCount >= 9 ? 'Drop bot full (9/9)' : 'Add variant to Drop ($drop)'}
-                                    >
-                                        <i className="fa-solid fa-plane-arrival"></i>
-                                        <span>+ Drop ({totalDropCount}/9)</span>
-                                    </button>
-                                )}
-                            </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -322,8 +336,8 @@ export const CommandBuilderVariantModal: React.FC<CommandBuilderVariantModalProp
                             const vLabel = getVariantLabel(v);
                             const vImage = getAcnhcdnUrl(v.imageUrl || item.image);
                             const vPocketId = `${item.id}:${vKey}`;
-                            const vOrderCount = getOrderPocketQuantity(vPocketId);
-                            const vDropCount = getDropPocketQuantity(vPocketId);
+                            const vOrderCount = (effectiveShowOrder && getOrderPocketQuantity) ? getOrderPocketQuantity(vPocketId) : 0;
+                            const vDropCount = (effectiveShowDrop && getDropPocketQuantity) ? getDropPocketQuantity(vPocketId) : 0;
 
                             return (
                                 <div key={vKey} className="col-4 col-sm-3">
@@ -341,10 +355,10 @@ export const CommandBuilderVariantModal: React.FC<CommandBuilderVariantModalProp
                                         tabIndex={0}
                                     >
                                         {/* Pocket Count Badges */}
-                                        {(vOrderCount > 0 || vDropCount > 0) && (
+                                        {((effectiveShowOrder && vOrderCount > 0) || (effectiveShowDrop && vDropCount > 0)) && (
                                             <div className="position-absolute top-0 end-0 m-1 d-flex flex-column gap-1">
-                                                {vOrderCount > 0 && <span className="badge bg-success rounded-circle p-1" style={{ fontSize: '0.6rem' }}>O:{vOrderCount}</span>}
-                                                {vDropCount > 0 && <span className="badge bg-info text-dark rounded-circle p-1" style={{ fontSize: '0.6rem' }}>D:{vDropCount}</span>}
+                                                {effectiveShowOrder && vOrderCount > 0 && <span className="badge bg-success rounded-circle p-1" style={{ fontSize: '0.6rem' }}>O:{vOrderCount}</span>}
+                                                {effectiveShowDrop && vDropCount > 0 && <span className="badge bg-info text-dark rounded-circle p-1" style={{ fontSize: '0.6rem' }}>D:{vDropCount}</span>}
                                             </div>
                                         )}
 
@@ -371,7 +385,19 @@ export const CommandBuilderVariantModal: React.FC<CommandBuilderVariantModalProp
                 {/* Modal Footer */}
                 <div className="p-3 px-4 border-top bg-light d-flex align-items-center justify-content-between">
                     <div className="text-muted small">
-                        Pockets: <strong className="text-success">{totalOrderCount}/40 Order</strong> · <strong className="text-info" style={{ color: '#0284c7' }}>{totalDropCount}/9 Drop</strong>
+                        {effectiveShowOrder && effectiveShowDrop ? (
+                            <>
+                                Pockets: <strong className="text-success">{totalOrderCount}/40 Order</strong> · <strong className="text-info" style={{ color: '#0284c7' }}>{totalDropCount}/9 Drop</strong>
+                            </>
+                        ) : effectiveShowDrop ? (
+                            <>
+                                Drop Pocket: <strong className="text-info" style={{ color: '#0284c7' }}>{totalDropCount}/9 Slots Used</strong>
+                            </>
+                        ) : (
+                            <>
+                                Order Pocket: <strong className="text-success">{totalOrderCount}/40 Slots Used</strong>
+                            </>
+                        )}
                     </div>
                     <button type="button" className="btn btn-dark rounded-pill px-4 fw-bold btn-sm" onClick={onClose}>
                         Done

@@ -42,8 +42,30 @@ const Critters: React.FC = () => {
     const [activeTab, setActiveTab] = useState<CritterTab>('now');
     const [searchQuery, setSearchQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('All');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'uncaught' | 'caught'>('all');
     const [sortBy, setSortBy] = useState<'name' | 'sell'>('sell');
-    const [calendarMonth] = useState(new Date().getMonth()); // 0-indexed (kept for calendarCreatures derived list)
+    const [calendarMonth] = useState(new Date().getMonth());
+
+    // ── Caught critter tracker (localStorage) ──────────────────────────────
+    const CAUGHT_KEY = `chopaeng_caught_critters_${hemisphere}`;
+    const [caughtNames, setCaughtNames] = useState<Set<string>>(() => {
+        try {
+            const raw = localStorage.getItem(CAUGHT_KEY);
+            return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+        } catch { return new Set(); }
+    });
+
+    const toggleCaught = (name: string) => {
+        setCaughtNames(prev => {
+            const next = new Set(prev);
+            if (next.has(name)) next.delete(name); else next.add(name);
+            try { localStorage.setItem(CAUGHT_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+            return next;
+        });
+    };
+
+    const caughtCount = caughtNames.size;
+    const caughtPercentage = creatures.length > 0 ? Math.round((caughtCount / creatures.length) * 100) : 0;
 
     const now = useMemo(() => new Date(), []);
     const currentMonth = now.getMonth() + 1; // 1-indexed
@@ -151,6 +173,13 @@ const Critters: React.FC = () => {
             list = list.filter(c => c.category === categoryFilter);
         }
 
+        // Apply caught status filter
+        if (statusFilter === 'uncaught') {
+            list = list.filter(c => !caughtNames.has(c.name));
+        } else if (statusFilter === 'caught') {
+            list = list.filter(c => caughtNames.has(c.name));
+        }
+
         // Sort
         if (sortBy === 'sell') {
             list = [...list].sort((a, b) => b.sell - a.sell);
@@ -159,7 +188,7 @@ const Critters: React.FC = () => {
         }
 
         return list;
-    }, [activeTab, availableNow, leavingThisMonth, comingNextMonth, calendarCreatures, searchQuery, categoryFilter, sortBy]);
+    }, [activeTab, availableNow, leavingThisMonth, comingNextMonth, calendarCreatures, searchQuery, categoryFilter, statusFilter, sortBy, caughtNames]);
 
     const site = typeof window !== 'undefined' ? window.location.origin : 'https://www.chopaeng.com';
     const pageTitle = 'ACNH Critter Availability Calendar — What Can I Catch Now? | Chopaeng';
@@ -218,8 +247,8 @@ const Critters: React.FC = () => {
                     {/* Quick Stats */}
                     {!loading && (
                         <div className="row g-3 mb-4 animate-up">
-                            <div className="col-6 col-md-3">
-                                <div className="ac-stat-card">
+                            <div className="col-6 col-md-4 col-lg">
+                                <div className="ac-stat-card h-100">
                                     <div className="ac-stat-icon-wrapper ac-stat-icon-wrapper--green">
                                         <i className="fa-solid fa-clock" aria-hidden="true" />
                                     </div>
@@ -227,8 +256,8 @@ const Critters: React.FC = () => {
                                     <div className="ac-stat-label">Available Now</div>
                                 </div>
                             </div>
-                            <div className="col-6 col-md-3">
-                                <div className="ac-stat-card">
+                            <div className="col-6 col-md-4 col-lg">
+                                <div className="ac-stat-card h-100">
                                     <div className="ac-stat-icon-wrapper ac-stat-icon-wrapper--yellow">
                                         <i className="fa-solid fa-hourglass-end" aria-hidden="true" />
                                     </div>
@@ -236,8 +265,8 @@ const Critters: React.FC = () => {
                                     <div className="ac-stat-label">Leaving Soon</div>
                                 </div>
                             </div>
-                            <div className="col-6 col-md-3">
-                                <div className="ac-stat-card">
+                            <div className="col-6 col-md-4 col-lg">
+                                <div className="ac-stat-card h-100">
                                     <div className="ac-stat-icon-wrapper ac-stat-icon-wrapper--blue">
                                         <i className="fa-solid fa-arrow-right" aria-hidden="true" />
                                     </div>
@@ -245,13 +274,32 @@ const Critters: React.FC = () => {
                                     <div className="ac-stat-label">Coming {MONTH_NAMES[nextMonth - 1]}</div>
                                 </div>
                             </div>
-                            <div className="col-6 col-md-3">
-                                <div className="ac-stat-card">
+                            <div className="col-6 col-md-4 col-lg">
+                                <div className="ac-stat-card h-100">
                                     <div className="ac-stat-icon-wrapper ac-stat-icon-wrapper--purple">
                                         <i className="fa-solid fa-paw" aria-hidden="true" />
                                     </div>
                                     <div className="ac-stat-number">{creatures.length}</div>
                                     <div className="ac-stat-label">Total Critters</div>
+                                </div>
+                            </div>
+                            <div className="col-12 col-md-4 col-lg">
+                                <div className="ac-stat-card h-100">
+                                    <div className="ac-stat-icon-wrapper ac-stat-icon-wrapper--green">
+                                        <i className="fa-solid fa-circle-check" aria-hidden="true" />
+                                    </div>
+                                    <div className="ac-stat-number">{caughtCount} / {creatures.length}</div>
+                                    <div className="ac-stat-label">Caught ({caughtPercentage}%)</div>
+                                    <div className="progress mt-2" style={{ height: '5px', backgroundColor: '#e2e8f0', borderRadius: '4px' }}>
+                                        <div
+                                            className="progress-bar bg-success rounded"
+                                            role="progressbar"
+                                            style={{ width: `${caughtPercentage}%` }}
+                                            aria-valuenow={caughtPercentage}
+                                            aria-valuemin={0}
+                                            aria-valuemax={100}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -288,7 +336,7 @@ const Critters: React.FC = () => {
                     {/* Filter Bar */}
                     <div className="ac-filter-bar mb-4">
                         <div className="row g-2 align-items-center">
-                            <div className="col-12 col-md-6">
+                            <div className="col-12 col-md-4">
                                 <div className="ac-search-input-group">
                                     <i className="fa-solid fa-magnifying-glass text-muted" aria-hidden="true" />
                                     <input
@@ -323,6 +371,18 @@ const Critters: React.FC = () => {
                                 </select>
                             </div>
                             <div className="col-6 col-md-3">
+                                <select
+                                    className="ac-select-pill"
+                                    value={statusFilter}
+                                    aria-label="Filter by caught status"
+                                    onChange={(e) => setStatusFilter(e.target.value as 'all' | 'uncaught' | 'caught')}
+                                >
+                                    <option value="all">Status: All Critters</option>
+                                    <option value="uncaught">Status: Uncaught Only</option>
+                                    <option value="caught">Status: Caught Only</option>
+                                </select>
+                            </div>
+                            <div className="col-12 col-md-2">
                                 <select
                                     className="ac-select-pill"
                                     value={sortBy}
@@ -378,6 +438,8 @@ const Critters: React.FC = () => {
                                         {creatures
                                             .filter(c => {
                                                 if (categoryFilter !== 'All' && c.category !== categoryFilter) return false;
+                                                if (statusFilter === 'uncaught' && caughtNames.has(c.name)) return false;
+                                                if (statusFilter === 'caught' && !caughtNames.has(c.name)) return false;
                                                 if (searchQuery.trim()) {
                                                     const q = searchQuery.toLowerCase();
                                                     return c.name.toLowerCase().includes(q) || c.whereHow.toLowerCase().includes(q) || c.category.toLowerCase().includes(q);
@@ -388,6 +450,16 @@ const Critters: React.FC = () => {
                                             .map((creature, idx) => (
                                                 <tr key={`${creature.name}-${idx}`} className="critter-cal-row">
                                                     <td className="critter-cal-td-name">
+                                                        <button
+                                                            type="button"
+                                                            className={`btn btn-link p-0 me-2 border-0 text-decoration-none ${caughtNames.has(creature.name) ? 'text-success' : 'text-muted opacity-50'}`}
+                                                            style={{ fontSize: '1rem', lineHeight: 1 }}
+                                                            title={caughtNames.has(creature.name) ? `${creature.name} caught! Click to unmark` : `Click to mark ${creature.name} as caught`}
+                                                            onClick={() => { playChimeClick(); toggleCaught(creature.name); }}
+                                                            aria-label={caughtNames.has(creature.name) ? `Unmark ${creature.name}` : `Mark ${creature.name} caught`}
+                                                        >
+                                                            <i className={`fa-solid ${caughtNames.has(creature.name) ? 'fa-circle-check' : 'fa-circle'}`} />
+                                                        </button>
                                                         <img
                                                             src={creature.icon}
                                                             alt={creature.name}
@@ -441,7 +513,17 @@ const Critters: React.FC = () => {
                         <div className="row g-3 animate-fade-in">
                             {activeList.map((creature, idx) => (
                                 <div key={`${creature.name}-${idx}`} className="col-6 col-md-4 col-lg-3">
-                                    <div className="ac-grid-card">
+                                    <div className={`ac-grid-card position-relative ${caughtNames.has(creature.name) ? 'opacity-75' : ''}`}>
+                                        {/* Caught badge */}
+                                        {caughtNames.has(creature.name) && (
+                                            <span
+                                                className="position-absolute top-0 start-0 badge bg-success text-white rounded-pill"
+                                                style={{ fontSize: '0.6rem', margin: '6px', zIndex: 1 }}
+                                                aria-label="Marked as caught"
+                                            >
+                                                <i className="fa-solid fa-check me-1" aria-hidden="true" /> Caught!
+                                            </span>
+                                        )}
                                         <div className="d-flex align-items-start justify-content-between mb-2">
                                             <div className="ac-card-img-frame m-0">
                                                 <img
@@ -502,7 +584,6 @@ const Critters: React.FC = () => {
                                             </div>
                                         )}
 
-                                        {/* Availability heatmap mini-bar */}
                                         <div className="ac-heatmap-track" title="Monthly availability">
                                             {MONTH_NAMES.map((m, mIdx) => {
                                                 const isAvail = creature.months.includes(mIdx + 1);
@@ -519,6 +600,23 @@ const Critters: React.FC = () => {
                                                 );
                                             })}
                                         </div>
+
+                                        {/* Mark as Caught button */}
+                                        <button
+                                            type="button"
+                                            className={`btn btn-xs rounded-pill fw-bold w-100 mt-2 ${
+                                                caughtNames.has(creature.name)
+                                                    ? 'btn-success text-white'
+                                                    : 'btn-outline-success'
+                                            }`}
+                                            style={{ fontSize: '0.72rem', padding: '3px 10px' }}
+                                            onClick={() => { playChimeClick(); toggleCaught(creature.name); }}
+                                            aria-pressed={caughtNames.has(creature.name)}
+                                            aria-label={caughtNames.has(creature.name) ? `Unmark ${creature.name} as caught` : `Mark ${creature.name} as caught`}
+                                        >
+                                            <i className={`fa-solid ${caughtNames.has(creature.name) ? 'fa-check' : 'fa-net-wired'} me-1`} aria-hidden="true" />
+                                            {caughtNames.has(creature.name) ? 'Caught!' : 'Mark Caught'}
+                                        </button>
                                     </div>
                                 </div>
                             ))}

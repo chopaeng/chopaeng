@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useFavorites } from '../hooks/useFavorites';
@@ -10,12 +10,34 @@ import type { CatalogEntity } from '../data/commandBuilderData';
 const FALLBACK_IMAGE = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f1f3f5'/%3E%3Cpath d='M30 65 L45 45 L58 58 L68 42 L75 65 Z' fill='%23ced4da'/%3E%3Ccircle cx='38' cy='35' r='7' fill='%23ced4da'/%3E%3C/svg%3E";
 
 const Wishlist: React.FC = () => {
-    const { favorites, favoriteCount, toggleFavorite, clearFavorites } = useFavorites();
+    const { favorites, favoriteCount, toggleFavorite, clearFavorites, setFavorites } = useFavorites();
     const { data: catalogData, isLoading: catalogLoading } = useCatalogData();
     const { addItemToOrderPockets } = useCommandBuilderPockets();
     const [searchQuery, setSearchQuery] = useState('');
     const [copiedLink, setCopiedLink] = useState(false);
     const [addedAll, setAddedAll] = useState(false);
+    const [sharedLoadedNotice, setSharedLoadedNotice] = useState<string | null>(null);
+
+    // ── Parse ?data= share param on mount and restore wishlist ──
+    useEffect(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const encoded = params.get('data');
+            if (!encoded) return;
+
+            const json = decodeURIComponent(atob(encoded));
+            const ids: unknown = JSON.parse(json);
+            if (Array.isArray(ids) && ids.every(id => typeof id === 'string')) {
+                setFavorites(ids as string[]);
+                setSharedLoadedNotice(`Shared wishlist loaded with ${ids.length} item${ids.length !== 1 ? 's' : ''}.`);
+                // Clean URL without triggering a navigation
+                window.history.replaceState({}, document.title, window.location.pathname);
+                setTimeout(() => setSharedLoadedNotice(null), 4000);
+            }
+        } catch {
+            // Malformed ?data= param — silently ignore
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Resolve favorite IDs to actual items
     const allItems = useMemo<CatalogEntity[]>(() => {
@@ -51,16 +73,16 @@ const Wishlist: React.FC = () => {
         [wishlistItems]
     );
 
-    // Generate share link
+    // Generate share link — uses encodeURIComponent(btoa()) to handle multi-byte names
     const generateShareLink = () => {
         try {
-            const encoded = btoa(JSON.stringify(favorites));
+            const encoded = btoa(encodeURIComponent(JSON.stringify(favorites)));
             const url = `${window.location.origin}/wishlist?data=${encodeURIComponent(encoded)}`;
             navigator.clipboard.writeText(url);
             setCopiedLink(true);
             setTimeout(() => setCopiedLink(false), 2000);
         } catch {
-            // Fallback
+            // Clipboard or encoding fallback
         }
     };
 
@@ -98,6 +120,14 @@ const Wishlist: React.FC = () => {
                             Your favorited items in one place. Share your wishlist, see total values, or add them all to the command builder.
                         </p>
                     </div>
+
+                    {/* Shared wishlist loaded notice */}
+                    {sharedLoadedNotice && (
+                        <div className="alert alert-success border border-success-subtle rounded-4 d-flex align-items-center gap-3 mb-4 animate-fade-in shadow-2xs" role="status">
+                            <i className="fa-solid fa-circle-check fs-5 flex-shrink-0" aria-hidden="true" />
+                            <span className="fw-bold small">{sharedLoadedNotice}</span>
+                        </div>
+                    )}
 
                     {/* Stats Cards */}
                     {!catalogLoading && favoriteCount > 0 && (

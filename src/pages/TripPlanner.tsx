@@ -25,6 +25,15 @@ interface IslandStop {
     coverageScore: number;
 }
 
+export interface SavedTripPlan {
+    id: string;
+    name: string;
+    createdAt: number;
+    items: SelectedPlanItem[];
+}
+
+const SAVED_PLANS_KEY = 'chopaeng_saved_trip_plans';
+
 const FALLBACK_IMAGE =
     "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f1f3f5'/%3E%3C/svg%3E";
 
@@ -48,6 +57,18 @@ export const TripPlanner: React.FC = () => {
     const [filterAccess, setFilterAccess] = useState<'all' | 'unlocked'>('all');
     const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
     const [shareCopied, setShareCopied] = useState(false);
+    const [checklistCopied, setChecklistCopied] = useState(false);
+    const [showSaveModal, setShowSaveModal] = useState(false);
+    const [showSavedModal, setShowSavedModal] = useState(false);
+    const [planNameInput, setPlanNameInput] = useState('');
+    const [savedPlans, setSavedPlans] = useState<SavedTripPlan[]>(() => {
+        try {
+            const raw = localStorage.getItem(SAVED_PLANS_KEY);
+            return raw ? (JSON.parse(raw) as SavedTripPlan[]) : [];
+        } catch {
+            return [];
+        }
+    });
     const [dodoReveals, setDodoReveals] = useState<Record<string, { code: string; loading: boolean; error?: string }>>({});
 
     // Parse URL on mount
@@ -420,6 +441,62 @@ export const TripPlanner: React.FC = () => {
         setTimeout(() => setShareCopied(false), 2500);
     };
 
+    const handleSaveCurrentPlan = (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (selectedItems.length === 0) return;
+        const name = planNameInput.trim() || `Trip Plan (${selectedItems.length} items)`;
+        const newPlan: SavedTripPlan = {
+            id: `plan_${Date.now()}`,
+            name,
+            createdAt: Date.now(),
+            items: [...selectedItems],
+        };
+        const updated = [newPlan, ...savedPlans.filter(p => p.name !== name)];
+        setSavedPlans(updated);
+        try {
+            localStorage.setItem(SAVED_PLANS_KEY, JSON.stringify(updated));
+        } catch { /* ignore */ }
+        setPlanNameInput('');
+        setShowSaveModal(false);
+        playChimeClick();
+    };
+
+    const handleLoadPlan = (plan: SavedTripPlan) => {
+        playChimeClick();
+        setSelectedItems(plan.items);
+        updateUrlParams(plan.items);
+        setShowSavedModal(false);
+    };
+
+    const handleDeletePlan = (id: string) => {
+        playChimeClick();
+        const updated = savedPlans.filter(p => p.id !== id);
+        setSavedPlans(updated);
+        try {
+            localStorage.setItem(SAVED_PLANS_KEY, JSON.stringify(updated));
+        } catch { /* ignore */ }
+    };
+
+    const handleCopyChecklist = () => {
+        playChimeClick();
+        const lines: string[] = [
+            `🗺️ ACNH Island Trip Plan`,
+            `Total Stops: ${itinerary.length} | Total Items: ${selectedItems.length}`,
+            `========================================`,
+        ];
+        itinerary.forEach((stop, i) => {
+            lines.push(`\n📍 Stop ${i + 1}: ${stop.island.name} (${stop.island.type || 'Treasure Island'})`);
+            lines.push(`Items to collect:`);
+            stop.itemsToCollect.forEach(item => {
+                lines.push(`  [ ] ${item.name} (${item.category || item.type})`);
+            });
+        });
+        lines.push(`\nCreated with Chopaeng: ${window.location.href}`);
+        navigator.clipboard.writeText(lines.join('\n')).catch(() => {});
+        setChecklistCopied(true);
+        setTimeout(() => setChecklistCopied(false), 2500);
+    };
+
     const toggleItemChecked = (itemId: string) => {
         playChimeClick();
         setCheckedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
@@ -462,8 +539,24 @@ export const TripPlanner: React.FC = () => {
                             <i className="fa-solid fa-star text-warning" />
                             <span>Import Wishlist ({favorites?.length || 0})</span>
                         </button>
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-1 shadow-2xs"
+                            onClick={() => { playChimeClick(); setShowSavedModal(true); }}
+                        >
+                            <i className="fa-solid fa-bookmark text-info" />
+                            <span>Saved Plans ({savedPlans.length})</span>
+                        </button>
                         {selectedItems.length > 0 && (
                             <>
+                                <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-1 shadow-2xs"
+                                    onClick={() => { playChimeClick(); setPlanNameInput(''); setShowSaveModal(true); }}
+                                >
+                                    <i className="fa-solid fa-floppy-disk text-success" />
+                                    <span>Save Plan</span>
+                                </button>
                                 <button
                                     type="button"
                                     className="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-1 shadow-2xs"
@@ -471,6 +564,14 @@ export const TripPlanner: React.FC = () => {
                                 >
                                     <i className={`fa-solid ${shareCopied ? 'fa-check text-success' : 'fa-share-nodes'}`} />
                                     <span>{shareCopied ? 'Trip Link Copied!' : 'Share Itinerary'}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-dark rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-1 shadow-2xs"
+                                    onClick={handleCopyChecklist}
+                                >
+                                    <i className={`fa-solid ${checklistCopied ? 'fa-check text-success' : 'fa-clipboard-list'}`} />
+                                    <span>{checklistCopied ? 'Checklist Copied!' : 'Copy Checklist'}</span>
                                 </button>
                                 <button
                                     type="button"
@@ -885,6 +986,147 @@ export const TripPlanner: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Save Plan Modal */}
+            {showSaveModal && (
+                <div
+                    className="modal show d-block"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
+                    tabIndex={-1}
+                    role="dialog"
+                    aria-modal="true"
+                >
+                    <div className="modal-dialog modal-dialog-centered" role="document">
+                        <div className="modal-content border-0 rounded-4 shadow-lg overflow-hidden">
+                            <div className="modal-header bg-light border-0 py-3 px-4">
+                                <h3 className="modal-title h5 fw-black text-dark mb-0 d-flex align-items-center gap-2">
+                                    <i className="fa-solid fa-floppy-disk text-success" />
+                                    Save Trip Plan
+                                </h3>
+                                <button
+                                    type="button"
+                                    className="btn-close"
+                                    onClick={() => setShowSaveModal(false)}
+                                    aria-label="Close"
+                                />
+                            </div>
+                            <form onSubmit={handleSaveCurrentPlan}>
+                                <div className="modal-body p-4">
+                                    <p className="small text-muted mb-3">
+                                        Save your current list of <strong>{selectedItems.length} items</strong> to your device so you can reload it anytime.
+                                    </p>
+                                    <label htmlFor="plan-name-input" className="form-label small fw-bold text-dark">
+                                        Plan Name:
+                                    </label>
+                                    <input
+                                        id="plan-name-input"
+                                        type="text"
+                                        className="form-control rounded-pill px-3 py-2"
+                                        placeholder={`e.g. Dream DIYs (${selectedItems.length} items)`}
+                                        value={planNameInput}
+                                        onChange={(e) => setPlanNameInput(e.target.value)}
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="modal-footer border-0 px-4 pb-4 pt-0">
+                                    <button
+                                        type="button"
+                                        className="btn btn-sm btn-light rounded-pill px-3 fw-bold"
+                                        onClick={() => setShowSaveModal(false)}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="btn btn-sm btn-success rounded-pill px-4 fw-bold"
+                                    >
+                                        Save Plan
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Saved Plans Modal */}
+            {showSavedModal && (
+                <div
+                    className="modal show d-block"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
+                    tabIndex={-1}
+                    role="dialog"
+                    aria-modal="true"
+                >
+                    <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+                        <div className="modal-content border-0 rounded-4 shadow-lg overflow-hidden">
+                            <div className="modal-header bg-light border-0 py-3 px-4">
+                                <h3 className="modal-title h5 fw-black text-dark mb-0 d-flex align-items-center gap-2">
+                                    <i className="fa-solid fa-bookmark text-info" />
+                                    Saved Trip Plans ({savedPlans.length})
+                                </h3>
+                                <button
+                                    type="button"
+                                    className="btn-close"
+                                    onClick={() => setShowSavedModal(false)}
+                                    aria-label="Close"
+                                />
+                            </div>
+                            <div className="modal-body p-4">
+                                {savedPlans.length === 0 ? (
+                                    <div className="text-center py-4 text-muted">
+                                        <i className="fa-solid fa-folder-open fs-1 mb-2 opacity-40 d-block" />
+                                        <div className="fw-bold mb-1">No saved plans yet</div>
+                                        <div className="tiny-text">Add items to your checklist and click "Save Plan" to store them here!</div>
+                                    </div>
+                                ) : (
+                                    <div className="d-flex flex-column gap-2">
+                                        {savedPlans.map((plan) => (
+                                            <div
+                                                key={plan.id}
+                                                className="d-flex align-items-center justify-content-between p-3 rounded-3 bg-light border"
+                                            >
+                                                <div className="min-w-0 me-2">
+                                                    <div className="fw-black text-dark text-truncate small">{plan.name}</div>
+                                                    <div className="tiny-text text-muted">
+                                                        {plan.items.length} items &bull; {new Date(plan.createdAt).toLocaleDateString()}
+                                                    </div>
+                                                </div>
+                                                <div className="d-flex align-items-center gap-1 shrink-0">
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-xs btn-primary rounded-pill fw-bold px-3 py-1"
+                                                        onClick={() => handleLoadPlan(plan)}
+                                                    >
+                                                        Load
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-xs btn-link text-danger p-1"
+                                                        title="Delete plan"
+                                                        onClick={() => handleDeletePlan(plan.id)}
+                                                    >
+                                                        <i className="fa-solid fa-trash-can" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="modal-footer border-0 px-4 pb-3 pt-0">
+                                <button
+                                    type="button"
+                                    className="btn btn-sm btn-secondary rounded-pill px-3 fw-bold"
+                                    onClick={() => setShowSavedModal(false)}
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

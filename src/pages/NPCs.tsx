@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { playChimeClick } from '../utils/kkAudioSynthesizer';
 import BirthdayCalendar from '../components/BirthdayCalendar';
+import { useCatalogData } from '../hooks/useCatalogData';
+import { findBestGifts } from '../utils/giftMatcher';
 
 interface NpcRaw {
     name: string;
@@ -56,7 +58,10 @@ const NPCs: React.FC = () => {
     const [birthdayEntries, setBirthdayEntries] = useState<{
         name: string; icon: string; birthday: string;
         personality?: string; species?: string; isNpc?: boolean;
+        styles?: string[]; colors?: string[];
     }[]>([]);
+
+    const { data: catalogData } = useCatalogData();
 
     useEffect(() => {
         let mounted = true;
@@ -158,6 +163,14 @@ const NPCs: React.FC = () => {
     const pageTitle = 'ACNH Special NPCs & Birthday Calendar | Chopaeng';
     const pageDesc = 'Browse all 65 special NPCs in Animal Crossing: New Horizons and track every villager birthday with our interactive birthday calendar.';
 
+    // ── Today's birthdays gift matcher ───────────────────────────────────
+    const todayBirthdays = useMemo(() => {
+        const today = new Date();
+        const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const todayStr = `${monthNames[today.getMonth()]} ${today.getDate()}`; // e.g. "September 29"
+        return birthdayEntries.filter(e => e.birthday === todayStr && !e.isNpc);
+    }, [birthdayEntries]);
+
     return (
         <>
             <Helmet>
@@ -218,6 +231,65 @@ const NPCs: React.FC = () => {
                             </button>
                         </div>
                     </div>
+
+                    {/* Today's Birthday Gift Matcher */}
+                    {!loading && todayBirthdays.length > 0 && (
+                        <div className="mb-4 animate-fade-in">
+                            {todayBirthdays.map((bday) => {
+                                const giftSuggestions = catalogData
+                                    ? findBestGifts(catalogData.items || [], [], [], 6)
+                                    : [];
+                                return (
+                                    <div key={bday.name} className="card rounded-4 border border-warning-subtle shadow-2xs p-4 mb-3 bg-warning-subtle">
+                                        <div className="d-flex align-items-center gap-3 mb-3">
+                                            <img
+                                                src={bday.icon}
+                                                alt={bday.name}
+                                                className="rounded-circle border border-warning"
+                                                style={{ width: 56, height: 56, objectFit: 'contain', background: '#fff' }}
+                                                onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE; }}
+                                            />
+                                            <div>
+                                                <div className="d-flex align-items-center gap-2 mb-1">
+                                                    <span className="badge bg-warning text-dark rounded-pill fw-black" style={{ fontSize: '0.65rem' }}>
+                                                        <i className="fa-solid fa-cake-candles me-1" aria-hidden="true" />
+                                                        Birthday Today!
+                                                    </span>
+                                                </div>
+                                                <h3 className="fw-black text-dark mb-0" style={{ fontSize: '1.1rem' }}>{bday.name}</h3>
+                                                {bday.personality && (
+                                                    <div className="tiny-text text-muted fw-bold">{bday.personality} · {bday.species}</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {giftSuggestions.length > 0 && (
+                                            <>
+                                                <div className="tiny-text text-muted fw-bold text-uppercase mb-2">
+                                                    <i className="fa-solid fa-gift me-1" aria-hidden="true" /> Top Gift Ideas
+                                                </div>
+                                                <div className="d-flex flex-wrap gap-2">
+                                                    {giftSuggestions.map(({ item }) => (
+                                                        <Link
+                                                            key={item.id}
+                                                            to={`/item/${item.id}`}
+                                                            className="btn btn-xs btn-light border rounded-pill fw-bold d-flex align-items-center gap-1 shadow-2xs"
+                                                            style={{ fontSize: '0.72rem' }}
+                                                            onClick={() => playChimeClick()}
+                                                        >
+                                                            {item.image && (
+                                                                <img src={item.image} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} aria-hidden="true" />
+                                                            )}
+                                                            {item.name}
+                                                        </Link>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
 
                     {/* NPC Tab */}
                     {activeTab === 'npcs' && (

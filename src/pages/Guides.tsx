@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
@@ -18,61 +18,25 @@ const Guide: React.FC = () => {
         playChimeClick();
     };
 
-    useEffect(() => {
-        const site = typeof window !== 'undefined' ? window.location.origin : 'https://www.chopaeng.com';
-        const url = `${site}/guides`;
-        const img = `${site}/banner.png`;
+    const site = typeof window !== 'undefined' ? window.location.origin : 'https://www.chopaeng.com';
 
-        const title =
-            activeTab === "steps"
-                ? "How to Join ACNH Treasure Islands – Step-by-Step Guide | Chopaeng"
-                : activeTab === "rules"
-                ? "ACNH Treasure Island Rules – Sub Rules & Order Bot Rules | Chopaeng"
-                : activeTab === "chobot"
-                ? "ChoBot Overview – Community Request Bot | Chopaeng"
-                : "ACNH Treasure Island FAQ – Help & Common Issues | Chopaeng";
+    const seoTitle =
+        activeTab === "steps"
+            ? "How to Join ACNH Treasure Islands – Step-by-Step Guide | Chopaeng"
+            : activeTab === "rules"
+            ? "ACNH Treasure Island Rules – Sub Rules & Order Bot Rules | Chopaeng"
+            : activeTab === "chobot"
+            ? "ChoBot Overview – Community Request Bot | Chopaeng"
+            : "ACNH Treasure Island FAQ – Help & Common Issues | Chopaeng";
 
-        const desc =
-            activeTab === "steps"
-                ? "Step-by-step guide on how to join Chopaeng ACNH treasure islands. Learn Dodo code entry, airport tips, and best practices for smooth Animal Crossing visits."
-                : activeTab === "rules"
-                ? "Review the sub rules and order bot rules for visiting Chopaeng ACNH treasure islands. Proper airport exits, code confidentiality, and ChoBot etiquette keep islands running smoothly."
-                : activeTab === "chobot"
-                ? "Learn what ChoBot is and how Chopaeng members use it to request items, DIY recipes, and villagers."
-                : "Find answers to common ACNH treasure island issues on Chopaeng — interference errors, communication errors, and bot usage.";
-
-        document.title = title;
-
-        const updateMeta = (name: string, content: string, isProp = false) => {
-            const attr = isProp ? "property" : "name";
-            let el = document.querySelector(`meta[${attr}="${name}"]`);
-            if (!el) {
-                el = document.createElement("meta");
-                el.setAttribute(attr, name);
-                document.head.appendChild(el);
-            }
-            el.setAttribute("content", content);
-        };
-
-        updateMeta("description", desc);
-        updateMeta("og:title", title, true);
-        updateMeta("og:description", desc, true);
-        updateMeta("og:url", url, true);
-        updateMeta("og:image", img, true);
-        updateMeta("og:type", "website", true);
-        updateMeta("twitter:card", "summary_large_image");
-        updateMeta("twitter:title", title);
-        updateMeta("twitter:description", desc);
-        updateMeta("twitter:image", img);
-
-        let canonical = document.querySelector('link[rel="canonical"]');
-        if (!canonical) {
-            canonical = document.createElement("link");
-            canonical.setAttribute("rel", "canonical");
-            document.head.appendChild(canonical);
-        }
-        canonical.setAttribute("href", url);
-    }, [activeTab]);
+    const seoDesc =
+        activeTab === "steps"
+            ? "Step-by-step guide on how to join Chopaeng ACNH treasure islands. Learn Dodo code entry, airport tips, and best practices for smooth Animal Crossing visits."
+            : activeTab === "rules"
+            ? "Review the sub rules and order bot rules for visiting Chopaeng ACNH treasure islands. Proper airport exits, code confidentiality, and ChoBot etiquette keep islands running smoothly."
+            : activeTab === "chobot"
+            ? "Learn what ChoBot is and how Chopaeng members use it to request items, DIY recipes, and villagers."
+            : "Find answers to common ACNH treasure island issues on Chopaeng — interference errors, communication errors, and bot usage.";
 
     const rules = [
         {
@@ -175,11 +139,18 @@ const Guide: React.FC = () => {
     return (
         <div className="nook-os min-vh-100 p-3 p-lg-5 font-nunito d-flex flex-column align-items-center">
             <Helmet>
-                <title>Island Guides & Rules · Chopaeng</title>
-                <meta
-                    name="description"
-                    content="ACNH Treasure Island flight guides, sub rules, and troubleshooting tips."
-                />
+                <title>{seoTitle}</title>
+                <meta name="description" content={seoDesc} />
+                <link rel="canonical" href={`${site}/guides`} />
+                <meta property="og:title" content={seoTitle} />
+                <meta property="og:description" content={seoDesc} />
+                <meta property="og:url" content={`${site}/guides`} />
+                <meta property="og:image" content={`${site}/banner.png`} />
+                <meta property="og:type" content="website" />
+                <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:title" content={seoTitle} />
+                <meta name="twitter:description" content={seoDesc} />
+                <meta name="twitter:image" content={`${site}/banner.png`} />
             </Helmet>
 
             <style>{`

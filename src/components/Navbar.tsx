@@ -10,6 +10,7 @@ import { OnlineCommunityModal } from "./community/OnlineCommunityModal";
 import { openCommunityModal } from "../utils/communityPresenceApi";
 import { NookPhoneDock } from "./NookPhoneDock";
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
+import { useNotificationHistory } from '../hooks/useNotificationHistory';
 
 // Short, stable labels for the theme chips — derived from the theme id rather than
 // splitting the display name (which broke for multi-word names like "The Roost Cozy").
@@ -33,9 +34,12 @@ export const Navbar: React.FC = () => {
     const themeDropdownRef = useRef<HTMLDivElement>(null);
     const userDropdownRef = useRef<HTMLDivElement>(null);
     const exploreDropdownRef = useRef<HTMLDivElement>(null);
+    const notifDropdownRef = useRef<HTMLDivElement>(null);
     const exploreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const hamburgerRef = useRef<HTMLButtonElement>(null);
     const drawerCloseRef = useRef<HTMLButtonElement>(null);
+    const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+    const { notifications, unreadCount, markAllRead, clearAll } = useNotificationHistory();
 
     const { pathname } = useLocation();
     const navigate = useNavigate();
@@ -78,6 +82,9 @@ export const Navbar: React.FC = () => {
         const handleClickOutside = (e: MouseEvent) => {
             if (themeDropdownRef.current && !themeDropdownRef.current.contains(e.target as Node)) {
                 setShowThemeDropdown(false);
+            }
+            if (notifDropdownRef.current && !notifDropdownRef.current.contains(e.target as Node)) {
+                setShowNotifDropdown(false);
             }
             if (userDropdownRef.current && !userDropdownRef.current.contains(e.target as Node)) {
                 setShowUserDropdown(false);
@@ -1567,6 +1574,88 @@ export const Navbar: React.FC = () => {
 
                     {/* Right Action Controls */}
                     <div className="d-flex align-items-center gap-2 flex-shrink-0">
+                        {/* Notification Bell */}
+                        <div className="position-relative" ref={notifDropdownRef}>
+                            <button
+                                type="button"
+                                className="btn btn-sm btn-light rounded-circle border position-relative shadow-2xs"
+                                style={{ width: 38, height: 38, padding: 0 }}
+                                aria-label={`Notifications (${unreadCount} unread)`}
+                                aria-expanded={showNotifDropdown}
+                                aria-haspopup="true"
+                                onClick={() => {
+                                    playChimeClick();
+                                    setShowNotifDropdown(prev => !prev);
+                                    if (!showNotifDropdown) markAllRead();
+                                }}
+                            >
+                                <i className="fa-solid fa-bell" style={{ fontSize: '0.9rem' }} />
+                                {unreadCount > 0 && (
+                                    <span
+                                        className="position-absolute badge bg-danger text-white rounded-pill"
+                                        style={{ top: -4, right: -4, fontSize: '0.55rem', minWidth: 16, padding: '2px 4px', lineHeight: 1 }}
+                                        aria-label={`${unreadCount} unread notifications`}
+                                    >
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </span>
+                                )}
+                            </button>
+
+                            {showNotifDropdown && (
+                                <div
+                                    className="position-absolute end-0 bg-white border rounded-4 shadow-lg mt-2 animate-fade-in"
+                                    style={{ minWidth: 320, maxHeight: 400, overflowY: 'auto', zIndex: 1080, top: '100%' }}
+                                    role="dialog"
+                                    aria-label="Notification history"
+                                >
+                                    <div className="p-3 border-bottom d-flex align-items-center justify-content-between">
+                                        <span className="fw-black text-dark" style={{ fontSize: '0.88rem' }}>
+                                            <i className="fa-solid fa-bell me-2 text-warning" aria-hidden="true" />
+                                            Notifications
+                                        </span>
+                                        {notifications.length > 0 && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-link p-0 text-muted small fw-bold text-decoration-none"
+                                                style={{ fontSize: '0.72rem' }}
+                                                onClick={() => { clearAll(); }}
+                                            >
+                                                Clear all
+                                            </button>
+                                        )}
+                                    </div>
+                                    {notifications.length === 0 ? (
+                                        <div className="text-center py-4 text-muted" style={{ fontSize: '0.82rem' }}>
+                                            <i className="fa-solid fa-bell-slash mb-2 d-block fs-4 opacity-40" aria-hidden="true" />
+                                            No notifications yet
+                                        </div>
+                                    ) : (
+                                        <ul className="list-unstyled mb-0">
+                                            {notifications.map(n => (
+                                                <li
+                                                    key={n.id}
+                                                    className={`p-3 border-bottom d-flex gap-3 align-items-start ${!n.read ? 'bg-info-subtle' : ''}`}
+                                                >
+                                                    <span className={`flex-shrink-0 mt-1 badge rounded-circle ${
+                                                        n.type === 'ready' ? 'bg-success' :
+                                                        n.type === 'preparing' ? 'bg-warning text-dark' :
+                                                        n.type === 'alert' ? 'bg-danger' : 'bg-secondary'
+                                                    }`} style={{ width: 10, height: 10, padding: 0 }} aria-hidden="true" />
+                                                    <div className="flex-grow-1 min-w-0">
+                                                        <div className="fw-bold text-dark text-truncate" style={{ fontSize: '0.8rem' }}>{n.title}</div>
+                                                        <div className="text-muted text-truncate" style={{ fontSize: '0.72rem' }}>{n.body}</div>
+                                                        <div className="text-muted mt-1" style={{ fontSize: '0.65rem' }}>
+                                                            {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
                         {/* User Account */}
                         {user ? (
                             <div className="position-relative" ref={userDropdownRef}>

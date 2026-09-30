@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { IndexLayout } from "../layouts/IndexLayout.tsx";
 import RequireMod from "../components/RequireMod.tsx";
 import DashboardLayout from "../layouts/DashboardLayout.tsx";
+import { AppErrorBoundary } from '../components/AppErrorBoundary';
+import { PageSkeleton } from '../components/Skeletons';
 
 // Eagerly loaded — on the critical path for every visit
 import Chopaeng404 from "../errors/404.tsx";
@@ -62,18 +64,10 @@ const DashboardScheduled     = lazy(() => import("../pages/dashboard/DashboardSc
 const DashboardMaintenance   = lazy(() => import("../pages/dashboard/DashboardMaintenance.tsx"));
 const DashboardDevices       = lazy(() => import("../pages/dashboard/DashboardDevices.tsx"));
 
-/** Lightweight spinner shown while a route chunk is downloading */
-const PageLoader = () => (
-    <div className="d-flex align-items-center justify-content-center" style={{ minHeight: '60vh' }}>
-        <div className="spinner-border text-success" role="status">
-            <span className="visually-hidden">Loading…</span>
-        </div>
-    </div>
-);
 
 const AppRoutes = () => {
     return (
-        <Suspense fallback={<PageLoader />}>
+        <Suspense fallback={<PageSkeleton />}>
             <Routes>
                 <Route element={<IndexLayout />}>
                     <Route path="/" element={<Home />} />
@@ -86,33 +80,33 @@ const AppRoutes = () => {
                     <Route path="/island/:id" element={<IslandDetail />} />
                     <Route path="/membership" element={<Membership />} />
                     <Route path="/find" element={<FindItems />} />
-                    <Route path="/command-builder" element={<CommandBuilder />} />
-                    <Route path="/pockets" element={<PocketInventory />} />
-                    <Route path="/pocket-inventory" element={<PocketInventory />} />
-                    <Route path="/item/:id" element={<CatalogDetail />} />
-                    <Route path="/villager/:id" element={<CatalogDetail />} />
-                    <Route path="/catalog/:entityType/:id" element={<CatalogDetail />} />
-                    <Route path="/command-builder/:entityType/:id" element={<CatalogDetail />} />
+                    <Route path="/command-builder" element={<AppErrorBoundary label="Command Builder"><CommandBuilder /></AppErrorBoundary>} />
+                    <Route path="/pockets" element={<AppErrorBoundary label="Pocket Inventory"><PocketInventory /></AppErrorBoundary>} />
+                    <Route path="/pocket-inventory" element={<AppErrorBoundary label="Pocket Inventory"><PocketInventory /></AppErrorBoundary>} />
+                    <Route path="/item/:id" element={<AppErrorBoundary label="Item Details"><CatalogDetail /></AppErrorBoundary>} />
+                    <Route path="/villager/:id" element={<AppErrorBoundary label="Villager Details"><CatalogDetail /></AppErrorBoundary>} />
+                    <Route path="/catalog/:entityType/:id" element={<AppErrorBoundary label="Catalog Details"><CatalogDetail /></AppErrorBoundary>} />
+                    <Route path="/command-builder/:entityType/:id" element={<AppErrorBoundary label="Command Builder"><CatalogDetail /></AppErrorBoundary>} />
                     <Route path="/contact" element={<Contact />} />
                     <Route path="/dodo" element={<DodoDecryptor />} />
-                    <Route path="/order" element={<OrderBot />} />
-                    <Route path="/drop" element={<DropBot />} />
-                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/order" element={<AppErrorBoundary label="Order Bot"><OrderBot /></AppErrorBoundary>} />
+                    <Route path="/drop" element={<AppErrorBoundary label="Drop Bot"><DropBot /></AppErrorBoundary>} />
+                    <Route path="/profile" element={<AppErrorBoundary label="Profile"><Profile /></AppErrorBoundary>} />
                     <Route path="/u/:username" element={<PublicProfile />} />
                     <Route path="/profile/:username" element={<PublicProfile />} />
-                    <Route path="/trip-planner" element={<TripPlanner />} />
-                    <Route path="/planner" element={<TripPlanner />} />
+                    <Route path="/trip-planner" element={<AppErrorBoundary label="Trip Planner"><TripPlanner /></AppErrorBoundary>} />
+                    <Route path="/planner" element={<AppErrorBoundary label="Trip Planner"><TripPlanner /></AppErrorBoundary>} />
                     <Route path="/auth/callback" element={<AuthCallback />} />
 
                     <Route path="/blog" element={<BlogList />} />
                     <Route path="/blog/:id" element={<BlogPost />} />
 
                     {/* Phase 2 pages */}
-                    <Route path="/critters" element={<Critters />} />
-                    <Route path="/events" element={<Events />} />
-                    <Route path="/npcs" element={<NPCs />} />
-                    <Route path="/my-collection" element={<MyCollection />} />
-                    <Route path="/wishlist" element={<Wishlist />} />
+                    <Route path="/critters" element={<AppErrorBoundary label="Critters"><Critters /></AppErrorBoundary>} />
+                    <Route path="/events" element={<AppErrorBoundary label="Events Calendar"><Events /></AppErrorBoundary>} />
+                    <Route path="/npcs" element={<AppErrorBoundary label="NPCs & Birthdays"><NPCs /></AppErrorBoundary>} />
+                    <Route path="/my-collection" element={<AppErrorBoundary label="My Collection"><MyCollection /></AppErrorBoundary>} />
+                    <Route path="/wishlist" element={<AppErrorBoundary label="Wishlist"><Wishlist /></AppErrorBoundary>} />
 
                     <Route path="/privacy" element={<PrivacyPolicy />} />
                     <Route path="/terms" element={<TermsOfService />} />

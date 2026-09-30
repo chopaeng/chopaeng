@@ -31,3 +31,8 @@ dist-ssr
 # Generated at build time by the split-items-json Vite plugin
 public/Items-data.json
 public/Items-translations.json
+
+# Scratch / debug scripts (never commit these)
+scratch*.ts
+scratch*.tsx
+scratch*.js

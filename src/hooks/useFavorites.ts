@@ -75,11 +75,18 @@ export const useFavorites = () => {
         setFavorites([]);
     }, []);
 
+    const replaceFavorites = useCallback((ids: string[]) => {
+        const valid = ids.filter(id => typeof id === 'string' && id.length > 0);
+        saveStoredFavorites(valid);
+        setFavorites(valid);
+    }, []);
+
     return {
         favorites,
         favoriteCount: favorites.length,
         isFavorite,
         toggleFavorite,
         clearFavorites,
+        setFavorites: replaceFavorites,
     };
 };

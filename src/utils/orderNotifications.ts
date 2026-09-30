@@ -2,6 +2,7 @@
  * Browser Notifications, Background Tab Alert & Audio Chime helper for Order Bot & Drop Bot
  */
 import { playOrderAlertChime } from './kkAudioSynthesizer';
+import { pushAppNotification } from '../hooks/useNotificationHistory';
 
 const LS_NOTIFICATION_PREF = 'chopaeng_order_notifications_enabled';
 const LS_NOTIF_BANNER_DISMISSED = 'chopaeng_order_notif_banner_dismissed';
@@ -175,6 +176,9 @@ export const notifyOrderStatusChange = (
     body: string,
     type: 'preparing' | 'ready' | 'alert' = 'ready'
 ) => {
+    // 0. Save to in-app notification history (bell icon panel)
+    pushAppNotification({ title, body, type });
+
     // 1. Play Audio Chime
     playOrderAlertChime(type);
 

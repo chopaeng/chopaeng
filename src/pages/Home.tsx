@@ -39,6 +39,32 @@ const Home = () => {
     const [heroTab, setHeroTab] = useState<'flights' | 'stream'>('flights');
     const [flightFilter, setFlightFilter] = useState<'all' | 'public' | 'member'>('all');
 
+    // Live Discord member count (falls back to static value if API unavailable)
+    const [discordCount, setDiscordCount] = useState<string>('29k+');
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const res = await fetch(`${BLOGS_API_BASE}/api/stats`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const count: number = data?.discord_members ?? data?.member_count ?? 0;
+                    if (count > 0) {
+                        setDiscordCount(
+                            count >= 1000
+                                ? `${(count / 1000).toFixed(count % 1000 === 0 ? 0 : 1)}k+`
+                                : String(count)
+                        );
+                    }
+                }
+            } catch {
+                // Keep fallback value
+            }
+        };
+        fetchStats();
+        const interval = setInterval(fetchStats, 5 * 60 * 1000); // refresh every 5 min
+        return () => clearInterval(interval);
+    }, []);
+
     // Fetch blog posts
     useEffect(() => {
         const fetchPosts = async () => {
@@ -247,7 +273,7 @@ const Home = () => {
                             {/* Live Platform Proof Metrics */}
                             <div className="d-flex flex-wrap align-items-center justify-content-center justify-content-lg-start gap-3 gap-md-4 text-muted small fw-bold">
                                 <div className="d-flex align-items-center gap-2">
-                                    <i className="fa-brands fa-discord fs-5 text-primary opacity-75"></i> <span>29k+ Potatoes</span>
+                                    <i className="fa-brands fa-discord fs-5 text-primary opacity-75"></i> <span>{discordCount} Potatoes</span>
                                 </div>
                                 <div className="d-flex align-items-center gap-2">
                                     <i className="fa-solid fa-bolt fs-5 text-warning opacity-75"></i> <span>Instant Dodo Queue</span>

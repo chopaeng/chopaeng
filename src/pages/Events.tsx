@@ -295,6 +295,40 @@ const Events: React.FC = () => {
     const isEventActive = (ev: GameEvent): boolean =>
         !!(ev.startDate && ev.endDate && now >= ev.startDate && now <= ev.endDate);
 
+    /** Download a single event as a .ics file */
+    const downloadEventICS = useCallback((ev: GameEvent) => {
+        if (!ev.startDate || !ev.endDate) return;
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const toICSDate = (d: Date) =>
+            `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+        const uid = `${ev.name.replace(/\s+/g, '-').toLowerCase()}-${ev.startDate.getTime()}@chopaeng.com`;
+        const now_str = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        const lines = [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//Chopaeng//ACNH Events//EN',
+            'CALSCALE:GREGORIAN',
+            'METHOD:PUBLISH',
+            'BEGIN:VEVENT',
+            `UID:${uid}`,
+            `DTSTAMP:${now_str}`,
+            `DTSTART;VALUE=DATE:${toICSDate(ev.startDate)}`,
+            `DTEND;VALUE=DATE:${toICSDate(ev.endDate)}`,
+            `SUMMARY:${ev.displayName} (ACNH)`,
+            `DESCRIPTION:${ev.type}${ev.notes ? ` — ${ev.notes.replace(/\n/g, '\\n')}` : ''}`,
+            'URL:https://www.chopaeng.com/events',
+            'END:VEVENT',
+            'END:VCALENDAR',
+        ].join('\r\n');
+        const blob = new Blob([lines], { type: 'text/calendar;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${ev.name.replace(/\s+/g, '_')}.ics`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }, []);
+
     const site = typeof window !== 'undefined' ? window.location.origin : 'https://www.chopaeng.com';
     const pageTitle = 'ACNH Seasons & Events Calendar | Chopaeng';
     const pageDesc = `Complete Animal Crossing: New Horizons events timeline for the ${isNorth ? 'Northern' : 'Southern'} Hemisphere. Track seasonal events, Nook Shopping dates, tournaments, and special visitors.`;
@@ -600,6 +634,20 @@ const Events: React.FC = () => {
                                                     <span className={`badge bg-${color}-subtle text-${color} border border-${color}-subtle rounded-pill px-3 py-1 fw-bold flex-shrink-0`} style={{ fontSize: '0.72rem' }}>{ev.type}</span>
                                                 </div>
                                                 {ev.notes && <div className="mt-2 ps-5 ms-3"><p className="tiny-text text-muted mb-0 fst-italic">{ev.notes}</p></div>}
+                                                {ev.startDate && ev.endDate && (
+                                                    <div className="mt-2 ps-5 ms-3">
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-xs btn-outline-secondary rounded-pill fw-bold"
+                                                            style={{ fontSize: '0.68rem', padding: '2px 10px' }}
+                                                            onClick={() => { playChimeClick(); downloadEventICS(ev); }}
+                                                            title={`Add ${ev.displayName} to your calendar`}
+                                                        >
+                                                            <i className="fa-regular fa-calendar-plus me-1" aria-hidden="true" />
+                                                            Add to Calendar
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })}

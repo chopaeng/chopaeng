@@ -41,10 +41,6 @@ const uniqueValues = (items: CatalogEntity[], key: CatalogStringKey) => [
 
 const FALLBACK_IMAGE = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f1f3f5'/%3E%3Cpath d='M30 65 L45 45 L58 58 L68 42 L75 65 Z' fill='%23ced4da'/%3E%3Ccircle cx='38' cy='35' r='7' fill='%23ced4da'/%3E%3C/svg%3E";
 
-const getAcnhcdnUrl = (url: string | undefined): string => {
-    if (!url) return FALLBACK_IMAGE;
-    return url;
-};
 
 // Data is now loaded asynchronously inside the component
 
@@ -231,7 +227,7 @@ const CommandBuilder = () => {
     const expandedCatalogItems = useMemo(() => {
         return catalogEntities.flatMap((item) => {
             if (item.entityType !== 'item' || !item.variations || hideVariants || item.variations.length === 0) {
-                return [{ ...item, image: getAcnhcdnUrl(item.image) } as ItemData];
+                return [{ ...item, image: item.image || FALLBACK_IMAGE } as ItemData];
             }
 
             return item.variations.map((variant) => {
@@ -243,7 +239,7 @@ const CommandBuilder = () => {
                     baseId: commandParts.baseId,
                     variantId: commandParts.variantId,
                     variantLabel: getVariantLabel(variant),
-                    image: getAcnhcdnUrl(variant.imageUrl || item.image),
+                    image: variant.imageUrl || item.image || FALLBACK_IMAGE,
                 };
             });
         });

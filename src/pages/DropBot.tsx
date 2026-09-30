@@ -63,12 +63,6 @@ export const DropBot: React.FC = () => {
         removeDropItem,
         addItemToDropPockets,
         dropCommandText,
-        addItemToOrderPockets,
-        decreaseOrderQuantity,
-        increaseOrderQuantity,
-        totalOrderCount,
-        canIncreaseOrder,
-        getOrderPocketQuantity,
         getDropPocketQuantity,
     } = useCommandBuilderPockets();
 
@@ -1408,10 +1402,32 @@ export const DropBot: React.FC = () => {
                                             </button>
                                         )}
                                     </div>
+
+                                    {/* Capacity bar */}
+                                    <div className="progress mb-2 rounded-pill" style={{ height: 6 }}>
+                                        <div
+                                            className={`progress-bar ${totalDropCount >= DROP_MAX ? 'bg-danger' : totalDropCount >= DROP_MAX * 0.8 ? 'bg-warning' : 'bg-success'}`}
+                                            style={{ width: `${Math.min(100, (totalDropCount / DROP_MAX) * 100)}%`, transition: 'width 0.3s ease' }}
+                                            role="progressbar"
+                                            aria-valuenow={totalDropCount}
+                                            aria-valuemin={0}
+                                            aria-valuemax={DROP_MAX}
+                                        />
+                                    </div>
+
+                                    {/* Overflow warning */}
+                                    {totalDropCount > DROP_MAX && (
+                                        <div className="alert alert-warning py-1 px-2 mb-2 rounded-3 d-flex align-items-center gap-2" role="alert" style={{ fontSize: '0.72rem' }}>
+                                            <i className="fa-solid fa-triangle-exclamation flex-shrink-0" aria-hidden="true" />
+                                            <span className="fw-bold">Too many items! Drop limit is {DROP_MAX} slots — remove {totalDropCount - DROP_MAX} item{totalDropCount - DROP_MAX !== 1 ? 's' : ''}.</span>
+                                        </div>
+                                    )}
+
                                     <div className="font-monospace text-dark text-truncate" style={{ fontSize: '0.8rem' }}>
                                         {dropCommandText || '!drop <select items>'}
                                     </div>
                                 </div>
+
 
                                 {/* Dispatch Actions */}
                                 <div className="d-flex flex-column gap-2">

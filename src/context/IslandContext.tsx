@@ -55,7 +55,7 @@ const toIslandTheme = (value: string, fallback: IslandData["theme"]): IslandData
 
 const getCacheAuthScope = () => getAuthToken() || "anon";
 
-const isCurrentCacheScope = () => sessionStorage.getItem(STORAGE_KEY_AUTH_SCOPE) === getCacheAuthScope();
+const isCurrentCacheScope = () => (sessionStorage.getItem(STORAGE_KEY_AUTH_SCOPE) || localStorage.getItem(STORAGE_KEY_AUTH_SCOPE)) === getCacheAuthScope();
 
 export const IslandProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [islands, setIslands] = useState<IslandData[]>(() => {

@@ -1,0 +1,900 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Navbar.css
+   Theming is done with tokens: each theme only overrides the --nb-*
+   variables below, instead of re-declaring every selector per theme.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.chopaeng-navbar,
+.chopaeng-mobile-drawer,
+.chopaeng-mobile-overlay {
+    /* Default theme: Nook */
+    --nb-bar-bg: var(--nav-scrolled-bg, rgba(255, 255, 255, 0.92));
+    --nb-pill-bg: var(--nav-pill-bg, rgba(255, 255, 255, 0.85));
+    --nb-surface: var(--card-bg, #ffffff);
+    --nb-surface-2: var(--bg-cream, #f8faf6);
+    --nb-border: var(--card-border, rgba(0, 0, 0, 0.08));
+    --nb-text: var(--text-dark, #1e293b);
+    --nb-muted: var(--text-muted, #64748b);
+    --nb-hover-bg: rgba(0, 0, 0, 0.04);
+    --nb-item-hover-bg: var(--bg-cream, #f8faf6);
+    --nb-hover-text: #16a34a;
+    --nb-highlight: #16a34a;
+    --nb-active-bg: linear-gradient(135deg, #16a34a, #15803d);
+    --nb-active-glow: rgba(22, 163, 74, 0.25);
+    --nb-active-soft: rgba(22, 163, 74, 0.08);
+}
+
+[data-theme="celeste"] .chopaeng-navbar,
+[data-theme="celeste"] .chopaeng-mobile-drawer,
+[data-theme="celeste"] .chopaeng-mobile-overlay {
+    --nb-bar-bg: rgba(11, 15, 25, 0.95);
+    --nb-pill-bg: rgba(30, 41, 59, 0.88);
+    --nb-surface: #1e293b;
+    --nb-surface-2: #0f172a;
+    --nb-border: rgba(167, 139, 250, 0.3);
+    --nb-text: #f8fafc;
+    --nb-muted: #cbd5e1;
+    --nb-hover-bg: rgba(167, 139, 250, 0.18);
+    --nb-item-hover-bg: #2b3658;
+    --nb-hover-text: #fcd34d;
+    --nb-highlight: #a78bfa;
+    --nb-active-bg: #7c3aed;
+    --nb-active-glow: rgba(124, 58, 237, 0.45);
+    --nb-active-soft: rgba(167, 139, 250, 0.16);
+}
+
+[data-theme="roost"] .chopaeng-navbar,
+[data-theme="roost"] .chopaeng-mobile-drawer,
+[data-theme="roost"] .chopaeng-mobile-overlay {
+    --nb-bar-bg: rgba(20, 18, 16, 0.95);
+    --nb-pill-bg: rgba(41, 37, 36, 0.88);
+    --nb-surface: #292524;
+    --nb-surface-2: #1c1917;
+    --nb-border: rgba(217, 119, 6, 0.3);
+    --nb-text: #fafaf9;
+    --nb-muted: #d1beaf;
+    --nb-hover-bg: rgba(217, 119, 6, 0.18);
+    --nb-item-hover-bg: #40362f;
+    --nb-hover-text: #e6be94;
+    --nb-highlight: #f59e0b;
+    --nb-active-bg: #a06b43;
+    --nb-active-glow: rgba(160, 107, 67, 0.45);
+    --nb-active-soft: rgba(217, 119, 6, 0.16);
+}
+
+[data-theme="sakura"] .chopaeng-navbar,
+[data-theme="sakura"] .chopaeng-mobile-drawer,
+[data-theme="sakura"] .chopaeng-mobile-overlay {
+    --nb-bar-bg: rgba(253, 242, 248, 0.95);
+    --nb-pill-bg: rgba(255, 255, 255, 0.92);
+    --nb-surface: #ffffff;
+    --nb-surface-2: #fdf2f8;
+    --nb-border: rgba(236, 72, 153, 0.28);
+    --nb-text: #3b072c;
+    --nb-muted: #9d4e7f;
+    --nb-hover-bg: rgba(236, 72, 153, 0.12);
+    --nb-item-hover-bg: #fdf2f8;
+    --nb-hover-text: #db2777;
+    --nb-highlight: #ec4899;
+    --nb-active-bg: linear-gradient(135deg, #ec4899, #db2777);
+    --nb-active-glow: rgba(236, 72, 153, 0.35);
+    --nb-active-soft: rgba(236, 72, 153, 0.1);
+}
+
+[data-theme="dal"] .chopaeng-navbar,
+[data-theme="dal"] .chopaeng-mobile-drawer,
+[data-theme="dal"] .chopaeng-mobile-overlay {
+    --nb-bar-bg: rgba(15, 23, 42, 0.95);
+    --nb-pill-bg: rgba(30, 41, 59, 0.9);
+    --nb-surface: #1e293b;
+    --nb-surface-2: #0f172a;
+    --nb-border: rgba(56, 189, 248, 0.28);
+    --nb-text: #f8fafc;
+    --nb-muted: #94a3b8;
+    --nb-hover-bg: rgba(56, 189, 248, 0.15);
+    --nb-item-hover-bg: #0f172a;
+    --nb-hover-text: #38bdf8;
+    --nb-highlight: #38bdf8;
+    --nb-active-bg: linear-gradient(135deg, #0284c7, #0369a1);
+    --nb-active-glow: rgba(2, 132, 199, 0.4);
+    --nb-active-soft: rgba(56, 189, 248, 0.14);
+}
+
+[data-theme="nooklink"] .chopaeng-navbar,
+[data-theme="nooklink"] .chopaeng-mobile-drawer,
+[data-theme="nooklink"] .chopaeng-mobile-overlay {
+    --nb-bar-bg: rgba(9, 13, 22, 0.95);
+    --nb-pill-bg: rgba(17, 24, 39, 0.92);
+    --nb-surface: #111827;
+    --nb-surface-2: #090d16;
+    --nb-border: rgba(16, 185, 129, 0.32);
+    --nb-text: #f8fafc;
+    --nb-muted: #94a3b8;
+    --nb-hover-bg: rgba(16, 185, 129, 0.15);
+    --nb-item-hover-bg: #1f2937;
+    --nb-hover-text: #34d399;
+    --nb-highlight: #10b981;
+    --nb-active-bg: linear-gradient(135deg, #10b981, #059669);
+    --nb-active-glow: rgba(16, 185, 129, 0.4);
+    --nb-active-soft: rgba(16, 185, 129, 0.14);
+}
+
+/* ─── Bar ─── */
+.chopaeng-navbar {
+    transition: background-color 0.25s ease, border-color 0.25s ease, backdrop-filter 0.25s ease, box-shadow 0.25s ease;
+    border-bottom: 1px solid transparent;
+    flex-wrap: nowrap !important;
+}
+
+.chopaeng-navbar>.container-xl {
+    flex-wrap: nowrap !important;
+}
+
+.chopaeng-navbar.scrolled {
+    background-color: var(--nb-bar-bg);
+    border-bottom-color: var(--nb-border);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 24px rgba(0, 0, 0, 0.03);
+}
+
+.chopaeng-brand-title {
+    color: var(--nb-text);
+    letter-spacing: 0.02em;
+    font-size: 1.1rem;
+}
+
+/* ─── Primary pill ─── */
+.chopaeng-nav-pill-container {
+    background: var(--nb-pill-bg);
+    border: 1px solid var(--nb-border);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+    padding: 3px;
+    border-radius: 50px;
+    gap: 1px;
+}
+
+.chopaeng-nav-compact .chopaeng-nav-item {
+    padding: 8px 12px;
+}
+
+.chopaeng-nav-item,
+.chopaeng-explore-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 50px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--nb-muted);
+    text-decoration: none;
+    white-space: nowrap;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chopaeng-nav-item:hover,
+.chopaeng-explore-trigger:hover,
+.chopaeng-explore-trigger.open {
+    color: var(--nb-text);
+    background-color: var(--nb-hover-bg);
+}
+
+.chopaeng-nav-item.active {
+    color: #fff !important;
+    background: var(--nb-active-bg);
+    box-shadow: 0 2px 8px var(--nb-active-glow);
+}
+
+.chopaeng-nav-item.active i {
+    color: #fff !important;
+}
+
+.chopaeng-explore-trigger {
+    padding: 7px 12px;
+    gap: 5px;
+}
+
+.chopaeng-explore-trigger.has-active {
+    color: var(--nb-highlight);
+}
+
+.chopaeng-explore-trigger .chevron-icon {
+    font-size: 0.6rem;
+    transition: transform 0.2s ease;
+}
+
+.chopaeng-explore-trigger.open .chevron-icon {
+    transform: rotate(180deg);
+}
+
+/* ─── Explore dropdown ─── */
+.chopaeng-explore-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-top: 10px;
+    width: 340px;
+    max-width: calc(100vw - 32px);
+    background: var(--nb-surface);
+    border: 1px solid var(--nb-border);
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
+    padding: 6px;
+    z-index: 1060;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-50%) translateY(4px);
+    transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chopaeng-explore-dropdown.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* bridges the 10px gap so the hover doesn't drop between trigger and panel */
+.chopaeng-explore-dropdown::before {
+    content: "";
+    position: absolute;
+    top: -12px;
+    left: 0;
+    right: 0;
+    height: 12px;
+}
+
+.chopaeng-explore-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    text-decoration: none;
+    color: var(--nb-text);
+    transition: background-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
+}
+
+.chopaeng-explore-link:hover {
+    background: var(--nb-item-hover-bg);
+    color: var(--nb-hover-text);
+    transform: translateX(2px);
+}
+
+.chopaeng-explore-link.active-link {
+    background: var(--nb-active-soft);
+}
+
+.chopaeng-explore-link .explore-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.chopaeng-explore-desc {
+    font-size: 0.7rem;
+    color: var(--nb-muted);
+}
+
+/* ─── Buttons ─── */
+.chopaeng-action-btn {
+    min-width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 50px;
+    background: var(--nb-surface);
+    border: 1px solid var(--nb-border);
+    color: var(--nb-text);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    padding: 0 10px;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.chopaeng-action-btn--round {
+    width: 36px;
+    padding: 0;
+    border-radius: 50%;
+}
+
+.chopaeng-action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+    color: var(--nb-hover-text);
+    border-color: var(--nb-highlight);
+    background: var(--nb-item-hover-bg);
+}
+
+.chopaeng-kbd {
+    font-family: var(--bs-font-monospace, monospace);
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--nb-muted);
+}
+
+.chopaeng-badge-dot {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 16px;
+    padding: 2px 4px;
+    line-height: 1;
+    font-size: 0.55rem;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #fff;
+    font-weight: 700;
+    text-align: center;
+}
+
+.chopaeng-toolbar {
+    background: var(--nb-pill-bg);
+    border: 1px solid var(--nb-border);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+    border-radius: 50px;
+    padding: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+}
+
+.chopaeng-toolbar-btn {
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--nb-muted);
+    font-size: 0.82rem;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.chopaeng-toolbar-btn:hover {
+    background: var(--nb-hover-bg);
+    color: var(--nb-hover-text);
+}
+
+/* ─── User pill + dropdowns ─── */
+.chopaeng-user-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px 3px 3px;
+    height: 36px;
+    border-radius: 50px;
+    background: var(--nb-surface);
+    border: 1px solid var(--nb-border);
+    color: var(--nb-text);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    cursor: pointer;
+    transition: box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.chopaeng-user-pill:hover {
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+    border-color: var(--nb-highlight);
+    background: var(--nb-item-hover-bg);
+}
+
+.chopaeng-user-pill .chevron {
+    font-size: 0.55rem;
+    color: var(--nb-muted);
+    transition: transform 0.2s ease;
+}
+
+.chopaeng-user-pill[aria-expanded="true"] .chevron {
+    transform: rotate(180deg);
+}
+
+.chopaeng-user-dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 8px;
+    width: 240px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 90px);
+    overflow-y: auto;
+    background: var(--nb-surface);
+    color: var(--nb-text);
+    border: 1px solid var(--nb-border);
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
+    padding: 6px;
+    z-index: 1060;
+    animation: dropdownSlideUp 0.18s ease;
+}
+
+.chopaeng-user-dropdown--wide {
+    width: 230px;
+}
+
+.chopaeng-dropdown-head {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--nb-border);
+    margin-bottom: 4px;
+}
+
+.chopaeng-dropdown-title {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--nb-text);
+}
+
+.chopaeng-dropdown-sub {
+    font-size: 0.7rem;
+    color: var(--nb-muted);
+}
+
+.chopaeng-dropdown-divider {
+    border-top: 1px solid var(--nb-border);
+    margin: 4px 8px;
+}
+
+.chopaeng-user-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 12px;
+    border: none;
+    background: none;
+    border-radius: 10px;
+    text-decoration: none;
+    text-align: left;
+    cursor: pointer;
+    color: var(--nb-text);
+    font-weight: 600;
+    font-size: 0.84rem;
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.chopaeng-user-dropdown-item:hover {
+    background: var(--nb-item-hover-bg);
+    color: var(--nb-hover-text);
+}
+
+.chopaeng-user-dropdown-item.danger {
+    color: #ef4444;
+}
+
+.chopaeng-user-dropdown-item.danger:hover {
+    color: #ef4444;
+}
+
+.chopaeng-user-dropdown-item .dropdown-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+/* Notifications */
+.chopaeng-notif-dropdown {
+    width: 340px;
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: 420px;
+}
+
+.chopaeng-notif-head {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--nb-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.chopaeng-notif-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+}
+
+.chopaeng-notif-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--nb-border);
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.chopaeng-notif-item.unread {
+    background: var(--nb-active-soft);
+}
+
+.chopaeng-notif-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+    background: #64748b;
+}
+
+.chopaeng-notif-dot.ready {
+    background: #22c55e;
+}
+
+.chopaeng-notif-dot.preparing {
+    background: #f59e0b;
+}
+
+.chopaeng-notif-dot.alert {
+    background: #ef4444;
+}
+
+.chopaeng-notif-empty {
+    text-align: center;
+    padding: 28px 16px;
+    color: var(--nb-muted);
+    font-size: 0.82rem;
+}
+
+.chopaeng-link-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--nb-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.chopaeng-link-btn:hover {
+    color: var(--nb-hover-text);
+}
+
+@keyframes dropdownSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ─── Hamburger ─── */
+.chopaeng-hamburger {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    background: var(--nb-surface);
+    border: 1px solid var(--nb-border);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.chopaeng-hamburger span {
+    display: block;
+    width: 16px;
+    height: 2px;
+    background: var(--nb-text);
+    border-radius: 2px;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+}
+
+.chopaeng-hamburger.open span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+}
+
+.chopaeng-hamburger.open span:nth-child(2) {
+    opacity: 0;
+    transform: translateX(-10px);
+}
+
+.chopaeng-hamburger.open span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+}
+
+/* ─── Mobile drawer ─── */
+.chopaeng-mobile-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 1040;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.chopaeng-mobile-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.chopaeng-mobile-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 88%;
+    max-width: 380px;
+    background: var(--nb-surface);
+    color: var(--nb-text);
+    box-shadow: -10px 0 40px rgba(0, 0, 0, 0.12);
+    z-index: 1045;
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chopaeng-mobile-drawer.open {
+    transform: translateX(0);
+    visibility: visible;
+}
+
+.chopaeng-drawer-header,
+.chopaeng-drawer-footer {
+    flex-shrink: 0;
+    background: var(--nb-surface-2);
+    border-color: var(--nb-border) !important;
+}
+
+.chopaeng-drawer-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.chopaeng-drawer-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    min-height: 0;
+    border-color: var(--nb-border);
+}
+
+.chopaeng-drawer-body .border-bottom {
+    border-color: var(--nb-border) !important;
+}
+
+.chopaeng-drawer-footer {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.chopaeng-drawer-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--nb-muted);
+    margin-bottom: 8px;
+}
+
+.chopaeng-drawer-name {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--nb-text);
+}
+
+.chopaeng-drawer-role {
+    font-size: 0.68rem;
+    color: var(--nb-muted);
+}
+
+.mobile-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    text-decoration: none;
+    color: var(--nb-text);
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.mobile-nav-link:hover {
+    background: var(--nb-hover-bg);
+    color: var(--nb-hover-text);
+}
+
+.mobile-nav-link.active {
+    background: var(--nb-active-bg);
+    color: #fff !important;
+}
+
+.mobile-nav-link.active i {
+    color: #fff !important;
+}
+
+.mobile-nav-icon {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: var(--nb-surface-2);
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.mobile-nav-link.active .mobile-nav-icon {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.mobile-quick-links,
+.mobile-theme-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.mobile-quick-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px 6px;
+    border-radius: 12px;
+    text-decoration: none;
+    color: var(--nb-text);
+    font-weight: 600;
+    font-size: 0.7rem;
+    background: var(--nb-surface-2);
+    border: 1px solid var(--nb-border);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+
+.mobile-quick-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    color: var(--nb-hover-text);
+}
+
+.mobile-theme-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 8px 4px;
+    border-radius: 12px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    border: 1px solid var(--nb-border);
+    background: var(--nb-surface-2);
+    color: var(--nb-text);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.mobile-theme-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.mobile-theme-btn.active {
+    background: var(--nb-active-bg);
+    color: #fff;
+    border-color: var(--nb-highlight);
+    box-shadow: 0 2px 8px var(--nb-active-glow);
+}
+
+.mobile-theme-btn.active i {
+    color: #fff !important;
+}
+
+/* ─── Staff (mod/admin) ─── */
+.chopaeng-nav-item--staff {
+    color: #d97706 !important;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    background: rgba(245, 158, 11, 0.06);
+}
+
+.chopaeng-nav-item--staff:hover {
+    background: rgba(245, 158, 11, 0.12) !important;
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
+.chopaeng-nav-item--staff.active,
+.mobile-nav-link--staff.active {
+    background: linear-gradient(135deg, #d97706, #b45309) !important;
+    color: #fff !important;
+    border-color: transparent !important;
+    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.35) !important;
+}
+
+.chopaeng-user-dropdown-item--staff {
+    border: 1px solid rgba(245, 158, 11, 0.18);
+    background: rgba(245, 158, 11, 0.04);
+}
+
+.chopaeng-user-dropdown-item--staff:hover {
+    background: rgba(245, 158, 11, 0.1) !important;
+}
+
+.mobile-nav-link--staff {
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    background: rgba(245, 158, 11, 0.04);
+}
+
+.mobile-nav-link--staff:hover {
+    background: rgba(245, 158, 11, 0.1) !important;
+}
+
+/* Keep semantic icon colours readable in every theme */
+.chopaeng-toolbar-btn i.text-success,
+.chopaeng-action-btn i.text-success,
+.mobile-nav-icon i.text-success {
+    color: #22c55e !important;
+}
+
+.chopaeng-toolbar-btn i.text-primary {
+    color: #3b82f6 !important;
+}
+
+/* ─── Accessibility ─── */
+.chopaeng-nav-item:focus-visible,
+.chopaeng-explore-trigger:focus-visible,
+.chopaeng-explore-link:focus-visible,
+.chopaeng-action-btn:focus-visible,
+.chopaeng-toolbar-btn:focus-visible,
+.chopaeng-user-pill:focus-visible,
+.chopaeng-hamburger:focus-visible,
+.chopaeng-user-dropdown-item:focus-visible,
+.chopaeng-link-btn:focus-visible,
+.mobile-nav-link:focus-visible,
+.mobile-quick-link:focus-visible,
+.mobile-theme-btn:focus-visible {
+    outline: 2px solid var(--nb-highlight);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .chopaeng-navbar,
+    .chopaeng-navbar *,
+    .chopaeng-mobile-overlay,
+    .chopaeng-mobile-drawer,
+    .chopaeng-mobile-drawer * {
+        transition: none !important;
+        animation: none !important;
+    }
+}

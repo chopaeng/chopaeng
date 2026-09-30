@@ -77,7 +77,8 @@ const AppRoutes = () => {
                     <Route path="/catalogue" element={<Catalogue />} />
                     <Route path="/maps" element={<Maps />} />
                     <Route path="/islands" element={<TreasureIslands />} />
-                    <Route path="/island/:id" element={<IslandDetail />} />
+                    <Route path="/island/:id" element={<AppErrorBoundary label="Island Destination"><IslandDetail /></AppErrorBoundary>} />
+                    <Route path="/islands/:id" element={<AppErrorBoundary label="Island Destination"><IslandDetail /></AppErrorBoundary>} />
                     <Route path="/membership" element={<Membership />} />
                     <Route path="/find" element={<FindItems />} />
                     <Route path="/command-builder" element={<AppErrorBoundary label="Command Builder"><CommandBuilder /></AppErrorBoundary>} />

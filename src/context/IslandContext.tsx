@@ -60,7 +60,7 @@ const isCurrentCacheScope = () => (sessionStorage.getItem(STORAGE_KEY_AUTH_SCOPE
 export const IslandProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [islands, setIslands] = useState<IslandData[]>(() => {
         if (!isCurrentCacheScope()) return [];
-        const cached = sessionStorage.getItem(STORAGE_KEY_ISLANDS);
+        const cached = sessionStorage.getItem(STORAGE_KEY_ISLANDS) || localStorage.getItem(STORAGE_KEY_ISLANDS);
         if (cached) {
             try {
                 return JSON.parse(cached);
@@ -73,7 +73,7 @@ export const IslandProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const [villagersMap, setVillagersMap] = useState<Record<string, string[]>>(() => {
         if (!isCurrentCacheScope()) return {};
-        const cached = sessionStorage.getItem(STORAGE_KEY_VILLAGERS);
+        const cached = sessionStorage.getItem(STORAGE_KEY_VILLAGERS) || localStorage.getItem(STORAGE_KEY_VILLAGERS);
         if (cached) {
             try {
                 return JSON.parse(cached);
@@ -84,10 +84,22 @@ export const IslandProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return {};
     });
 
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(() => {
+        if (!isCurrentCacheScope()) return true;
+        const cached = sessionStorage.getItem(STORAGE_KEY_ISLANDS) || localStorage.getItem(STORAGE_KEY_ISLANDS);
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed) && parsed.length > 0) return false;
+            } catch {
+                return true;
+            }
+        }
+        return true;
+    });
     const [lastUpdated, setLastUpdated] = useState<number | null>(() => {
         if (!isCurrentCacheScope()) return null;
-        const cached = sessionStorage.getItem(STORAGE_KEY_TIMESTAMP);
+        const cached = sessionStorage.getItem(STORAGE_KEY_TIMESTAMP) || localStorage.getItem(STORAGE_KEY_TIMESTAMP);
         return cached ? parseInt(cached, 10) : null;
     });
 
@@ -150,14 +162,38 @@ export const IslandProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setLastUpdated(now);
             setLoading(false);
 
-            // Persist to session storage
-            sessionStorage.setItem(STORAGE_KEY_ISLANDS, JSON.stringify(updatedIslands));
-            sessionStorage.setItem(STORAGE_KEY_VILLAGERS, JSON.stringify(villagerData.islands));
-            sessionStorage.setItem(STORAGE_KEY_TIMESTAMP, now.toString());
-            sessionStorage.setItem(STORAGE_KEY_AUTH_SCOPE, getCacheAuthScope());
+            // Persist to session storage and localStorage
+            const islandsJson = JSON.stringify(updatedIslands);
+            const villagersJson = JSON.stringify(villagerData.islands);
+            const nowStr = now.toString();
+            const authScope = getCacheAuthScope();
 
+            try {
+                sessionStorage.setItem(STORAGE_KEY_ISLANDS, islandsJson);
+                sessionStorage.setItem(STORAGE_KEY_VILLAGERS, villagersJson);
+                sessionStorage.setItem(STORAGE_KEY_TIMESTAMP, nowStr);
+                sessionStorage.setItem(STORAGE_KEY_AUTH_SCOPE, authScope);
+
+                localStorage.setItem(STORAGE_KEY_ISLANDS, islandsJson);
+                localStorage.setItem(STORAGE_KEY_VILLAGERS, villagersJson);
+                localStorage.setItem(STORAGE_KEY_TIMESTAMP, nowStr);
+                localStorage.setItem(STORAGE_KEY_AUTH_SCOPE, authScope);
+            } catch {
+                // Storage write failed
+            }
         } catch (error) {
             console.error("Failed to refresh island data:", error);
+            try {
+                const fallback = localStorage.getItem(STORAGE_KEY_ISLANDS);
+                if (fallback) {
+                    const parsed = JSON.parse(fallback);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        setIslands((prev) => (prev.length > 0 ? prev : parsed));
+                    }
+                }
+            } catch {
+                // Ignore fallback parse error
+            }
             setLoading(false);
         }
     }, []);
@@ -170,6 +206,9 @@ export const IslandProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             sessionStorage.removeItem(STORAGE_KEY_ISLANDS);
             sessionStorage.removeItem(STORAGE_KEY_TIMESTAMP);
             sessionStorage.removeItem(STORAGE_KEY_AUTH_SCOPE);
+            localStorage.removeItem(STORAGE_KEY_ISLANDS);
+            localStorage.removeItem(STORAGE_KEY_TIMESTAMP);
+            localStorage.removeItem(STORAGE_KEY_AUTH_SCOPE);
             refreshData();
         };
 

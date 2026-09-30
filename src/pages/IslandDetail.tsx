@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useIslandData } from "../context/useIslandData";
+import { type IslandData } from "../data/islands";
 import { useAuth } from "../context/useAuth";
 import { getAuthToken } from "../context/authToken";
 import { useFavoriteIslands } from "../hooks/useFavoriteIslands";
@@ -50,6 +51,61 @@ function getDodoUiState(params: {
     if (needsAuth) return "needs-membership";
     return "gate-closed";
 }
+
+const normalizeKey = (val?: string) => {
+    if (!val) return "";
+    try {
+        return decodeURIComponent(val)
+            .trim()
+            .toLowerCase()
+            .replace(/[\s\-_]+/g, "");
+    } catch {
+        return val.trim().toLowerCase().replace(/[\s\-_]+/g, "");
+    }
+};
+
+const findIslandByParam = (islands: IslandData[], paramId?: string): IslandData | null => {
+    if (!paramId || !islands.length) return null;
+
+    let raw = "";
+    try {
+        raw = decodeURIComponent(paramId).trim();
+    } catch {
+        raw = paramId.trim();
+    }
+    const rawLower = raw.toLowerCase();
+    const normalized = normalizeKey(raw);
+
+    // 1. Exact match on ID
+    let match = islands.find((i) => i.id === raw);
+    if (match) return match;
+
+    // 2. Case-insensitive match on ID
+    match = islands.find((i) => i.id.toLowerCase() === rawLower);
+    if (match) return match;
+
+    // 3. Case-insensitive match on name
+    match = islands.find((i) => i.name.toLowerCase() === rawLower);
+    if (match) return match;
+
+    // 4. Case-insensitive match on canonicalName
+    match = islands.find((i) => i.canonicalName && i.canonicalName.toLowerCase() === rawLower);
+    if (match) return match;
+
+    // 5. Match by channel_id
+    match = islands.find((i) => i.channel_id && i.channel_id === raw);
+    if (match) return match;
+
+    // 6. Normalized slug match (ignores spaces, hyphens, underscores)
+    match = islands.find((i) =>
+        normalizeKey(i.id) === normalized ||
+        normalizeKey(i.name) === normalized ||
+        normalizeKey(i.canonicalName) === normalized
+    );
+    if (match) return match;
+
+    return null;
+};
 
 // ─────────────────────────────────────────────────────────────
 // IslandDetail
@@ -118,7 +174,7 @@ const IslandDetail = () => {
     }, [showImageModal]);
 
     const island = useMemo(() => {
-        const found = islands.find((i) => i.id === id);
+        const found = findIslandByParam(islands, id);
         if (!found) return null;
 
         return {
@@ -139,15 +195,40 @@ const IslandDetail = () => {
         };
     }, [islands, id]);
 
+    // If data is still loading from API/radar and island is not yet resolved, show radar loading screen
+    if (loading && !island) {
+        return (
+            <div className="nook-bg min-vh-100 d-flex align-items-center justify-content-center">
+                <div className="text-center py-5 animate-pulse">
+                    <div className="spinner-border text-success mb-3" style={{ width: '3rem', height: '3rem' }} role="status">
+                        <span className="visually-hidden">Loading destination...</span>
+                    </div>
+                    <h2 className="h4 fw-black text-dark ac-font mb-2">Locating Island Destination...</h2>
+                    <p className="text-muted small fw-bold mb-0">Connecting to Dodo Airlines radar for flight status...</p>
+                </div>
+            </div>
+        );
+    }
+
     if (!island) {
         return (
             <div className="nook-bg min-vh-100 d-flex align-items-center justify-content-center">
-                <div className="text-center">
-                    <i className="fa-solid fa-plane-slash fa-3x mb-3 opacity-50"></i>
-                    <h2 className="fw-black">Destination Not Found</h2>
-                    <button onClick={() => navigate("/maps")} className="btn btn-link text-success fw-bold">
-                        Return Home
-                    </button>
+                <div className="text-center p-4" style={{ maxWidth: 500 }}>
+                    <div className="mb-3">
+                        <i className="fa-solid fa-plane-slash fa-3x text-warning opacity-75"></i>
+                    </div>
+                    <h2 className="fw-black text-dark ac-font mb-2">Destination Not Found</h2>
+                    <p className="text-muted small fw-bold mb-4">
+                        We couldn't find an island destination matching <code>"{id}"</code> on our active flight radar. It may have been renamed or temporarily closed.
+                    </p>
+                    <div className="d-flex justify-content-center gap-2 flex-wrap">
+                        <Link to="/islands" className="btn btn-sm btn-success rounded-pill px-4 fw-bold shadow-2xs">
+                            <i className="fa-solid fa-plane-departure me-1"></i> Browse All Islands
+                        </Link>
+                        <button onClick={() => navigate("/maps")} className="btn btn-sm btn-outline-secondary rounded-pill px-3 fw-bold">
+                            View Island Maps
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -550,7 +631,7 @@ const IslandDetail = () => {
                                         )}
                                     </div>
                                     <div className="d-flex flex-wrap gap-2">
-                                        {(island.items ?? []).map((item) => (
+                                        {(island.items ?? []).map((item: string) => (
                                             <div
                                                 key={item}
                                                 className="item-pill cursor-pointer hover-shadow-sm transition-all"

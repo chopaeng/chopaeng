@@ -1162,13 +1162,13 @@ export const DropBot: React.FC = () => {
                             {/* Dodo / Presence Actions */}
                             {selectedDropIsland && (
                                 <div className="d-flex align-items-center gap-2 flex-wrap">
-                                    {dropDodoCode || (selectedDropIsland.dodoCode && selectedDropIsland.dodoCode !== "SUB ONLY" && selectedDropIsland.dodoCode !== "GETTIN'") ? (
+                                    {dropDodoCode ? (
                                         <div
                                             className="badge bg-success text-white rounded-pill fw-bold px-3 py-1.5 shadow-2xs d-inline-flex align-items-center gap-1.5 font-monospace"
                                             style={{ fontSize: '0.82rem' }}
                                         >
                                             <i className="fa-solid fa-plane-departure" />
-                                            <span>Dodo: {dropDodoCode || selectedDropIsland.dodoCode}</span>
+                                            <span>Dodo: {dropDodoCode}</span>
                                         </div>
                                     ) : (
                                         <button

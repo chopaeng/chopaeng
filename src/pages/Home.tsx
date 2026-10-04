@@ -4,7 +4,8 @@ import banner from '../assets/banner.png';
 import logo from '../assets/logo.webp';
 import StreamEmbed from "../components/StreamEmbed";
 import DisclaimerBanner from "../components/DisclaimerBanner";
-import { BLOGS_API_BASE } from "../config/api";
+import { BLOGS_API_BASE, DODO_API_BASE } from "../config/api";
+import { getAuthToken } from "../context/authToken";
 import { useIslandData } from "../context/useIslandData";
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
 import TodaySnapshot from "../components/TodaySnapshot";
@@ -38,6 +39,9 @@ const Home = () => {
     // Hero interactive showcase tab state (flights vs stream)
     const [heroTab, setHeroTab] = useState<'flights' | 'stream'>('flights');
     const [flightFilter, setFlightFilter] = useState<'all' | 'public' | 'member'>('all');
+    // Track revealed dodo codes for member islands (fetched from API)
+    const [revealedDodos, setRevealedDodos] = useState<Record<string, string>>({});
+    const [revealingId, setRevealingId] = useState<string | null>(null);
 
     // Live Discord member count (falls back to static value if API unavailable)
     const [discordCount, setDiscordCount] = useState<string>('29k+');
@@ -388,13 +392,62 @@ const Home = () => {
                                                             </div>
 
                                                             <div>
-                                                                {isl.dodoCode ? (
+                                                                {isl.cat === 'public' && isl.dodoCode ? (
+                                                                    // Public islands: show code directly
                                                                     <div
                                                                         className="badge bg-white border text-dark rounded-pill fw-black px-3 py-1.5 font-monospace shadow-2xs d-inline-flex align-items-center"
                                                                         style={{ fontSize: '0.82rem' }}
                                                                     >
                                                                         <i className="fa-solid fa-plane-departure text-nook me-1"></i> {isl.dodoCode}
                                                                     </div>
+                                                                ) : isl.cat === 'member' ? (
+                                                                    // Member islands: require explicit reveal which logs to dodo web log
+                                                                    revealedDodos[isl.id] ? (
+                                                                        <div
+                                                                            className="badge bg-white border text-dark rounded-pill fw-black px-3 py-1.5 font-monospace shadow-2xs d-inline-flex align-items-center"
+                                                                            style={{ fontSize: '0.82rem' }}
+                                                                        >
+                                                                            <i className="fa-solid fa-plane-departure text-nook me-1"></i> {revealedDodos[isl.id]}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={revealingId === isl.id}
+                                                                            onClick={async () => {
+                                                                                setRevealingId(isl.id);
+                                                                                playChimeClick();
+                                                                                try {
+                                                                                    const token = getAuthToken();
+                                                                                    const resp = await fetch(
+                                                                                        `${DODO_API_BASE}/api/islands/${encodeURIComponent(isl.name)}/dodo`,
+                                                                                        {
+                                                                                            method: 'POST',
+                                                                                            headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                                                                            credentials: 'include',
+                                                                                        }
+                                                                                    );
+                                                                                    if (resp.ok) {
+                                                                                        const data = await resp.json();
+                                                                                        const raw = String(data.dodo_code || '');
+                                                                                        const code = raw.split(': ').pop() || raw;
+                                                                                        setRevealedDodos(prev => ({ ...prev, [isl.id]: code }));
+                                                                                    }
+                                                                                } catch {
+                                                                                    // silently fail on home page
+                                                                                } finally {
+                                                                                    setRevealingId(null);
+                                                                                }
+                                                                            }}
+                                                                            className="btn btn-sm btn-nook-primary rounded-pill fw-bold px-3"
+                                                                            style={{ fontSize: '0.78rem' }}
+                                                                        >
+                                                                            {revealingId === isl.id ? (
+                                                                                <><span className="spinner-border spinner-border-sm me-1" />Fetching…</>
+                                                                            ) : (
+                                                                                <><i className="fa-solid fa-eye me-1"></i>Reveal Code</>
+                                                                            )}
+                                                                        </button>
+                                                                    )
                                                                 ) : (
                                                                     <Link to={`/islands`} className="btn btn-sm btn-outline-success rounded-pill fw-bold px-3" style={{ fontSize: '0.8rem' }}>
                                                                         View Pass

@@ -121,7 +121,9 @@ const Home = () => {
         if (!islands || islands.length === 0) return [];
         return islands
             .filter((isl) => {
-                const isOnline = isl.status === 'ONLINE' || !isl.status;
+                // Allow ONLINE islands, and also SUB ONLY islands that the logged-in member has access to
+                const isOnline = isl.status === 'ONLINE' || !isl.status
+                    || (isl.status === 'SUB ONLY' && (isl.accessible || isl.viewerHasAccess));
                 if (!isOnline) return false;
                 if (flightFilter === 'public') return isl.cat === 'public';
                 if (flightFilter === 'member') return isl.cat === 'member';

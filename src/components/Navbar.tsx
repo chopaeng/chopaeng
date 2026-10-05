@@ -127,8 +127,10 @@ export const Navbar: React.FC = () => {
     /* ── Notifications: mark as read when the panel CLOSES, so unread highlights are actually visible ── */
     const closeNotif = useCallback(() => {
         setShowNotifDropdown(false);
-        markAllRead();
-    }, [markAllRead]);
+        if (user) {
+            markAllRead();
+        }
+    }, [markAllRead, user]);
 
     const toggleNotif = () => {
         playChimeClick();
@@ -378,13 +380,13 @@ export const Navbar: React.FC = () => {
                             <button
                                 type="button"
                                 className="chopaeng-action-btn chopaeng-action-btn--round position-relative"
-                                aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+                                aria-label={user && unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
                                 aria-expanded={showNotifDropdown}
                                 aria-controls="chopaeng-notif-panel"
                                 onClick={toggleNotif}
                             >
                                 <i className="fa-solid fa-bell" aria-hidden="true" />
-                                {unreadCount > 0 && <span className="chopaeng-badge-dot" aria-hidden="true">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+                                {user && unreadCount > 0 && <span className="chopaeng-badge-dot" aria-hidden="true">{unreadCount > 9 ? "9+" : unreadCount}</span>}
                             </button>
 
                             {showNotifDropdown && (
@@ -394,11 +396,40 @@ export const Navbar: React.FC = () => {
                                             <i className="fa-solid fa-bell me-2" style={{ color: "#f59e0b" }} aria-hidden="true" />
                                             Notifications
                                         </span>
-                                        {notifications.length > 0 && (
+                                        {user && notifications.length > 0 && (
                                             <button type="button" className="chopaeng-link-btn" onClick={clearAll}>Clear all</button>
                                         )}
                                     </div>
-                                    {notifications.length === 0 ? (
+                                    {!user ? (
+                                        <div className="chopaeng-notif-empty p-3 text-center" style={{ minWidth: 260 }}>
+                                            <i className="fa-solid fa-lock d-block fs-4 mb-2 text-warning" aria-hidden="true" />
+                                            <div className="fw-bold mb-1" style={{ fontSize: "0.85rem", color: "var(--bs-body-color, #e2e8f0)" }}>
+                                                Sign in to view notifications
+                                            </div>
+                                            <p className="small text-muted mb-3" style={{ fontSize: "0.75rem", lineHeight: 1.4 }}>
+                                                Sign in with Discord to receive island alerts, queue notifications, and ChoBot updates.
+                                            </p>
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm text-white w-100 d-inline-flex align-items-center justify-content-center gap-2"
+                                                onClick={() => {
+                                                    setShowNotifDropdown(false);
+                                                    login();
+                                                }}
+                                                style={{
+                                                    backgroundColor: "#5865F2",
+                                                    border: "none",
+                                                    fontWeight: 600,
+                                                    fontSize: "0.8rem",
+                                                    padding: "0.45rem 0.75rem",
+                                                    borderRadius: "8px"
+                                                }}
+                                            >
+                                                <i className="fa-brands fa-discord" aria-hidden="true" />
+                                                Sign in with Discord
+                                            </button>
+                                        </div>
+                                    ) : notifications.length === 0 ? (
                                         <div className="chopaeng-notif-empty">
                                             <i className="fa-solid fa-bell-slash d-block fs-4 mb-2 opacity-50" aria-hidden="true" />
                                             No notifications yet

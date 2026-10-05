@@ -73,11 +73,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (!authedUser) {
                     clearAuthToken();
                     handleLogoutStorageCleanup();
+                    window.dispatchEvent(new CustomEvent("chopaeng_auth_change", { detail: { user: null } }));
+                } else {
+                    window.dispatchEvent(new CustomEvent("chopaeng_auth_change", { detail: { user: authedUser } }));
                 }
                 setLoading(false);
             });
         } else {
             setLoading(false);
+            window.dispatchEvent(new CustomEvent("chopaeng_auth_change", { detail: { user: null } }));
         }
 
         const handleNickUpdated = (e: any) => {

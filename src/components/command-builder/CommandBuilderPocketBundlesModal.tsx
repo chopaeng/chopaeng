@@ -180,9 +180,9 @@ export const CommandBuilderPocketBundlesModal = ({
             setShowSaveForm(false);
             setSaveTitle('');
             setSaveDescription('');
-            showNotice(isOfficial ? '⭐ Official Community Bundle saved to database!' : '💾 Custom Bundle saved to database!');
+            showNotice(isOfficial ? '⭐ Official Community Bundle saved to ChoBot!' : '💾 Custom Bundle saved to ChoBot!');
         } catch (err) {
-            showNotice('Failed to save bundle to database.', 'error');
+            showNotice('Failed to save bundle to ChoBot.', 'error');
         } finally {
             setIsSaving(false);
         }
@@ -227,7 +227,7 @@ export const CommandBuilderPocketBundlesModal = ({
                             </div>
                             <div className="min-w-0">
                                 <h2 className="modal-title h5 fw-black text-dark mb-0 ac-font text-truncate">Pocket Bundles</h2>
-                                <p className="tiny-text text-muted mb-0 text-truncate">1-click themed item sets & database presets</p>
+                                <p className="tiny-text text-muted mb-0 text-truncate">1-click themed item sets &amp; ChoBot presets</p>
                             </div>
                         </div>
 
@@ -265,7 +265,7 @@ export const CommandBuilderPocketBundlesModal = ({
                                 <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
                                     <h3 className="h6 fw-black text-dark mb-0 ac-font">
                                         <i className="fa-solid fa-floppy-disk text-success me-2"></i>
-                                        Save Current Pocket to Database
+                                        Save Current Pocket to ChoBot
                                     </h3>
                                     <span className="badge bg-light text-dark border">
                                         Using {saveTarget === 'order' ? `${totalOrderItemsCount} Order Items` : `${totalDropItemsCount} Drop Items`}
@@ -366,12 +366,12 @@ export const CommandBuilderPocketBundlesModal = ({
                                                 {isSaving ? (
                                                     <>
                                                         <span className="spinner-border spinner-border-sm me-2" role="status" />
-                                                        Saving to Database...
+                                                        Saving to ChoBot...
                                                     </>
                                                 ) : (
                                                     <>
                                                         <i className="fa-solid fa-cloud-arrow-up me-2"></i>
-                                                        Save Bundle to Database
+                                                        Save Bundle to ChoBot
                                                     </>
                                                 )}
                                             </button>
@@ -436,7 +436,7 @@ export const CommandBuilderPocketBundlesModal = ({
                                     {loading ? (
                                         <div className="text-center py-5 text-muted">
                                             <div className="spinner-border spinner-border-sm text-success mb-2" />
-                                            <p className="small mb-0">Loading database bundles...</p>
+                                            <p className="small mb-0">Loading ChoBot bundles...</p>
                                         </div>
                                     ) : filteredBundles.length === 0 ? (
                                         <div className="bg-white rounded-4 border p-4 text-center text-muted">
@@ -534,7 +534,7 @@ export const CommandBuilderPocketBundlesModal = ({
                                                 <button
                                                     type="button"
                                                     className="btn btn-sm btn-outline-danger rounded-circle p-2"
-                                                    title="Delete this bundle from database"
+                                                    title="Delete this bundle from ChoBot"
                                                     onClick={() => handleDeleteBundle(activeBundle.id)}
                                                 >
                                                     <i className="fa-solid fa-trash-can"></i>

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useCollection } from '../hooks/useCollection';
 import { useCatalogData } from '../hooks/useCatalogData';
+import { useAuth } from '../context/useAuth';
+import { RequireAuthView } from '../components/RequireAuthView';
 import { playChimeClick } from '../utils/kkAudioSynthesizer';
 import type { CatalogEntity } from '../data/commandBuilderData';
 
@@ -41,7 +43,8 @@ const ProgressRing: React.FC<{ percentage: number; size?: number; strokeWidth?: 
 };
 
 const MyCollection: React.FC = () => {
-    const { collectedCount, isCollected, toggleCollected, clearCollection, exportCollection, importCollection } = useCollection();
+    const { user, loading: authLoading } = useAuth();
+    const { collectedCount, isCollected, toggleCollected, clearCollection, exportCollection, importCollection, isSyncingDb } = useCollection();
     const { data: catalogData, isLoading: catalogLoading } = useCatalogData();
     const [showMissing, setShowMissing] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState('All');
@@ -145,6 +148,27 @@ const MyCollection: React.FC = () => {
 
     const site = typeof window !== 'undefined' ? window.location.origin : 'https://www.chopaeng.com';
 
+    if (!user && !authLoading) {
+        return (
+            <>
+                <Helmet>
+                    <title>My Collection Tracker | Chopaeng</title>
+                    <meta name="description" content="Track your ACNH collection progress. Requires Discord login to save to ChoBot." />
+                    <link rel="canonical" href={`${site}/my-collection`} />
+                </Helmet>
+                <div className="min-vh-100 nook-bg py-5">
+                    <RequireAuthView
+                        title="My Collection Tracker"
+                        description="Sign in with your Discord account to view your catalog collection, track your percentage completion across items and villagers, and automatically save your progress to ChoBot."
+                        icon="fa-box-archive"
+                        badge="ChoBot Cloud Collection"
+                        returnPath="/my-collection"
+                    />
+                </div>
+            </>
+        );
+    }
+
     return (
         <>
             <Helmet>
@@ -157,9 +181,15 @@ const MyCollection: React.FC = () => {
                 <div className="container py-4">
                     {/* Header */}
                     <div className="text-center mb-5 animate-up">
-                        <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-2 fw-bold text-uppercase tracking-wider mb-2">
-                            <i className="fa-solid fa-clipboard-check me-1" aria-hidden="true" /> Personal Tracker
-                        </span>
+                        <div className="d-flex align-items-center justify-content-center gap-2 mb-2 flex-wrap">
+                            <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-2 fw-bold text-uppercase tracking-wider">
+                                <i className="fa-solid fa-clipboard-check me-1" aria-hidden="true" /> Personal Tracker
+                            </span>
+                            <span className="badge bg-light text-success border border-success-subtle rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1.5 shadow-2xs">
+                                <i className={isSyncingDb ? "fa-solid fa-spinner fa-spin text-primary" : "fa-solid fa-cloud-arrow-up text-success"} />
+                                <span>{isSyncingDb ? "Syncing with ChoBot..." : "Saved to ChoBot"}</span>
+                            </span>
+                        </div>
                         <h1 className="display-5 fw-black text-dark ac-font mb-2">
                             My Collection
                         </h1>

@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import type { CatalogEntity } from '../data/commandBuilderData';
 import { ITEMS } from '../data/commandBuilderData';
 import { generateFullItemHex } from '../utils/commandBuilderHex';
@@ -10,6 +10,63 @@ import {
 } from '../utils/pocketOptimizer';
 import banner from '../assets/banner.png';
 import { getUserScopedItem, setUserScopedItem } from '../utils/accountStorage';
+import { getAuthToken } from '../context/authToken';
+import { API_BASE } from '../config/api';
+
+const getAuthHeaders = (token?: string | null): Record<string, string> => {
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+    };
+    const authToken = token ?? getAuthToken();
+    if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    return headers;
+};
+
+export const fetchPocketsFromDb = async (token?: string | null): Promise<{ orderItems?: PocketEntry[]; dropItems?: PocketEntry[] } | null> => {
+    const authToken = token ?? getAuthToken();
+    if (!authToken) return null;
+
+    try {
+        const res = await fetch(`${API_BASE}/api/user/pockets`, {
+            headers: getAuthHeaders(authToken),
+            credentials: 'include',
+        });
+        if (res.ok) {
+            const data = await res.json();
+            return {
+                orderItems: Array.isArray(data.orderItems) ? data.orderItems : [],
+                dropItems: Array.isArray(data.dropItems) ? data.dropItems : [],
+            };
+        }
+    } catch {
+        // Fallback to local storage on network errors
+    }
+    return null;
+};
+
+export const savePocketsToDb = async (
+    orderItems: PocketEntry[],
+    dropItems: PocketEntry[],
+    villager?: any,
+    token?: string | null
+): Promise<boolean> => {
+    const authToken = token ?? getAuthToken();
+    if (!authToken) return false;
+
+    try {
+        const res = await fetch(`${API_BASE}/api/user/pockets`, {
+            method: 'POST',
+            headers: getAuthHeaders(authToken),
+            credentials: 'include',
+            body: JSON.stringify({ orderItems, dropItems, villager }),
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
+};
 
 export type PocketItem = CatalogEntity & {
     baseId?: string | number | null;
@@ -81,26 +138,87 @@ export const useCommandBuilderPockets = () => {
     );
     const [copyOrderStatus, setCopyOrderStatus] = useState('Copy order');
     const [copyDropStatus, setCopyDropStatus] = useState('Copy drop');
+    const [isSyncingDb, setIsSyncingDb] = useState(false);
+    const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isFetchingRemoteRef = useRef(false);
 
-    // Persist to user-scoped localStorage
+    const syncPocketsWithDb = useCallback((tokenOverride?: string | null) => {
+        const token = tokenOverride !== undefined ? tokenOverride : getAuthToken();
+        if (!token) return;
+        setIsSyncingDb(true);
+        isFetchingRemoteRef.current = true;
+        fetchPocketsFromDb(token)
+            .then((remote) => {
+                if (!remote) return;
+                if (remote.orderItems && remote.orderItems.length > 0) {
+                    setOrderItems(remote.orderItems);
+                    setUserScopedItem('command_builder_order_items', JSON.stringify(remote.orderItems));
+                }
+                if (remote.dropItems && remote.dropItems.length > 0) {
+                    setDropItems(remote.dropItems);
+                    setUserScopedItem('command_builder_drop_items', JSON.stringify(remote.dropItems));
+                }
+            })
+            .finally(() => {
+                setIsSyncingDb(false);
+                setTimeout(() => {
+                    isFetchingRemoteRef.current = false;
+                }, 300);
+            });
+    }, []);
+
+    // Initial sync from ChoBot on mount
+    useEffect(() => {
+        const token = getAuthToken();
+        if (token) {
+            syncPocketsWithDb(token);
+        }
+    }, [syncPocketsWithDb]);
+
+    // Persist to user-scoped localStorage & debounced sync to ChoBot DB
     useEffect(() => {
         setUserScopedItem('command_builder_order_items', JSON.stringify(orderItems));
+        const token = getAuthToken();
+        if (token && !isFetchingRemoteRef.current) {
+            if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+            saveTimeoutRef.current = setTimeout(() => {
+                savePocketsToDb(orderItems, dropItems, null, token).catch(() => {});
+            }, 1200);
+        }
     }, [orderItems]);
 
     useEffect(() => {
         setUserScopedItem('command_builder_drop_items', JSON.stringify(dropItems));
+        const token = getAuthToken();
+        if (token && !isFetchingRemoteRef.current) {
+            if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+            saveTimeoutRef.current = setTimeout(() => {
+                savePocketsToDb(orderItems, dropItems, null, token).catch(() => {});
+            }, 1200);
+        }
     }, [dropItems]);
 
     // Handle account switches cleanly so pocket items reset/reload for the switched account
     useEffect(() => {
         const handleAccountSwitch = (e: any) => {
-            const newUid = e.detail?.newUserId;
+            const newUid = e.detail?.newUserId !== undefined
+                ? e.detail.newUserId
+                : (e.detail?.user?.user_id ?? null);
             setOrderItems(parsePocketEntries('command_builder_order_items', newUid));
             setDropItems(parsePocketEntries('command_builder_drop_items', newUid));
+
+            const token = getAuthToken();
+            if (token && newUid) {
+                syncPocketsWithDb(token);
+            }
         };
         window.addEventListener('chopaeng_account_switched', handleAccountSwitch);
-        return () => window.removeEventListener('chopaeng_account_switched', handleAccountSwitch);
-    }, []);
+        window.addEventListener('chopaeng_auth_change', handleAccountSwitch);
+        return () => {
+            window.removeEventListener('chopaeng_account_switched', handleAccountSwitch);
+            window.removeEventListener('chopaeng_auth_change', handleAccountSwitch);
+        };
+    }, [syncPocketsWithDb]);
 
 
 
@@ -832,5 +950,6 @@ export const useCommandBuilderPockets = () => {
         getPocketQuantity,
         getOrderPocketQuantity,
         getDropPocketQuantity,
+        isSyncingDb,
     };
 };

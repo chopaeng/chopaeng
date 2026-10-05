@@ -1,8 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useHemisphere } from '../hooks/useHemisphere';
 import { playChimeClick } from '../utils/kkAudioSynthesizer';
+import { getUserScopedItem, setUserScopedItem, getActiveUserId } from '../utils/accountStorage';
+import { getAuthToken } from '../context/authToken';
+import { useAuth } from '../context/useAuth';
+import { API_BASE } from '../config/api';
 
 interface CreatureEntry {
     name: string;
@@ -37,6 +41,7 @@ const toTitleCase = (str: string): string =>
 
 const Critters: React.FC = () => {
     const { hemisphere, isNorth, setHemisphere } = useHemisphere();
+    const { user } = useAuth();
     const [creatures, setCreatures] = useState<CreatureEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<CritterTab>('now');
@@ -45,23 +50,152 @@ const Critters: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState<'all' | 'uncaught' | 'caught'>('all');
     const [sortBy, setSortBy] = useState<'name' | 'sell'>('sell');
     const [calendarMonth] = useState(new Date().getMonth());
+    const [dbSyncing, setDbSyncing] = useState(false);
+    const [dbSynced, setDbSynced] = useState(false);
 
-    // ── Caught critter tracker (localStorage) ──────────────────────────────
+    // ── Caught critter tracker (account-scoped localStorage + ChoBot DB) ──────────────
     const CAUGHT_KEY = `chopaeng_caught_critters_${hemisphere}`;
-    const [caughtNames, setCaughtNames] = useState<Set<string>>(() => {
+
+    const getLocalCaught = useCallback((hemi?: string) => {
+        const targetHemi = hemi || hemisphere;
+        const key = `chopaeng_caught_critters_${targetHemi}`;
         try {
-            const raw = localStorage.getItem(CAUGHT_KEY);
-            return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
-        } catch { return new Set(); }
-    });
+            const raw = getUserScopedItem(key);
+            return raw ? new Set<string>(JSON.parse(raw)) : new Set<string>();
+        } catch {
+            return new Set<string>();
+        }
+    }, [hemisphere]);
+
+    const [caughtNames, setCaughtNames] = useState<Set<string>>(() => getLocalCaught());
+    const abortRef = useRef<AbortController | null>(null);
+
+    const syncCrittersWithChoBot = useCallback((targetHemi: string, tokenOverride?: string | null) => {
+        if (abortRef.current) {
+            abortRef.current.abort();
+        }
+
+        const currentKey = `chopaeng_caught_critters_${targetHemi}`;
+        // Immediately synchronize state with local cached values for target hemisphere (zero flicker)
+        const local = getLocalCaught(targetHemi);
+        setCaughtNames(local);
+
+        const token = tokenOverride !== undefined ? tokenOverride : getAuthToken();
+        const userId = getActiveUserId();
+        if (!token || !userId) {
+            setDbSyncing(false);
+            setDbSynced(false);
+            return;
+        }
+
+        const controller = new AbortController();
+        abortRef.current = controller;
+        setDbSyncing(true);
+
+        fetch(`${API_BASE}/api/user/critters?hemisphere=${encodeURIComponent(targetHemi)}`, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            signal: controller.signal
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (controller.signal.aborted) return;
+                if (data && data.ok && Array.isArray(data.critters)) {
+                    const serverSet = new Set<string>(data.critters.map((c: any) => c.critter_name));
+                    setCaughtNames(prev => {
+                        const merged = new Set<string>([...prev, ...serverSet]);
+                        try {
+                            setUserScopedItem(currentKey, JSON.stringify([...merged]));
+                        } catch { /* ignore */ }
+                        return merged;
+                    });
+                    setDbSynced(true);
+                }
+            })
+            .catch(err => {
+                if (err.name !== 'AbortError') {
+                    console.warn('Failed to load critters from ChoBot DB:', err);
+                }
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) {
+                    setDbSyncing(false);
+                }
+            });
+    }, [getLocalCaught]);
+
+    // Sync when hemisphere changes or on mount
+    useEffect(() => {
+        syncCrittersWithChoBot(hemisphere);
+        return () => {
+            if (abortRef.current) {
+                abortRef.current.abort();
+            }
+        };
+    }, [hemisphere, syncCrittersWithChoBot]);
+
+    // Re-sync on auth change or account switch
+    useEffect(() => {
+        const handleAuthChange = () => {
+            syncCrittersWithChoBot(hemisphere);
+        };
+
+        window.addEventListener('chopaeng_auth_change', handleAuthChange);
+        window.addEventListener('chopaeng_account_switched', handleAuthChange);
+        return () => {
+            window.removeEventListener('chopaeng_auth_change', handleAuthChange);
+            window.removeEventListener('chopaeng_account_switched', handleAuthChange);
+        };
+    }, [hemisphere, syncCrittersWithChoBot]);
 
     const toggleCaught = (name: string) => {
-        setCaughtNames(prev => {
-            const next = new Set(prev);
-            if (next.has(name)) next.delete(name); else next.add(name);
-            try { localStorage.setItem(CAUGHT_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
-            return next;
-        });
+        const token = getAuthToken();
+        const userId = getActiveUserId();
+        if (!token || !userId) {
+            window.dispatchEvent(new CustomEvent('chopaeng_auth_required', {
+                detail: {
+                    action: 'Critterpedia',
+                    message: 'You must log in with Discord to mark critters as caught and sync your progress to your ChoBot account.'
+                }
+            }));
+            return;
+        }
+
+        const isCurrentlyCaught = caughtNames.has(name);
+        const willBeCaught = !isCurrentlyCaught;
+
+        const next = new Set(caughtNames);
+        if (willBeCaught) next.add(name);
+        else next.delete(name);
+
+        setCaughtNames(next);
+        try {
+            setUserScopedItem(CAUGHT_KEY, JSON.stringify([...next]));
+        } catch { /* ignore */ }
+
+        // Sync with ChoBot DB
+        fetch(`${API_BASE}/api/user/critters`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                critter_name: name,
+                hemisphere: hemisphere,
+                caught: willBeCaught
+            })
+        }).then(res => res.json())
+            .then(data => {
+                if (data && data.ok) {
+                    setDbSynced(true);
+                }
+            })
+            .catch(err => {
+                console.error('Failed to update critter in ChoBot DB:', err);
+            });
     };
 
     const caughtCount = caughtNames.size;
@@ -285,8 +419,36 @@ const Critters: React.FC = () => {
                             </div>
                             <div className="col-12 col-md-4 col-lg">
                                 <div className="ac-stat-card h-100">
-                                    <div className="ac-stat-icon-wrapper ac-stat-icon-wrapper--green">
-                                        <i className="fa-solid fa-circle-check" aria-hidden="true" />
+                                    <div className="d-flex align-items-center justify-content-between mb-1">
+                                        <div className="ac-stat-icon-wrapper ac-stat-icon-wrapper--green">
+                                            <i className="fa-solid fa-circle-check" aria-hidden="true" />
+                                        </div>
+                                        {user ? (
+                                            <span
+                                                className={`badge ${dbSynced ? 'bg-success-subtle text-success border border-success-subtle' : dbSyncing ? 'bg-warning-subtle text-warning border border-warning-subtle' : 'bg-light text-muted border'} rounded-pill`}
+                                                style={{ fontSize: '0.62rem' }}
+                                                title="Synced with ChoBot"
+                                            >
+                                                <i className={`fa-solid ${dbSyncing ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-up'} me-1`} />
+                                                {dbSyncing ? 'Syncing...' : 'ChoBot Cloud'}
+                                            </span>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                className="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill text-decoration-none"
+                                                style={{ fontSize: '0.62rem', cursor: 'pointer' }}
+                                                onClick={() => {
+                                                    window.dispatchEvent(new CustomEvent('chopaeng_auth_required', {
+                                                        detail: {
+                                                            action: 'Critterpedia',
+                                                            message: 'Sign in with Discord to track your caught bugs, fish, and sea creatures across devices.'
+                                                        }
+                                                    }));
+                                                }}
+                                            >
+                                                <i className="fa-solid fa-lock me-1" /> Auth Required
+                                            </button>
+                                        )}
                                     </div>
                                     <div className="ac-stat-number">{caughtCount} / {creatures.length}</div>
                                     <div className="ac-stat-label">Caught ({caughtPercentage}%)</div>
@@ -454,11 +616,11 @@ const Critters: React.FC = () => {
                                                             type="button"
                                                             className={`btn btn-link p-0 me-2 border-0 text-decoration-none ${caughtNames.has(creature.name) ? 'text-success' : 'text-muted opacity-50'}`}
                                                             style={{ fontSize: '1rem', lineHeight: 1 }}
-                                                            title={caughtNames.has(creature.name) ? `${creature.name} caught! Click to unmark` : `Click to mark ${creature.name} as caught`}
+                                                            title={!user ? 'Sign in with Discord to mark as caught' : caughtNames.has(creature.name) ? `${creature.name} caught! Click to unmark` : `Click to mark ${creature.name} as caught`}
                                                             onClick={() => { playChimeClick(); toggleCaught(creature.name); }}
                                                             aria-label={caughtNames.has(creature.name) ? `Unmark ${creature.name}` : `Mark ${creature.name} caught`}
                                                         >
-                                                            <i className={`fa-solid ${caughtNames.has(creature.name) ? 'fa-circle-check' : 'fa-circle'}`} />
+                                                            <i className={`fa-solid ${caughtNames.has(creature.name) ? 'fa-circle-check' : !user ? 'fa-circle-dot' : 'fa-circle'}`} />
                                                         </button>
                                                         <img
                                                             src={creature.icon}
@@ -505,8 +667,8 @@ const Critters: React.FC = () => {
                             <i className="fa-solid fa-fish-fins fs-1 mb-2 opacity-50 text-info" aria-hidden="true" />
                             <p className="fw-bold mb-0">
                                 {activeTab === 'now' ? 'No critters available right now at this hour.' :
-                                 activeTab === 'leaving' ? 'No critters are leaving after this month.' :
-                                 `No new critters arriving in ${MONTH_NAMES[nextMonth - 1]}.`}
+                                    activeTab === 'leaving' ? 'No critters are leaving after this month.' :
+                                        `No new critters arriving in ${MONTH_NAMES[nextMonth - 1]}.`}
                             </p>
                         </div>
                     ) : (
@@ -604,18 +766,20 @@ const Critters: React.FC = () => {
                                         {/* Mark as Caught button */}
                                         <button
                                             type="button"
-                                            className={`btn btn-xs rounded-pill fw-bold w-100 mt-2 ${
-                                                caughtNames.has(creature.name)
+                                            className={`btn btn-xs rounded-pill fw-bold w-100 mt-2 ${caughtNames.has(creature.name)
                                                     ? 'btn-success text-white'
-                                                    : 'btn-outline-success'
-                                            }`}
+                                                    : !user
+                                                        ? 'btn-outline-secondary'
+                                                        : 'btn-outline-success'
+                                                }`}
                                             style={{ fontSize: '0.72rem', padding: '3px 10px' }}
                                             onClick={() => { playChimeClick(); toggleCaught(creature.name); }}
                                             aria-pressed={caughtNames.has(creature.name)}
                                             aria-label={caughtNames.has(creature.name) ? `Unmark ${creature.name} as caught` : `Mark ${creature.name} as caught`}
+                                            title={!user ? 'Sign in with Discord to mark as caught' : undefined}
                                         >
-                                            <i className={`fa-solid ${caughtNames.has(creature.name) ? 'fa-check' : 'fa-net-wired'} me-1`} aria-hidden="true" />
-                                            {caughtNames.has(creature.name) ? 'Caught!' : 'Mark Caught'}
+                                            <i className={`fa-solid ${caughtNames.has(creature.name) ? 'fa-check' : !user ? 'fa-lock' : 'fa-net-wired'} me-1`} aria-hidden="true" />
+                                            {caughtNames.has(creature.name) ? 'Caught!' : !user ? 'Sign In to Catch' : 'Mark Caught'}
                                         </button>
                                     </div>
                                 </div>

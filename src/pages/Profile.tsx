@@ -240,7 +240,7 @@ const Profile = () => {
 
     const handleCopyOrderCommand = (order: OrderHistoryItem) => {
         const cmd = order.command.startsWith("!") ? order.command : `!order ${order.command}`;
-        navigator.clipboard.writeText(cmd).catch(() => {});
+        navigator.clipboard.writeText(cmd).catch(() => { });
         setCopiedOrderId(order.id);
         playChimeClick();
         setTimeout(() => setCopiedOrderId(null), 2500);
@@ -458,9 +458,9 @@ const Profile = () => {
                                 setProfile((prev) =>
                                     prev
                                         ? {
-                                              ...prev,
-                                              user: { ...prev.user, nickname: updated },
-                                          }
+                                            ...prev,
+                                            user: { ...prev.user, nickname: updated },
+                                        }
                                         : null
                                 );
                             }
@@ -514,9 +514,9 @@ const Profile = () => {
                         setProfile((prev) =>
                             prev
                                 ? {
-                                      ...prev,
-                                      user: { ...prev.user, nickname: updated },
-                                  }
+                                    ...prev,
+                                    user: { ...prev.user, nickname: updated },
+                                }
                                 : null
                         );
                     }
@@ -973,7 +973,7 @@ const Profile = () => {
                                             </span>
                                             <span className="badge bg-light text-success border border-success-subtle rounded-pill x-small fw-bold d-inline-flex align-items-center gap-1">
                                                 <i className={isSyncingDb ? "fa-solid fa-spinner fa-spin text-primary" : "fa-solid fa-cloud-arrow-up text-success"}></i>
-                                                <span>{isSyncingDb ? "Syncing to Database..." : "Auto-Saved to Database"}</span>
+                                                <span>{isSyncingDb ? "Syncing to ChoBot..." : "Saved to ChoBot"}</span>
                                             </span>
                                             <span className="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle rounded-pill x-small fw-bold d-inline-flex align-items-center gap-1">
                                                 <i className="fa-brands fa-discord"></i>
@@ -1195,13 +1195,12 @@ const Profile = () => {
                                     </strong>
                                     <button
                                         type="button"
-                                        className={`btn btn-xs w-100 rounded-pill fw-bold py-1 shadow-2xs d-inline-flex align-items-center justify-content-center gap-1 ${
-                                            passportLinkCopied ? "btn-success text-white" : "btn-dark text-white"
-                                        }`}
+                                        className={`btn btn-xs w-100 rounded-pill fw-bold py-1 shadow-2xs d-inline-flex align-items-center justify-content-center gap-1 ${passportLinkCopied ? "btn-success text-white" : "btn-dark text-white"
+                                            }`}
                                         onClick={() => {
                                             const uname = cleanPassportUsername(passportData.username, authUser?.username || "resident");
                                             const url = `${window.location.origin}/u/${encodeURIComponent(uname)}`;
-                                            navigator.clipboard.writeText(url).catch(() => {});
+                                            navigator.clipboard.writeText(url).catch(() => { });
                                             setPassportLinkCopied(true);
                                             playChimeClick();
                                             setTimeout(() => setPassportLinkCopied(false), 2500);
@@ -1374,9 +1373,8 @@ const Profile = () => {
                                                     setTimeout(() => setPassportLinkCopied(false), 2500);
                                                 });
                                             }}
-                                            className={`btn btn-xs rounded-pill fw-bold px-3 py-2 d-inline-flex align-items-center gap-1 shadow-2xs ${
-                                                passportLinkCopied ? "btn-success text-white" : "btn-white border text-dark"
-                                            }`}
+                                            className={`btn btn-xs rounded-pill fw-bold px-3 py-2 d-inline-flex align-items-center gap-1 shadow-2xs ${passportLinkCopied ? "btn-success text-white" : "btn-white border text-dark"
+                                                }`}
                                             title="Copy Public Passport URL"
                                         >
                                             <i className={`fa-solid ${passportLinkCopied ? "fa-check" : "fa-share-nodes"}`}></i>
@@ -1416,13 +1414,12 @@ const Profile = () => {
                                                 setTimeout(() => setPrefNotice(null), 3500);
                                             }}
                                             disabled={savingPassport}
-                                            className={`btn btn-xs rounded-pill fw-bold px-3 py-2 d-inline-flex align-items-center gap-1 shadow-2xs ${
-                                                passportDirty ? "btn-warning text-dark border-warning" : "btn-nook text-white"
-                                            }`}
-                                            title="Save Resident Passport to ChoBot Database"
+                                            className={`btn btn-xs rounded-pill fw-bold px-3 py-2 d-inline-flex align-items-center gap-1 shadow-2xs ${passportDirty ? "btn-warning text-dark border-warning" : "btn-nook text-white"
+                                                }`}
+                                            title="Save Resident Passport to ChoBot"
                                         >
                                             <i className={savingPassport ? "fa-solid fa-spinner fa-spin" : (passportDirty ? "fa-solid fa-floppy-disk" : "fa-solid fa-cloud-arrow-up")}></i>
-                                            <span>{savingPassport ? "Saving..." : (passportDirty ? "Save to DB *" : "Save to DB")}</span>
+                                            <span>{savingPassport ? "Saving..." : (passportDirty ? "Save to ChoBot *" : "Save to ChoBot")}</span>
                                         </button>
                                     </div>
                                 </div>
@@ -1544,7 +1541,7 @@ const Profile = () => {
                                                                 navigator.clipboard.writeText(url);
                                                                 setPassportLinkCopied(true);
                                                                 setTimeout(() => setPassportLinkCopied(false), 2500);
-                             }}
+                                                            }}
                                                             shareCopied={passportLinkCopied}
                                                         />
 
@@ -2616,17 +2613,17 @@ const Profile = () => {
                                                                     type="submit"
                                                                     disabled={savingPassport}
                                                                     className="btn btn-nook fw-bold px-3 d-inline-flex align-items-center gap-1 shadow-2xs"
-                                                                    title="Save Public Username directly to ChoBot Database"
+                                                                    title="Save Public Username directly to ChoBot"
                                                                 >
                                                                     <i className={savingPassport ? "fa-solid fa-spinner fa-spin" : "fa-solid fa-cloud-arrow-up"}></i>
-                                                                    <span>{savingPassport ? "Saving..." : "Save to DB"}</span>
+                                                                    <span>{savingPassport ? "Saving..." : "Save to ChoBot"}</span>
                                                                 </button>
                                                             </div>
 
                                                             <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
                                                                 <span className="tiny-text text-muted">
                                                                     <i className="fa-solid fa-circle-info me-1 text-primary"></i>
-                                                                    Allowed: letters, numbers, hyphens, underscores (max 30 chars). Saved to ChoBot database.
+                                                                    Allowed: letters, numbers, hyphens, underscores (max 30 chars). Saved to ChoBot.
                                                                 </span>
                                                                 {authUser?.username && passportData.username !== authUser.username && (
                                                                     <button
@@ -2665,11 +2662,11 @@ const Profile = () => {
                                             <span className="tiny-text text-muted d-none d-md-inline">
                                                 {lastSavedDbTime ? (
                                                     <span>
-                                                        <i className="fa-solid fa-database text-success me-1"></i>
-                                                        Saved to ChoBot database at {new Date(lastSavedDbTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        <i className="fa-solid fa-cloud-arrow-up text-success me-1"></i>
+                                                        Saved to ChoBot at {new Date(lastSavedDbTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
                                                 ) : (
-                                                    "Changes save securely to ChoBot database & your browser."
+                                                    "Changes save securely to ChoBot & your browser."
                                                 )}
                                             </span>
                                         </div>
@@ -2681,7 +2678,7 @@ const Profile = () => {
                                                 className="btn btn-nook rounded-pill fw-black px-4 py-2 shadow-xs d-inline-flex align-items-center gap-2"
                                             >
                                                 <i className={savingPassport ? "fa-solid fa-spinner fa-spin" : "fa-solid fa-floppy-disk"}></i>
-                                                <span>{savingPassport ? "Saving to Database..." : "Save Passport to Database"}</span>
+                                                <span>{savingPassport ? "Saving to ChoBot..." : "Save Passport to ChoBot"}</span>
                                             </button>
                                         </div>
                                     </div>
@@ -2741,9 +2738,8 @@ const Profile = () => {
                                                         <h3 className="h6 fw-black text-dark mb-0">
                                                             {subscriptionRoleNames.length > 0 ? "Active Subscription Tier" : "Free Resident Access"}
                                                         </h3>
-                                                        <span className={`badge rounded-pill px-2 py-1 x-small fw-bold ${
-                                                            subscriptionRoleNames.length > 0 ? "bg-warning text-dark" : "bg-secondary text-white"
-                                                        }`}>
+                                                        <span className={`badge rounded-pill px-2 py-1 x-small fw-bold ${subscriptionRoleNames.length > 0 ? "bg-warning text-dark" : "bg-secondary text-white"
+                                                            }`}>
                                                             {subscriptionRoleNames.length > 0 ? "VIP PASS" : "STANDARD PASS"}
                                                         </span>
                                                     </div>
@@ -2799,36 +2795,32 @@ const Profile = () => {
                                         <button
                                             type="button"
                                             onClick={() => setAccessFilter("all")}
-                                            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${
-                                                accessFilter === "all" ? "btn-dark shadow-xs" : "btn-light border text-muted"
-                                            }`}
+                                            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${accessFilter === "all" ? "btn-dark shadow-xs" : "btn-light border text-muted"
+                                                }`}
                                         >
                                             All Unlocked ({userUnlockedIslands.length})
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setAccessFilter("public")}
-                                            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${
-                                                accessFilter === "public" ? "btn-success text-white shadow-xs" : "btn-light border text-muted"
-                                            }`}
+                                            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${accessFilter === "public" ? "btn-success text-white shadow-xs" : "btn-light border text-muted"
+                                                }`}
                                         >
                                             <i className="fa-solid fa-lock-open me-1"></i>Free Public ({userUnlockedIslands.filter(i => i.cat === "public").length})
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setAccessFilter("member")}
-                                            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${
-                                                accessFilter === "member" ? "btn-warning text-dark shadow-xs" : "btn-light border text-muted"
-                                            }`}
+                                            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${accessFilter === "member" ? "btn-warning text-dark shadow-xs" : "btn-light border text-muted"
+                                                }`}
                                         >
                                             <i className="fa-solid fa-crown me-1"></i>VIP / Sub ({userUnlockedIslands.filter(i => i.cat === "member").length})
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setAccessFilter("order")}
-                                            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${
-                                                accessFilter === "order" ? "btn-info text-dark shadow-xs" : "btn-light border text-muted"
-                                            }`}
+                                            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${accessFilter === "order" ? "btn-info text-dark shadow-xs" : "btn-light border text-muted"
+                                                }`}
                                         >
                                             <i className="fa-solid fa-box-open me-1"></i>Order Bot ({userUnlockedIslands.filter(i => i.cat === "order").length})
                                         </button>
@@ -2851,13 +2843,12 @@ const Profile = () => {
                                                     <div className="pf-island-card">
                                                         <div className="d-flex align-items-center justify-content-between mb-2">
                                                             <div className="d-flex align-items-center gap-2">
-                                                                <span className={`badge rounded-pill x-small fw-bold ${
-                                                                    island.cat === "member"
+                                                                <span className={`badge rounded-pill x-small fw-bold ${island.cat === "member"
                                                                         ? "bg-warning-subtle text-warning-emphasis border border-warning-subtle"
                                                                         : island.cat === "order"
                                                                             ? "bg-info-subtle text-info-emphasis border border-info-subtle"
                                                                             : "bg-success-subtle text-success border border-success-subtle"
-                                                                }`}>
+                                                                    }`}>
                                                                     {island.cat === "member" ? (
                                                                         <><i className="fa-solid fa-crown me-1"></i>VIP Unlocked</>
                                                                     ) : island.cat === "order" ? (
@@ -2878,9 +2869,8 @@ const Profile = () => {
                                                             <button
                                                                 type="button"
                                                                 onClick={(e) => toggleFavoriteIsland(island.id, e)}
-                                                                className={`btn btn-sm border rounded-circle shadow-2xs d-flex align-items-center justify-content-center transition-all ${
-                                                                    isFav ? "btn-warning text-dark border-warning" : "btn-light text-muted"
-                                                                }`}
+                                                                className={`btn btn-sm border rounded-circle shadow-2xs d-flex align-items-center justify-content-center transition-all ${isFav ? "btn-warning text-dark border-warning" : "btn-light text-muted"
+                                                                    }`}
                                                                 style={{ width: 30, height: 30 }}
                                                                 title={isFav ? "Remove from Favorites" : "Add to Favorites"}
                                                                 aria-label={isFav ? `Remove ${island.name} from Favorites` : `Add ${island.name} to Favorites`}
@@ -3136,10 +3126,10 @@ const Profile = () => {
                                                 order.status === "ready" || order.status === "completed"
                                                     ? "bg-success text-white"
                                                     : order.status === "preparing"
-                                                    ? "bg-warning text-dark"
-                                                    : order.status === "cancelled" || order.status === "error"
-                                                    ? "bg-danger text-white"
-                                                    : "bg-info text-dark";
+                                                        ? "bg-warning text-dark"
+                                                        : order.status === "cancelled" || order.status === "error"
+                                                            ? "bg-danger text-white"
+                                                            : "bg-info text-dark";
 
                                             return (
                                                 <div key={order.id} className="col-12 col-xl-6">
@@ -3238,9 +3228,8 @@ const Profile = () => {
 
                                                                 <button
                                                                     type="button"
-                                                                    className={`btn btn-sm rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-1 ${
-                                                                        isCopied ? "btn-success text-white" : "btn-light border text-dark"
-                                                                    }`}
+                                                                    className={`btn btn-sm rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-1 ${isCopied ? "btn-success text-white" : "btn-light border text-dark"
+                                                                        }`}
                                                                     onClick={() => handleCopyOrderCommand(order)}
                                                                     title="Copy !order command to clipboard"
                                                                     aria-label="Copy order command to clipboard"
@@ -3852,10 +3841,10 @@ const IslandVisitTable = ({ visits, emptyText, showDate = false }: IslandVisitTa
 
                 return showDate
                     ? [
-                          ...base,
-                          formatDate(visit.visited_at ?? visit.last_visit),
-                          formatNumber(visit.visits ?? visit.count ?? 1),
-                      ]
+                        ...base,
+                        formatDate(visit.visited_at ?? visit.last_visit),
+                        formatNumber(visit.visits ?? visit.count ?? 1),
+                    ]
                     : [...base, formatNumber(visit.visits ?? visit.count ?? 1)];
             }),
         [visits, showDate]

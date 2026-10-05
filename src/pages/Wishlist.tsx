@@ -4,13 +4,16 @@ import { Helmet } from 'react-helmet-async';
 import { useFavorites } from '../hooks/useFavorites';
 import { useCatalogData } from '../hooks/useCatalogData';
 import { useCommandBuilderPockets } from '../hooks/useCommandBuilderPockets';
+import { useAuth } from '../context/useAuth';
+import { RequireAuthView } from '../components/RequireAuthView';
 import { playChimeClick } from '../utils/kkAudioSynthesizer';
 import type { CatalogEntity } from '../data/commandBuilderData';
 
 const FALLBACK_IMAGE = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f1f3f5'/%3E%3Cpath d='M30 65 L45 45 L58 58 L68 42 L75 65 Z' fill='%23ced4da'/%3E%3Ccircle cx='38' cy='35' r='7' fill='%23ced4da'/%3E%3C/svg%3E";
 
 const Wishlist: React.FC = () => {
-    const { favorites, favoriteCount, toggleFavorite, clearFavorites, setFavorites } = useFavorites();
+    const { user, loading: authLoading } = useAuth();
+    const { favorites, favoriteCount, toggleFavorite, clearFavorites, setFavorites, isSyncingDb } = useFavorites();
     const { data: catalogData, isLoading: catalogLoading } = useCatalogData();
     const { addItemToOrderPockets } = useCommandBuilderPockets();
     const [searchQuery, setSearchQuery] = useState('');
@@ -98,6 +101,27 @@ const Wishlist: React.FC = () => {
 
     const site = typeof window !== 'undefined' ? window.location.origin : 'https://www.chopaeng.com';
 
+    if (!user && !authLoading) {
+        return (
+            <>
+                <Helmet>
+                    <title>My Wishlist | Chopaeng</title>
+                    <meta name="description" content="Your personal ACNH item wishlist. Requires Discord login to save to ChoBot." />
+                    <link rel="canonical" href={`${site}/wishlist`} />
+                </Helmet>
+                <div className="min-vh-100 nook-bg py-5">
+                    <RequireAuthView
+                        title="My Wishlist"
+                        description="Sign in with your Discord account to save dream items to your wishlist, calculate total values, and automatically sync your wishlist to ChoBot across all your devices."
+                        icon="fa-heart"
+                        badge="ChoBot Cloud Wishlist"
+                        returnPath="/wishlist"
+                    />
+                </div>
+            </>
+        );
+    }
+
     return (
         <>
             <Helmet>
@@ -110,9 +134,15 @@ const Wishlist: React.FC = () => {
                 <div className="container py-4">
                     {/* Header */}
                     <div className="text-center mb-5 animate-up">
-                        <span className="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3 py-2 fw-bold text-uppercase tracking-wider mb-2">
-                            <i className="fa-solid fa-heart me-1" aria-hidden="true" /> Favorites
-                        </span>
+                        <div className="d-flex align-items-center justify-content-center gap-2 mb-2 flex-wrap">
+                            <span className="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3 py-2 fw-bold text-uppercase tracking-wider">
+                                <i className="fa-solid fa-heart me-1" aria-hidden="true" /> Favorites
+                            </span>
+                            <span className="badge bg-light text-success border border-success-subtle rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1.5 shadow-2xs">
+                                <i className={isSyncingDb ? "fa-solid fa-spinner fa-spin text-primary" : "fa-solid fa-cloud-arrow-up text-success"} />
+                                <span>{isSyncingDb ? "Syncing with ChoBot..." : "Saved to ChoBot"}</span>
+                            </span>
+                        </div>
                         <h1 className="display-5 fw-black text-dark ac-font mb-2">
                             My Wishlist
                         </h1>

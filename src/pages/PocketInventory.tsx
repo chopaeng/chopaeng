@@ -20,8 +20,11 @@ import {
 import { fetchPocketBundles } from '../utils/pocketBundleApi';
 import type { PocketBundle, PocketBundleItem } from '../data/pocketBundles';
 import { getAuthToken } from '../context/authToken';
+import { useAuth } from '../context/useAuth';
+import { RequireAuthView } from '../components/RequireAuthView';
 
 export const PocketInventory: React.FC = () => {
+    const { user, loading: authLoading } = useAuth();
     const {
         orderItems,
         setOrderItems,
@@ -58,6 +61,7 @@ export const PocketInventory: React.FC = () => {
         reorderDropPockets,
         orderVillager,
         totalOrderItemsCount,
+        isSyncingDb,
     } = useCommandBuilderPockets();
 
     const { data: catalogData } = useCatalogData();
@@ -223,6 +227,24 @@ export const PocketInventory: React.FC = () => {
     const dropCapColor = totalDropCount >= 9 ? 'bg-warning' : 'bg-info';
     const dropBadgeColor = totalDropCount >= 9 ? 'bg-warning text-dark' : 'bg-info text-dark';
 
+    if (!user && !authLoading) {
+        return (
+            <div className="pocket-inventory-page nook-bg py-5 px-3 min-vh-100">
+                <Helmet>
+                    <title>Pocket Inventory Manager | Chopaeng</title>
+                    <meta name="description" content="Manage your ACNH pocket inventory. Requires Discord login to save to ChoBot." />
+                </Helmet>
+                <RequireAuthView
+                    title="Pocket Inventory Manager"
+                    description="Sign in with your Discord account to configure your 40-slot order pockets and 9-slot drop pockets, optimize stacks, and save custom pocket presets directly to ChoBot."
+                    icon="fa-briefcase"
+                    badge="ChoBot Cloud Pocket Inventory"
+                    returnPath="/pockets"
+                />
+            </div>
+        );
+    }
+
     return (
         <div
             className="pocket-inventory-page nook-bg py-4 px-3 px-md-5 min-vh-100"
@@ -256,9 +278,13 @@ export const PocketInventory: React.FC = () => {
                                 </li>
                             </ol>
                         </nav>
-                        <h1 className="h3 h2-md fw-black text-dark mb-1 ac-font d-flex align-items-center gap-2">
+                        <h1 className="h3 h2-md fw-black text-dark mb-1 ac-font d-flex align-items-center gap-2 flex-wrap">
                             <i className="fa-solid fa-boxes-packing text-success" aria-hidden="true"></i>
-                            Pocket Inventory Manager
+                            <span>Pocket Inventory Manager</span>
+                            <span className="badge bg-light text-success border border-success-subtle rounded-pill px-2.5 py-1 fw-bold tiny-text d-inline-flex align-items-center gap-1 shadow-2xs">
+                                <i className={isSyncingDb ? "fa-solid fa-spinner fa-spin text-primary" : "fa-solid fa-cloud-arrow-up text-success"} />
+                                <span>{isSyncingDb ? "Syncing..." : "Saved to ChoBot"}</span>
+                            </span>
                         </h1>
                         <p className="small text-muted mb-0">
                             Full visual Animal Crossing inventory grid. Manage your 40-slot Order Bot pockets, 9-slot Drop

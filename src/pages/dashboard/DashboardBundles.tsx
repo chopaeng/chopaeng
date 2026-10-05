@@ -446,7 +446,7 @@ export const DashboardBundles = () => {
                     },
                     token
                 );
-                showNotice('⭐ Official Bundle created successfully in database!');
+                showNotice('⭐ Official Bundle created successfully in ChoBot!');
             }
             setEditModalOpen(false);
             await loadBundles();
@@ -458,7 +458,7 @@ export const DashboardBundles = () => {
     };
 
     const handleDeleteBundle = async (id: string) => {
-        if (!window.confirm('Are you sure you want to delete this official bundle from the database?')) return;
+        if (!window.confirm('Are you sure you want to delete this official bundle from ChoBot?')) return;
         try {
             await deletePocketBundle(id, getAuthToken());
             showNotice('Bundle deleted successfully');
@@ -582,7 +582,7 @@ export const DashboardBundles = () => {
                                 <tr>
                                     <td colSpan={7} className="text-center py-5 text-muted">
                                         <div className="spinner-border spinner-border-sm text-success me-2" />
-                                        Loading database bundles...
+                                        Loading ChoBot bundles...
                                     </td>
                                 </tr>
                             ) : filteredBundles.length === 0 ? (
@@ -1117,7 +1117,7 @@ export const DashboardBundles = () => {
                                             ) : (
                                                 <>
                                                     <i className="fa-solid fa-cloud-arrow-up me-2"></i>
-                                                    Save Official Bundle to Database
+                                                    Save Official Bundle to ChoBot
                                                 </>
                                             )}
                                         </button>

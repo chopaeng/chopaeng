@@ -6,6 +6,7 @@ import CommandPalette from "../components/CommandPalette.tsx";
 import OfflineIndicator from "../components/OfflineIndicator.tsx";
 import KeyboardShortcutsModal from "../components/KeyboardShortcutsModal.tsx";
 import AdSenseManager from "../components/AdSenseManager.tsx";
+import { AuthRequiredModal } from "../components/AuthRequiredModal.tsx";
 
 export function IndexLayout() {
     return (
@@ -20,6 +21,7 @@ export function IndexLayout() {
             <CommandPalette />
             <OfflineIndicator />
             <KeyboardShortcutsModal />
+            <AuthRequiredModal />
         </>
     );
 }

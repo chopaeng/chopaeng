@@ -242,7 +242,7 @@ export const savePassportToDb = async (
                         return {
                             success: true,
                             savedToDb: true,
-                            message: 'Your Resident Passport has been saved to the ChoBot database!',
+                            message: 'Your Resident Passport has been saved to ChoBot!',
                             endpoint: ep,
                             passport: savedPassport,
                         };

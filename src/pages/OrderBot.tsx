@@ -594,7 +594,9 @@ const OrderBot: React.FC = () => {
     // Listen for cross-tab or in-app account switches to instantly refresh state
     useEffect(() => {
         const handleAccountSwitch = (e: any) => {
-            const newUid = e.detail?.newUserId;
+            const newUid = e.detail?.newUserId !== undefined
+                ? e.detail.newUserId
+                : (e.detail?.user?.user_id ?? null);
             if (!newUid) {
                 setOrderProfile(null);
                 setServerNickname('');
@@ -608,7 +610,11 @@ const OrderBot: React.FC = () => {
             }
         };
         window.addEventListener('chopaeng_account_switched', handleAccountSwitch);
-        return () => window.removeEventListener('chopaeng_account_switched', handleAccountSwitch);
+        window.addEventListener('chopaeng_auth_change', handleAccountSwitch);
+        return () => {
+            window.removeEventListener('chopaeng_account_switched', handleAccountSwitch);
+            window.removeEventListener('chopaeng_auth_change', handleAccountSwitch);
+        };
     }, []);
 
     useEffect(() => {

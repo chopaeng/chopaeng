@@ -141,14 +141,23 @@ const Critters: React.FC = () => {
         const handleAuthChange = () => {
             syncCrittersWithChoBot(hemisphere);
         };
+        const handleExternalUpdate = (e: any) => {
+            if (e.detail?.hemisphere === hemisphere && e.detail?.caught) {
+                setCaughtNames(new Set(e.detail.caught));
+            } else {
+                setCaughtNames(getLocalCaught(hemisphere));
+            }
+        };
 
         window.addEventListener('chopaeng_auth_change', handleAuthChange);
         window.addEventListener('chopaeng_account_switched', handleAuthChange);
+        window.addEventListener('chopaeng_caught_critters_updated', handleExternalUpdate);
         return () => {
             window.removeEventListener('chopaeng_auth_change', handleAuthChange);
             window.removeEventListener('chopaeng_account_switched', handleAuthChange);
+            window.removeEventListener('chopaeng_caught_critters_updated', handleExternalUpdate);
         };
-    }, [hemisphere, syncCrittersWithChoBot]);
+    }, [hemisphere, syncCrittersWithChoBot, getLocalCaught]);
 
     const toggleCaught = (name: string) => {
         const token = getAuthToken();
@@ -174,6 +183,10 @@ const Critters: React.FC = () => {
         try {
             setUserScopedItem(CAUGHT_KEY, JSON.stringify([...next]));
         } catch { /* ignore */ }
+
+        window.dispatchEvent(new CustomEvent('chopaeng_caught_critters_updated', {
+            detail: { hemisphere, caught: [...next] }
+        }));
 
         // Sync with ChoBot DB
         fetch(`${API_BASE}/api/user/critters`, {

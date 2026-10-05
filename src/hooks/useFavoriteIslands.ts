@@ -99,45 +99,61 @@ export const saveFavoriteIslandToDb = async (
 
 export const useFavoriteIslands = () => {
     const [favoriteIslands, setFavoriteIslands] = useState<string[]>(getStoredFavoriteIslands);
+    const [isSyncingDb, setIsSyncingDb] = useState(false);
 
     const refresh = useCallback(() => {
         setFavoriteIslands(getStoredFavoriteIslands());
     }, []);
 
-    // Sync from database when user is authenticated
-    useEffect(() => {
-        let isMounted = true;
-        const authToken = getAuthToken();
-
-        if (authToken) {
-            fetchFavoriteIslandsFromDb(authToken).then((dbFavorites) => {
-                if (!isMounted || !dbFavorites) return;
-
-                const local = getStoredFavoriteIslands();
-                // Merge database favorites with local favorites
-                const merged = Array.from(
-                    new Set([...local, ...dbFavorites.map((id) => id.trim().toLowerCase())])
-                );
-                saveStoredFavoriteIslands(merged);
-                setFavoriteIslands(merged);
-            });
+    const syncWithChoBot = useCallback((tokenOverride?: string | null) => {
+        const token = tokenOverride !== undefined ? tokenOverride : getAuthToken();
+        if (!token) {
+            setFavoriteIslands(getStoredFavoriteIslands());
+            setIsSyncingDb(false);
+            return;
         }
 
-        return () => {
-            isMounted = false;
-        };
+        setIsSyncingDb(true);
+        fetchFavoriteIslandsFromDb(token).then((dbFavorites) => {
+            if (!dbFavorites) return;
+            const local = getStoredFavoriteIslands();
+            const merged = Array.from(
+                new Set([...local, ...dbFavorites.map((id) => id.trim().toLowerCase())])
+            );
+            saveStoredFavoriteIslands(merged);
+            setFavoriteIslands(merged);
+        }).finally(() => {
+            setIsSyncingDb(false);
+        });
     }, []);
 
+    // Initial sync
     useEffect(() => {
+        syncWithChoBot();
+    }, [syncWithChoBot]);
+
+    useEffect(() => {
+        const handleAuthOrAccountChange = () => {
+            const token = getAuthToken();
+            setFavoriteIslands(getStoredFavoriteIslands());
+            if (token) {
+                syncWithChoBot(token);
+            } else {
+                setIsSyncingDb(false);
+            }
+        };
+
         window.addEventListener('chopaeng_favorite_islands_updated', refresh);
-        window.addEventListener('chopaeng_account_switched', refresh);
+        window.addEventListener('chopaeng_account_switched', handleAuthOrAccountChange);
+        window.addEventListener('chopaeng_auth_change', handleAuthOrAccountChange);
         window.addEventListener('storage', refresh);
         return () => {
             window.removeEventListener('chopaeng_favorite_islands_updated', refresh);
-            window.removeEventListener('chopaeng_account_switched', refresh);
+            window.removeEventListener('chopaeng_account_switched', handleAuthOrAccountChange);
+            window.removeEventListener('chopaeng_auth_change', handleAuthOrAccountChange);
             window.removeEventListener('storage', refresh);
         };
-    }, [refresh]);
+    }, [refresh, syncWithChoBot]);
 
     const isFavoriteIsland = useCallback(
         (islandIdOrName: string): boolean => {
@@ -191,5 +207,6 @@ export const useFavoriteIslands = () => {
         isFavoriteIsland,
         toggleFavoriteIsland,
         favoriteCount: favoriteIslands.length,
+        isSyncingDb,
     };
 };

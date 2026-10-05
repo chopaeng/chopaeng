@@ -133,31 +133,23 @@ export const useSavedCharacters = (rawDiscordName?: string | null) => {
         refresh();
     }, [rawDiscordName, refresh]);
 
-    useEffect(() => {
-        window.addEventListener('chopaeng_characters_updated', refresh);
-        window.addEventListener('chopaeng_account_switched', refresh);
-        window.addEventListener('storage', refresh);
-        return () => {
-            window.removeEventListener('chopaeng_characters_updated', refresh);
-            window.removeEventListener('chopaeng_account_switched', refresh);
-            window.removeEventListener('storage', refresh);
-        };
-    }, [refresh]);
+    const syncCharactersWithDb = useCallback((tokenOverride?: string | null) => {
+        const token = tokenOverride !== undefined ? tokenOverride : getAuthToken();
+        const currentUid = getActiveUserId();
+        if (!token || !currentUid) {
+            setCharacters(getStoredCharacters(currentUid));
+            setIsSyncingDb(false);
+            return;
+        }
 
-    // Initial load: Attempt to sync from backend database for active user
-    useEffect(() => {
-        const token = getAuthToken();
-        if (!token) return;
-
-        let isMounted = true;
+        setIsSyncingDb(true);
         fetchCharactersFromDb(token).then((dbChars) => {
-            if (!isMounted) return;
-            const currentUid = getActiveUserId();
+            const uid = getActiveUserId();
             if (dbChars && dbChars.length > 0) {
-                saveStoredCharacters(dbChars, currentUid);
+                saveStoredCharacters(dbChars, uid);
                 setCharacters(dbChars);
             } else {
-                const current = getStoredCharacters(currentUid);
+                const current = getStoredCharacters(uid);
                 if (current.length === 0 && rawDiscordName) {
                     const parsed = parseDiscordNicknameToCharacters(rawDiscordName);
                     if (parsed.length > 0) {
@@ -170,18 +162,44 @@ export const useSavedCharacters = (rawDiscordName?: string | null) => {
                             createdAt: new Date().toISOString(),
                             source: 'discord',
                         }));
-                        saveStoredCharacters(initialChars, currentUid);
+                        saveStoredCharacters(initialChars, uid);
                         setCharacters(initialChars);
                         saveCharactersToDb(initialChars, token).catch(() => {});
                     }
                 }
             }
+        }).finally(() => {
+            setIsSyncingDb(false);
         });
-
-        return () => {
-            isMounted = false;
-        };
     }, [rawDiscordName, maxSlots]);
+
+    // Initial load and sync
+    useEffect(() => {
+        syncCharactersWithDb();
+    }, [syncCharactersWithDb]);
+
+    useEffect(() => {
+        const handleAuthOrAccountChange = () => {
+            const token = getAuthToken();
+            setCharacters(getStoredCharacters(getActiveUserId()));
+            if (token) {
+                syncCharactersWithDb(token);
+            } else {
+                setIsSyncingDb(false);
+            }
+        };
+
+        window.addEventListener('chopaeng_characters_updated', refresh);
+        window.addEventListener('chopaeng_account_switched', handleAuthOrAccountChange);
+        window.addEventListener('chopaeng_auth_change', handleAuthOrAccountChange);
+        window.addEventListener('storage', refresh);
+        return () => {
+            window.removeEventListener('chopaeng_characters_updated', refresh);
+            window.removeEventListener('chopaeng_account_switched', handleAuthOrAccountChange);
+            window.removeEventListener('chopaeng_auth_change', handleAuthOrAccountChange);
+            window.removeEventListener('storage', refresh);
+        };
+    }, [refresh, syncCharactersWithDb]);
 
     // Automatically sync from Discord Nickname on first load if no custom characters exist for this user
     useEffect(() => {

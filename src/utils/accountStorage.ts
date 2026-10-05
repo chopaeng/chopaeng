@@ -31,6 +31,11 @@ export const USER_SCOPED_BASE_KEYS = [
     'chopaeng_caught_critters_south',
     'chopaeng_notification_history_v1',
     'chopaeng_notification_history',
+    'chopaeng_active_order',
+    'chopaeng_saved_order_loadouts',
+    'chopaeng_public_profile_v1',
+    'chopaeng_tracked_items',
+    'chopaeng_saved_trip_plans',
 ] as const;
 
 export const getActiveUserId = (): string | null => {

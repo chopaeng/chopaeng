@@ -87,19 +87,41 @@ export const PocketInventory: React.FC = () => {
     const [presetSearch, setPresetSearch] = useState('');
 
     // Load & sync presets on mount
-    const refreshPresets = useCallback(async () => {
-        const synced = await syncUserPresetsFromBackend(token);
+    const refreshPresets = useCallback(async (tokenOverride?: string | null) => {
+        const activeToken = tokenOverride !== undefined ? tokenOverride : getAuthToken();
+        const synced = await syncUserPresetsFromBackend(activeToken);
         setLocalPresets(synced);
-    }, [token]);
+    }, []);
+
+    const refreshBundles = useCallback(async (tokenOverride?: string | null) => {
+        const activeToken = tokenOverride !== undefined ? tokenOverride : getAuthToken();
+        try {
+            const res = await fetchPocketBundles(activeToken);
+            if (Array.isArray(res)) setCommunityBundles(res);
+        } catch {
+            // Ignore
+        }
+    }, []);
 
     useEffect(() => {
         refreshPresets();
-        fetchPocketBundles(token)
-            .then((res) => {
-                if (Array.isArray(res)) setCommunityBundles(res);
-            })
-            .catch(() => {});
-    }, [refreshPresets, token]);
+        refreshBundles();
+    }, [refreshPresets, refreshBundles]);
+
+    // Re-fetch on login or account switch
+    useEffect(() => {
+        const handleAuthChange = () => {
+            const currentToken = getAuthToken();
+            refreshPresets(currentToken);
+            refreshBundles(currentToken);
+        };
+        window.addEventListener('chopaeng_auth_change', handleAuthChange);
+        window.addEventListener('chopaeng_account_switched', handleAuthChange);
+        return () => {
+            window.removeEventListener('chopaeng_auth_change', handleAuthChange);
+            window.removeEventListener('chopaeng_account_switched', handleAuthChange);
+        };
+    }, [refreshPresets, refreshBundles]);
 
     // Close modal on Escape
     useEffect(() => {

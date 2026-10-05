@@ -7,6 +7,7 @@ import { useIslandData } from "../context/useIslandData";
 import { useCatalogData } from "../hooks/useCatalogData";
 import { useFavoriteIslands, getStoredFavoriteIslands, saveStoredFavoriteIslands } from "../hooks/useFavoriteIslands";
 import { useSavedCharacters, type SavedCharacter } from "../hooks/useSavedCharacters";
+import { useCaughtCritters } from "../hooks/useCaughtCritters";
 import { parseItemCodes } from "../utils/itemCodeParser";
 import { parseDiscordNicknameToCharacters, formatCharactersToNickname } from "../utils/characterParser";
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
@@ -146,6 +147,7 @@ const Profile = () => {
     const { user: authUser, loading: authLoading, login, canAccessIsland } = useAuth();
     const { islands: allIslands } = useIslandData();
     const { favoriteIslands, toggleFavoriteIsland, isFavoriteIsland } = useFavoriteIslands();
+    const caughtCritters = useCaughtCritters();
 
     const [profile, setProfile] = useState<ProfileResponse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -873,10 +875,10 @@ const Profile = () => {
                                         <div className="pf-stat-value">{formatNumber(orders.length)}</div>
                                         <div className="pf-stat-label">Orders</div>
                                     </div>
-                                    <div className="pf-stat-item">
-                                        <div className="pf-stat-value">0</div>
-                                        <div className="pf-stat-label">Drops</div>
-                                    </div>
+                                    <Link to="/my-collection" className="pf-stat-item" title="View Caught Critters in My Collection">
+                                        <div className="pf-stat-value text-success">{formatNumber(caughtCritters.caughtCount)}</div>
+                                        <div className="pf-stat-label">Critters</div>
+                                    </Link>
                                     <div className="pf-stat-item">
                                         <div className="pf-stat-value">{formatNumber(profile?.visits.total)}</div>
                                         <div className="pf-stat-label">Visits</div>
@@ -1284,6 +1286,162 @@ const Profile = () => {
                                             <span className="tiny-text text-muted">Free Community Member</span>
                                         )}
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* 3. Museum & Critterpedia Progress Card */}
+                            <div className="pf-card pf-critterpedia-card">
+                                <div className="d-flex align-items-center justify-content-between mb-3">
+                                    <div className="d-flex align-items-center gap-2">
+                                        <div className="icon-bubble bg-success bg-opacity-10 text-success" style={{ width: 38, height: 38, fontSize: "1.1rem" }}>
+                                            <i className="fa-solid fa-feather"></i>
+                                        </div>
+                                        <div>
+                                            <h2 className="h6 ac-font text-dark mb-0">Museum &amp; Critterpedia</h2>
+                                            <span className="tiny-text text-muted">
+                                                {caughtCritters.isNorth ? "Northern Hemisphere" : "Southern Hemisphere"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="d-flex align-items-center gap-1">
+                                        <button
+                                            type="button"
+                                            className={`btn btn-xs rounded-pill px-2 py-0.5 fw-bold ${caughtCritters.isNorth ? "btn-success text-white" : "btn-light text-muted border"}`}
+                                            onClick={() => caughtCritters.setHemisphere("north")}
+                                            title="Northern Hemisphere"
+                                        >
+                                            NH
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`btn btn-xs rounded-pill px-2 py-0.5 fw-bold ${caughtCritters.isSouth ? "btn-success text-white" : "btn-light text-muted border"}`}
+                                            onClick={() => caughtCritters.setHemisphere("south")}
+                                            title="Southern Hemisphere"
+                                        >
+                                            SH
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Overall Progress Meter */}
+                                <div className="p-3 rounded-3 bg-light border mb-3">
+                                    <div className="d-flex align-items-center justify-content-between mb-1">
+                                        <span className="tiny-text fw-bold text-muted text-uppercase">Total Catches</span>
+                                        <div className="d-flex align-items-baseline gap-1">
+                                            <strong className="h5 ac-font text-success mb-0">{caughtCritters.caughtCount}</strong>
+                                            <span className="tiny-text text-muted">/ {caughtCritters.stats.totalCount}</span>
+                                            <span className="badge bg-success bg-opacity-10 text-success rounded-pill x-small fw-bold ms-1">
+                                                {Math.round(caughtCritters.stats.overallPercentage)}%
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="progress" style={{ height: 8, borderRadius: 999 }}>
+                                        <div
+                                            className="progress-bar bg-success"
+                                            role="progressbar"
+                                            style={{ width: `${caughtCritters.stats.overallPercentage}%` }}
+                                            aria-valuenow={Math.round(caughtCritters.stats.overallPercentage)}
+                                            aria-valuemin={0}
+                                            aria-valuemax={100}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Category Breakdown (Fish, Bugs, Sea) */}
+                                <div className="d-flex flex-column gap-2 mb-3">
+                                    {/* Fish */}
+                                    <div className="pf-critter-progress-item d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                        <div className="d-flex align-items-center gap-2">
+                                            <span>🐟</span>
+                                            <span className="small fw-bold text-dark">Fish</span>
+                                        </div>
+                                        <div className="d-flex align-items-center gap-2">
+                                            <div className="progress" style={{ width: 64, height: 6, borderRadius: 999 }}>
+                                                <div
+                                                    className="progress-bar bg-primary"
+                                                    style={{ width: `${caughtCritters.stats.fish.percentage}%` }}
+                                                />
+                                            </div>
+                                            <span className="font-monospace small fw-bold text-muted" style={{ minWidth: 42, textAlign: "right" }}>
+                                                {caughtCritters.stats.fish.caught}/{caughtCritters.stats.fish.total}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Bugs */}
+                                    <div className="pf-critter-progress-item d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                        <div className="d-flex align-items-center gap-2">
+                                            <span>🦋</span>
+                                            <span className="small fw-bold text-dark">Bugs</span>
+                                        </div>
+                                        <div className="d-flex align-items-center gap-2">
+                                            <div className="progress" style={{ width: 64, height: 6, borderRadius: 999 }}>
+                                                <div
+                                                    className="progress-bar bg-warning"
+                                                    style={{ width: `${caughtCritters.stats.bugs.percentage}%` }}
+                                                />
+                                            </div>
+                                            <span className="font-monospace small fw-bold text-muted" style={{ minWidth: 42, textAlign: "right" }}>
+                                                {caughtCritters.stats.bugs.caught}/{caughtCritters.stats.bugs.total}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Sea Creatures */}
+                                    <div className="pf-critter-progress-item d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                        <div className="d-flex align-items-center gap-2">
+                                            <span>🤿</span>
+                                            <span className="small fw-bold text-dark">Sea Creatures</span>
+                                        </div>
+                                        <div className="d-flex align-items-center gap-2">
+                                            <div className="progress" style={{ width: 64, height: 6, borderRadius: 999 }}>
+                                                <div
+                                                    className="progress-bar bg-info"
+                                                    style={{ width: `${caughtCritters.stats.sea.percentage}%` }}
+                                                />
+                                            </div>
+                                            <span className="font-monospace small fw-bold text-muted" style={{ minWidth: 42, textAlign: "right" }}>
+                                                {caughtCritters.stats.sea.caught}/{caughtCritters.stats.sea.total}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Leaving Soon Notice */}
+                                {caughtCritters.stats.leavingThisMonthCount > 0 && (
+                                    <div className="alert alert-warning py-1.5 px-2.5 rounded-2 d-flex align-items-center gap-2 mb-3 tiny-text">
+                                        <i className="fa-solid fa-clock text-warning"></i>
+                                        <span>
+                                            <strong>{caughtCritters.stats.leavingThisMonthCount} uncaught</strong> critters leaving this month!
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* ChoBot Sync indicator */}
+                                <div className="d-flex align-items-center justify-content-between mb-3 px-1">
+                                    <span className="tiny-text text-muted d-inline-flex align-items-center gap-1">
+                                        <i className={caughtCritters.dbSyncing ? "fa-solid fa-spinner fa-spin text-primary" : "fa-solid fa-cloud-arrow-up text-success"}></i>
+                                        <span>{caughtCritters.dbSyncing ? "Syncing..." : "Saved to ChoBot"}</span>
+                                    </span>
+                                    <span className="tiny-text text-muted">Auto-saved</span>
+                                </div>
+
+                                {/* Direct Links */}
+                                <div className="d-flex gap-2 pt-2 border-top">
+                                    <Link
+                                        to="/my-collection"
+                                        className="btn btn-xs btn-outline-success rounded-pill fw-bold w-100 py-1.5 d-inline-flex align-items-center justify-content-center gap-1 shadow-2xs"
+                                    >
+                                        <i className="fa-solid fa-book-bookmark"></i>
+                                        <span>My Collection</span>
+                                    </Link>
+                                    <Link
+                                        to="/critters"
+                                        className="btn btn-xs btn-light border rounded-pill fw-bold w-100 py-1.5 d-inline-flex align-items-center justify-content-center gap-1 shadow-2xs"
+                                    >
+                                        <i className="fa-solid fa-compass"></i>
+                                        <span>Critter Guide</span>
+                                    </Link>
                                 </div>
                             </div>
                         </div>

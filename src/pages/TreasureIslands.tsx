@@ -11,6 +11,7 @@ import DisclaimerBanner from "../components/DisclaimerBanner";
 import { HowItWorksExplainer, TREASURE_ISLANDS_EXPLAINER_CONFIG } from "../components/HowItWorksExplainer";
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
 import { openCommunityModal } from "../utils/communityPresenceApi";
+import { getIslandPlatforms } from "../utils/subIslandAccess";
 
 type SearchMode = "FILTER" | "ITEM" | "VILLAGER";
 type FilterKey = "ALL" | IslandCategory | "favorites";
@@ -795,19 +796,28 @@ const TreasureIslands = () => {
                                         
                                         {/* Category Pill */}
                                         <div className="d-flex align-items-center justify-content-between mb-2">
-                                            <span className={`badge rounded-pill fw-bold x-small px-2 py-1 d-inline-flex align-items-center gap-1 ${
-                                                island.cat === 'member' ? 'bg-warning-subtle text-warning-emphasis border border-warning' :
-                                                island.cat === 'order' ? 'bg-info-subtle text-info border border-info' :
-                                                'bg-success-subtle text-success border border-success'
-                                            }`} style={{ fontSize: '0.68rem' }}>
-                                                {island.cat === 'member' ? (
-                                                    <><i className="fa-solid fa-crown text-warning"></i> SUB MEMBER</>
-                                                ) : island.cat === 'order' ? (
-                                                    <><i className="fa-solid fa-robot text-info"></i> ORDER BOT</>
-                                                ) : (
-                                                    <><i className="fa-solid fa-lock-open text-success"></i> PUBLIC</>
+                                            <div className="d-flex align-items-center gap-1">
+                                                <span className={`badge rounded-pill fw-bold x-small px-2 py-1 d-inline-flex align-items-center gap-1 ${
+                                                    island.cat === 'member' ? 'bg-warning-subtle text-warning-emphasis border border-warning' :
+                                                    island.cat === 'order' ? 'bg-info-subtle text-info border border-info' :
+                                                    'bg-success-subtle text-success border border-success'
+                                                }`} style={{ fontSize: '0.68rem' }}>
+                                                    {island.cat === 'member' ? (
+                                                        <><i className="fa-solid fa-crown text-warning"></i> SUB MEMBER</>
+                                                    ) : island.cat === 'order' ? (
+                                                        <><i className="fa-solid fa-robot text-info"></i> ORDER BOT</>
+                                                    ) : (
+                                                        <><i className="fa-solid fa-lock-open text-success"></i> PUBLIC</>
+                                                    )}
+                                                </span>
+                                                {island.cat === 'member' && (
+                                                    <span className="badge rounded-pill bg-light border px-1.5 py-1 text-muted d-inline-flex align-items-center gap-1" title="Supported Platforms: Patreon, Twitch, YouTube" style={{ fontSize: '0.65rem' }}>
+                                                        {getIslandPlatforms(island.name).includes("patreon") && <i className="fa-brands fa-patreon text-orange"></i>}
+                                                        {getIslandPlatforms(island.name).includes("twitch") && <i className="fa-brands fa-twitch text-purple"></i>}
+                                                        {getIslandPlatforms(island.name).includes("youtube") && <i className="fa-brands fa-youtube text-danger"></i>}
+                                                    </span>
                                                 )}
-                                            </span>
+                                            </div>
 
                                             <span className="tiny-text text-muted fw-bold text-truncate" style={{ maxWidth: '120px' }}>
                                                 {island.type || 'Treasure Island'}

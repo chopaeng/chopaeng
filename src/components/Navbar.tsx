@@ -99,7 +99,7 @@ export const Navbar: React.FC = () => {
     const navigate = useNavigate();
     const { user, login, logout } = useAuth();
     const isStaff = !!(user?.is_admin || user?.is_mod);
-    const roleLabel = user?.is_admin ? "Administrator" : user?.is_mod ? "Moderator" : "Member";
+    const roleLabel = user?.is_admin ? "Administrator" : user?.is_mod ? "Moderator" : (user?.sub_tier || "Member");
 
     const activeTheme = THEME_OPTIONS.find(o => o.id === currentTheme) ?? THEME_OPTIONS[0];
 
@@ -407,7 +407,7 @@ export const Navbar: React.FC = () => {
                                                 Sign in to view notifications
                                             </div>
                                             <p className="small text-muted mb-3" style={{ fontSize: "0.75rem", lineHeight: 1.4 }}>
-                                                Sign in with Discord to receive island alerts, queue notifications, and ChoBot updates.
+                                                Sign in with your membership account (Twitch, Patreon, or YouTube) to receive island alerts, queue notifications, and ChoBot updates.
                                             </p>
                                             <button
                                                 type="button"
@@ -425,8 +425,8 @@ export const Navbar: React.FC = () => {
                                                     borderRadius: "8px"
                                                 }}
                                             >
-                                                <i className="fa-brands fa-discord" aria-hidden="true" />
-                                                Sign in with Discord
+                                                <i className="fa-solid fa-passport" aria-hidden="true" />
+                                                Resident Sign In
                                             </button>
                                         </div>
                                     ) : notifications.length === 0 ? (
@@ -518,8 +518,8 @@ export const Navbar: React.FC = () => {
                                 className="btn btn-nook text-white rounded-pill fw-bold btn-sm d-none d-md-inline-flex align-items-center gap-2 px-3"
                                 style={{ height: 36, fontSize: "0.82rem" }}
                             >
-                                <i className="fa-brands fa-discord" style={{ fontSize: "0.95rem" }} aria-hidden="true" />
-                                <span>Login</span>
+                                <i className="fa-solid fa-passport" style={{ fontSize: "0.95rem" }} aria-hidden="true" />
+                                <span>Resident Login</span>
                             </button>
                         )}
 
@@ -658,8 +658,8 @@ export const Navbar: React.FC = () => {
                                 onClick={() => { closeDrawer(); login(); }}
                                 className="btn btn-nook text-white rounded-pill fw-bold btn-sm w-100 py-2 d-flex align-items-center justify-content-center gap-2"
                             >
-                                <i className="fa-brands fa-discord fs-6" aria-hidden="true" />
-                                <span>Login with Discord</span>
+                                <i className="fa-solid fa-passport fs-6" aria-hidden="true" />
+                                <span>Resident Login</span>
                             </button>
                         )}
                     </div>

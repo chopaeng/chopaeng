@@ -3,7 +3,6 @@ import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { getAuthToken } from '../context/authToken';
-import { DODO_API_BASE } from '../config/api';
 import { useCommandBuilderPockets, type PocketItem } from '../hooks/useCommandBuilderPockets';
 import { useCatalogData } from '../hooks/useCatalogData';
 import { useSavedCharacters, type SavedCharacter } from '../hooks/useSavedCharacters';
@@ -16,9 +15,6 @@ import { CommandBuilderPocketBundlesModal } from '../components/command-builder/
 import { CommandBuilderShareModal } from '../components/command-builder/CommandBuilderShareModal';
 import { CommandBuilderVariantModal } from '../components/command-builder/CommandBuilderVariantModal';
 import { HowItWorksExplainer, ORDER_BOT_EXPLAINER_CONFIG } from '../components/HowItWorksExplainer';
-import { DiscordNicknameModal } from '../components/DiscordNicknameModal';
-import { isValidAcnhNickname, parseDiscordNicknameToCharacters, formatCharactersToNickname } from '../utils/characterParser';
-import { updateDiscordNickname } from '../utils/userProfileApi';
 import { type PocketBundleItem } from '../data/pocketBundles';
 import { triggerConfetti } from '../utils/confetti';
 import {
@@ -362,20 +358,8 @@ const OrderBot: React.FC = () => {
         if (next) playChimeClick();
     };
 
-    // ── Order Profile & Discord Nickname State ──
-    const [serverNickname, setServerNickname] = useState<string>(() => {
-        try {
-            return user?.nickname || getUserScopedItem('chopaeng_discord_nickname', user?.user_id) || '';
-        } catch {
-            return '';
-        }
-    });
-    const [showNicknameModal, setShowNicknameModal] = useState(false);
-    const hasValidNickname = isValidAcnhNickname(serverNickname);
-
-    const { characters, addCharacter, remainingSlots } = useSavedCharacters(
-        serverNickname || user?.username || null
-    );
+        // ── Order Profile & Saved Characters State ──
+    const { characters, addCharacter, remainingSlots } = useSavedCharacters();
 
     const loadProfile = (userId?: string | null): OrderProfile | null => {
         try {
@@ -526,50 +510,13 @@ const OrderBot: React.FC = () => {
         }
     };
 
-    // Sync and fetch latest Discord server nickname from backend profile
-    useEffect(() => {
-        if (!token || !user) return;
-        const controller = new AbortController();
-        fetch(`${DODO_API_BASE}/api/profile`, {
-            headers: { Authorization: `Bearer ${token}` },
-            signal: controller.signal,
-        })
-            .then(async (resp) => {
-                if (!resp.ok) return;
-                const data = await resp.json().catch(() => null);
-                if (data?.user?.nickname) {
-                    setServerNickname(data.user.nickname);
-                    setUserScopedItem('chopaeng_discord_nickname', data.user.nickname, user.user_id);
-                }
-            })
-            .catch(() => {});
-        return () => controller.abort();
-    }, [token, user?.user_id]);
-
-    // Listen to global nickname update events (e.g. from DiscordNicknameModal or Profile page)
-    useEffect(() => {
-        const handleNickUpdated = (e: any) => {
-            const newNick = e.detail?.nickname;
-            if (typeof newNick === 'string' && newNick.trim()) {
-                setServerNickname(newNick.trim());
-                setUserScopedItem('chopaeng_discord_nickname', newNick.trim(), user?.user_id);
-            }
-        };
-        window.addEventListener('chopaeng_nickname_updated', handleNickUpdated);
-        return () => window.removeEventListener('chopaeng_nickname_updated', handleNickUpdated);
-    }, [user?.user_id]);
-
-    // Open setup when user logs in and hasn't set a profile or nickname yet
+        // Open setup when user logs in and hasn't set a profile yet
     useEffect(() => {
         if (!user) {
             setOrderProfile(null);
-            setServerNickname('');
             setSavedLoadouts([]);
             return;
         }
-
-        const currentNick = user.nickname || getUserScopedItem('chopaeng_discord_nickname', user.user_id) || '';
-        setServerNickname(currentNick);
 
         const saved = loadProfile(user.user_id);
         if (saved) {
@@ -583,11 +530,6 @@ const OrderBot: React.FC = () => {
 
         const rawLoadouts = getUserScopedItem(LS_LOADOUTS_KEY, user.user_id);
         setSavedLoadouts(rawLoadouts ? JSON.parse(rawLoadouts) : []);
-
-        // Enforce requirement: Must setup Discord server nickname before ordering
-        if (!isValidAcnhNickname(currentNick)) {
-            setShowNicknameModal(true);
-        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.user_id]);
 
@@ -599,11 +541,10 @@ const OrderBot: React.FC = () => {
                 : (e.detail?.user?.user_id ?? null);
             if (!newUid) {
                 setOrderProfile(null);
-                setServerNickname('');
+                
                 setSavedLoadouts([]);
             } else {
-                const nick = getUserScopedItem('chopaeng_discord_nickname', newUid) || '';
-                setServerNickname(nick);
+                
                 setOrderProfile(loadProfile(newUid));
                 const rawLoadouts = getUserScopedItem(LS_LOADOUTS_KEY, newUid);
                 setSavedLoadouts(rawLoadouts ? JSON.parse(rawLoadouts) : []);
@@ -651,31 +592,6 @@ const OrderBot: React.FC = () => {
         if (!ok) {
             setAddCharError(`Max ${remainingSlots === 0 ? 'character slots reached' : 'error adding'}.`);
             return;
-        }
-
-        // Auto-sync Discord nickname across Slots 1, 2, and 3 using | and /
-        const updatedSlots = [
-            ...characters,
-            { ign: addCharIgn.trim(), islandName: addCharIsland.trim(), isDefault: characters.length === 0 },
-        ];
-        const newNick =
-            formatCharactersToNickname(updatedSlots) ||
-            `${addCharIgn.trim()} | ${addCharIsland.trim()}`.slice(0, 32);
-        if (token) {
-            updateDiscordNickname(newNick, token)
-                .then((res) => {
-                    if (res.success) {
-                        const updated = res.nickname || newNick;
-                        setServerNickname(updated);
-                        setUserScopedItem('chopaeng_discord_nickname', updated, user?.user_id);
-                        window.dispatchEvent(
-                            new CustomEvent('chopaeng_nickname_updated', {
-                                detail: { nickname: updated },
-                            })
-                        );
-                    }
-                })
-                .catch(() => {});
         }
 
         setAddCharIgn('');
@@ -1058,16 +974,19 @@ const OrderBot: React.FC = () => {
     const handleSubmit = async () => {
         if (!orderCommandText.trim()) return;
 
-        // Strict Requirement: User MUST have a valid server nickname before ordering
-        if (!hasValidNickname) {
-            setShowNicknameModal(true);
+        const defaultChar = characters.find((c) => c.isDefault) || characters[0];
+        const orderForName = orderProfile?.orderFor || defaultChar?.ign || user?.username || '';
+        const islandName = orderProfile?.islandName || defaultChar?.islandName || '';
+
+        if (!orderForName.trim() || !islandName.trim()) {
+            handleOpenSetup();
             playSound();
             triggerInAppToast({
                 type: 'warning',
-                title: 'Server Nickname Required',
-                message: "Please set your server nickname to 'Character Name | Island Name' before ordering.",
-                actionLabel: 'Set Up Nickname',
-                onAction: () => setShowNicknameModal(true),
+                title: 'Character Profile Required',
+                message: "Please choose or add an In-Game Character before ordering.",
+                actionLabel: 'Set Up Character',
+                onAction: handleOpenSetup,
             });
             return;
         }
@@ -1076,13 +995,12 @@ const OrderBot: React.FC = () => {
         setSubmitLoading(true);
         playSound();
 
-        const defaultChar = characters.find((c) => c.isDefault) || characters[0];
         const res = await submitOrderToBot(
             orderCommandText,
             token,
-            orderProfile?.orderFor || defaultChar?.ign || user?.username || 'Player',
-            serverNickname || orderProfile?.displayName || user?.username || 'Player',
-            orderProfile?.islandName || defaultChar?.islandName || ''
+            orderForName,
+            orderProfile?.displayName || user?.username || orderForName,
+            islandName
         );
         setSubmitLoading(false);
 
@@ -2007,39 +1925,6 @@ const OrderBot: React.FC = () => {
                                         {/* ── SUBMIT BAR & PASSPORT ── */}
                                         <div className="border-top pt-3 mt-3">
                                             {/* Nickname Missing Warning Notice */}
-                                            {!hasValidNickname && user && (
-                                                <div className="alert alert-warning border border-warning border-opacity-40 p-3 rounded-4 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-3 shadow-2xs animate-fade">
-                                                    <div className="d-flex align-items-center gap-2">
-                                                        <span
-                                                            className="badge bg-warning text-dark rounded-circle p-2 d-flex align-items-center justify-content-center flex-shrink-0"
-                                                            style={{ width: 36, height: 36, fontSize: '1rem' }}
-                                                        >
-                                                            <i className="fa-solid fa-triangle-exclamation" />
-                                                        </span>
-                                                        <div>
-                                                            <strong className="d-block text-dark small">
-                                                                Discord Server Nickname Required
-                                                            </strong>
-                                                            <span className="tiny-text text-muted">
-                                                                ChoBot requires your server nickname to be in <code>Character Name | Island Name</code> format before you can order.
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-sm text-white fw-bold rounded-pill px-3 py-1.5 shadow-sm d-inline-flex align-items-center gap-2"
-                                                        style={{ backgroundColor: '#5865F2' }}
-                                                        onClick={() => {
-                                                            setShowNicknameModal(true);
-                                                            playChimeClick();
-                                                        }}
-                                                    >
-                                                        <i className="fa-brands fa-discord" />
-                                                        <span>Set Up Nickname</span>
-                                                    </button>
-                                                </div>
-                                            )}
-
                                             {/* Profile & Active In-Game Character Strip */}
                                             <div className="ob-passport-card mb-3 flex-wrap">
                                                 <div className="d-flex align-items-center gap-3 flex-wrap min-w-0">
@@ -2057,51 +1942,25 @@ const OrderBot: React.FC = () => {
                                                         <div className="small fw-bold text-dark d-flex align-items-center gap-2 flex-wrap">
                                                             <span>Ordering For:</span>
                                                             <span className="badge bg-success text-white rounded-pill px-2 py-1 ac-font text-truncate" style={{ maxWidth: 200 }}>
-                                                                {orderProfile?.orderFor || user?.username}
+                                                                {orderProfile?.orderFor || (characters.find((c) => c.isDefault) || characters[0])?.ign || user?.username}
                                                             </span>
-                                                            {orderProfile?.islandName && (
+                                                            {(orderProfile?.islandName || (characters.find((c) => c.isDefault) || characters[0])?.islandName) && (
                                                                 <span className="text-muted fw-bold tiny-text d-inline-flex align-items-center gap-1 text-truncate" style={{ maxWidth: 180 }}>
                                                                     <i className="fa-solid fa-mountain-sun text-success" />
-                                                                    <span className="text-truncate">{orderProfile.islandName}</span>
+                                                                    <span className="text-truncate">{orderProfile?.islandName || (characters.find((c) => c.isDefault) || characters[0])?.islandName}</span>
                                                                 </span>
                                                             )}
                                                         </div>
                                                         <div className="tiny-text d-flex align-items-center gap-2 mt-1 flex-wrap">
-                                                            <span className="d-inline-flex align-items-center gap-1 text-truncate">
-                                                                <i className="fa-brands fa-discord text-primary flex-shrink-0" />
-                                                                <span className="text-muted">Server Nick:</span>
-                                                                {hasValidNickname ? (
-                                                                    <strong className="text-primary font-monospace">{serverNickname}</strong>
-                                                                ) : (
-                                                                    <span className="text-danger fw-bold">Not Set (Required)</span>
-                                                                )}
+                                                            <span className="d-inline-flex align-items-center gap-1 text-muted">
+                                                                <i className="fa-solid fa-user-tag text-success flex-shrink-0" />
+                                                                <span>Resident:</span>
+                                                                <strong className="text-dark">{orderProfile?.displayName || user?.username || 'Resident'}</strong>
                                                             </span>
-                                                            {hasValidNickname ? (
-                                                                <span className="badge bg-success bg-opacity-15 text-success rounded-pill x-small fw-bold d-inline-flex align-items-center gap-1">
-                                                                    <i className="fa-solid fa-circle-check" />
-                                                                    <span>Verified</span>
-                                                                </span>
-                                                            ) : (
-                                                                <span className="badge bg-warning bg-opacity-20 text-dark rounded-pill x-small fw-bold">
-                                                                    Setup Required
-                                                                </span>
-                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <div className="d-flex align-items-center gap-2 flex-wrap">
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-sm btn-outline-primary rounded-pill fw-bold px-3 py-1 shadow-2xs d-inline-flex align-items-center gap-1"
-                                                        onClick={() => {
-                                                            setShowNicknameModal(true);
-                                                            playChimeClick();
-                                                        }}
-                                                        title="Edit or Choose Discord Server Nickname"
-                                                    >
-                                                        <i className="fa-brands fa-discord" />
-                                                        <span>{hasValidNickname ? 'Edit / Choose Nick' : 'Set Up Nickname'}</span>
-                                                    </button>
                                                     <button
                                                         type="button"
                                                         className="btn btn-sm btn-outline-success rounded-pill fw-bold px-3 py-1 shadow-2xs d-inline-flex align-items-center gap-1"
@@ -2130,18 +1989,11 @@ const OrderBot: React.FC = () => {
                                             <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
                                                 <button
                                                     id="ob-send-order-btn"
-                                                    className={`btn rounded-pill fw-black px-4 py-3 shadow-sm d-inline-flex align-items-center gap-2 ${
-                                                        !hasValidNickname ? 'btn-primary' : 'btn-success'
-                                                    }`}
+                                                    className="btn btn-success rounded-pill fw-black px-4 py-3 shadow-sm d-inline-flex align-items-center gap-2"
                                                     onClick={
-                                                        !hasValidNickname
-                                                            ? () => {
-                                                                  setShowNicknameModal(true);
-                                                                  playChimeClick();
-                                                              }
-                                                            : !orderProfile
-                                                                ? handleOpenSetup
-                                                                : handleSubmit
+                                                        !orderProfile && characters.length === 0
+                                                            ? handleOpenSetup
+                                                            : handleSubmit
                                                     }
                                                     disabled={
                                                         !canSubmitOrder ||
@@ -2153,8 +2005,8 @@ const OrderBot: React.FC = () => {
                                                     style={{
                                                         fontSize: '1.05rem',
                                                         minWidth: 200,
-                                                        backgroundColor: !hasValidNickname ? '#5865F2' : '#37b06d',
-                                                        borderColor: !hasValidNickname ? '#5865F2' : '#37b06d',
+                                                        backgroundColor: '#37b06d',
+                                                        borderColor: '#37b06d',
                                                     }}
                                                 >
                                                     {submitLoading ? (
@@ -2165,25 +2017,15 @@ const OrderBot: React.FC = () => {
                                                             />
                                                             <span>Submitting Order…</span>
                                                         </>
-                                                    ) : !hasValidNickname ? (
-                                                        <>
-                                                            <i className="fa-brands fa-discord" aria-hidden="true" />
-                                                            <span>Set Up Nickname to Order</span>
-                                                        </>
-                                                    ) : !orderProfile ? (
+                                                    ) : !orderProfile && characters.length === 0 ? (
                                                         <>
                                                             <i className="fa-solid fa-user-gear" aria-hidden="true" />
                                                             <span>Set Up Profile &amp; Order</span>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <i
-                                                                className="fa-solid fa-paper-plane"
-                                                                aria-hidden="true"
-                                                            />
-                                                            <span>
-                                                                Send Order ({totalOrderItemsCount > 0 ? `${totalOrderItemsCount} Item${totalOrderItemsCount === 1 ? '' : 's'}` : ''}{totalOrderItemsCount > 0 && orderVillager ? ' + ' : ''}{orderVillager ? `${orderVillager.name} (Villager)` : ''})
-                                                            </span>
+                                                            <i className="fa-solid fa-paper-plane" aria-hidden="true" />
+                                                            <span>Send Order to ChoBot</span>
                                                         </>
                                                     )}
                                                 </button>
@@ -3800,38 +3642,6 @@ const OrderBot: React.FC = () => {
                     </div>
                 </div>
             )}
-
-            {/* ════════════════ DISCORD SERVER NICKNAME MODAL ════════════════ */}
-            <DiscordNicknameModal
-                isOpen={showNicknameModal}
-                onClose={() => setShowNicknameModal(false)}
-                currentNickname={serverNickname}
-                characters={characters}
-                onCharacterAdded={(ign, islandName) => addCharacter(ign, islandName)}
-                canDismiss={true}
-                onSuccess={(newNick) => {
-                    setServerNickname(newNick);
-                    setUserScopedItem('chopaeng_discord_nickname', newNick, user?.user_id);
-                    const parsed = parseDiscordNicknameToCharacters(newNick);
-                    if (parsed.length > 0) {
-                        const updatedProfile: OrderProfile = {
-                            displayName: newNick,
-                            orderFor: parsed[0].ign,
-                            islandName: parsed[0].islandName,
-                            characterId: characters[0]?.id ?? null,
-                            orderForSelf: true,
-                        };
-                        saveProfile(updatedProfile, user?.user_id);
-                        setOrderProfile(updatedProfile);
-                    }
-                    setShowNicknameModal(false);
-                    triggerInAppToast({
-                        type: 'success',
-                        title: 'Server Nickname Set!',
-                        message: `Updated to "${newNick}". You're all set to place orders!`,
-                    });
-                }}
-            />
 
             {/* ════════════════ INLINE CATALOG VARIANT MODAL ════════════════ */}
             {inlineVariantItem && (

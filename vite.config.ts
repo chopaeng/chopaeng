@@ -11,12 +11,12 @@ export default defineConfig({
         port: 3000,
         proxy: {
             '/api': {
-                target: 'https://console.chopaeng.com',
+                target: 'http://localhost:8100/',
                 changeOrigin: true,
                 secure: false,
             },
             '/dashboard/api': {
-                target: 'https://console.chopaeng.com',
+                target: 'http://localhost:8100/',
                 changeOrigin: true,
                 secure: false,
             },

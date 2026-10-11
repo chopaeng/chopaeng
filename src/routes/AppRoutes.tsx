@@ -18,6 +18,7 @@ const Maps            = lazy(() => import("../pages/Maps.tsx"));
 const TreasureIslands = lazy(() => import("../pages/TreasureIslands.tsx"));
 const IslandDetail    = lazy(() => import("../pages/IslandDetail.tsx"));
 const Membership      = lazy(() => import("../pages/Membership.tsx"));
+const MembershipTiers = lazy(() => import("../pages/MembershipTiers.tsx"));
 const FindItems       = lazy(() => import("../pages/FindItems.tsx"));
 const CommandBuilder  = lazy(() => import("../pages/CommandBuilder.tsx"));
 const PocketInventory = lazy(() => import("../pages/PocketInventory.tsx"));
@@ -30,6 +31,7 @@ const Profile         = lazy(() => import("../pages/Profile.tsx"));
 const PublicProfile   = lazy(() => import("../pages/PublicProfile.tsx"));
 const TripPlanner     = lazy(() => import("../pages/TripPlanner.tsx"));
 const AuthCallback    = lazy(() => import("../pages/AuthCallback.tsx"));
+const Login           = lazy(() => import("../pages/Login.tsx"));
 const BlogList        = lazy(() => import("../pages/BlogList.tsx"));
 const BlogPost        = lazy(() => import("../pages/BlogPost.tsx"));
 const PrivacyPolicy   = lazy(() => import("../pages/PrivacyPolicy.tsx"));
@@ -80,6 +82,9 @@ const AppRoutes = () => {
                     <Route path="/island/:id" element={<AppErrorBoundary label="Island Destination"><IslandDetail /></AppErrorBoundary>} />
                     <Route path="/islands/:id" element={<AppErrorBoundary label="Island Destination"><IslandDetail /></AppErrorBoundary>} />
                     <Route path="/membership" element={<Membership />} />
+                    <Route path="/membership-tiers" element={<MembershipTiers />} />
+                    <Route path="/membership/tiers" element={<MembershipTiers />} />
+                    <Route path="/tiers" element={<MembershipTiers />} />
                     <Route path="/find" element={<FindItems />} />
                     <Route path="/command-builder" element={<AppErrorBoundary label="Command Builder"><CommandBuilder /></AppErrorBoundary>} />
                     <Route path="/pockets" element={<AppErrorBoundary label="Pocket Inventory"><PocketInventory /></AppErrorBoundary>} />
@@ -98,6 +103,8 @@ const AppRoutes = () => {
                     <Route path="/trip-planner" element={<AppErrorBoundary label="Trip Planner"><TripPlanner /></AppErrorBoundary>} />
                     <Route path="/planner" element={<AppErrorBoundary label="Trip Planner"><TripPlanner /></AppErrorBoundary>} />
                     <Route path="/auth/callback" element={<AuthCallback />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Login defaultRegister />} />
 
                     <Route path="/blog" element={<BlogList />} />
                     <Route path="/blog/:id" element={<BlogPost />} />

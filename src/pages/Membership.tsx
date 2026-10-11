@@ -1,23 +1,27 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/useAuth";
+import { playChimeClick } from "../utils/kkAudioSynthesizer";
 import DisclaimerBanner from "../components/DisclaimerBanner";
+import { AccountLinkingHub } from "../components/auth/AccountLinkingHub";
+
+type SignInProvider = "youtube" | "twitch" | "patreon";
 
 interface MembershipPlatform {
     id: string;
     name: string;
     badge: string;
-    badgeBg: string;
-    badgeText: string;
     tagline: string;
     description: string;
     icon: string;
     url: string;
     cta: string;
+    /** Brand color for decoration (icon band, check marks). */
     brandColor: string;
-    brandGradient: string;
-    glowColor: string;
-    cardBgLight: string;
-    borderColor: string;
+    /** Darker shade used behind white text so buttons stay readable. */
+    ctaColor: string;
+    /** Providers that can be signed into directly from this page. */
+    signInId?: SignInProvider;
     perks: string[];
 }
 
@@ -26,120 +30,234 @@ const platforms: MembershipPlatform[] = [
         id: "youtube",
         name: "YouTube",
         badge: "Channel Member",
-        badgeBg: "rgba(255, 0, 0, 0.1)",
-        badgeText: "#DC2626",
         tagline: "Support directly on YouTube",
-        description: "Join as a YouTube channel member for member badges, custom chat emotes, and connected member roles.",
+        description:
+            "Join as a YouTube channel member for member badges, custom chat emotes, and connected member roles.",
         icon: "fa-brands fa-youtube",
         url: "https://www.youtube.com/chopaengtv",
         cta: "Join on YouTube",
-        brandColor: "#FF0000",
-        brandGradient: "linear-gradient(135deg, #FF0000 0%, #B91C1C 100%)",
-        glowColor: "rgba(255, 0, 0, 0.22)",
-        cardBgLight: "rgba(255, 0, 0, 0.03)",
-        borderColor: "rgba(255, 0, 0, 0.2)",
+        brandColor: "#ff0000",
+        ctaColor: "#cc0000",
+        signInId: "youtube",
         perks: [
             "Channel loyalty badges & emotes",
-            "Member-exclusive island access",
+            "Tiers: y ChoSoup, y ChoColate, y ChoTato",
+            "Member-exclusive sub island access",
             "Live chat perks during streams",
-            "Discord role & sync support"
-        ]
+            "Discord role & sync support",
+        ],
     },
     {
         id: "twitch",
         name: "Twitch",
         badge: "Sub or Prime Gaming",
-        badgeBg: "rgba(145, 70, 255, 0.12)",
-        badgeText: "#7C3AED",
         tagline: "Free sub with Prime Gaming",
-        description: "Subscribe on Twitch or use your free monthly Amazon Prime subscription to unlock member benefits.",
+        description:
+            "Subscribe on Twitch or use your free monthly Amazon Prime subscription to unlock member benefits.",
         icon: "fa-brands fa-twitch",
         url: "https://www.twitch.tv/chopaeng",
         cta: "Subscribe on Twitch",
-        brandColor: "#9146FF",
-        brandGradient: "linear-gradient(135deg, #9146FF 0%, #6D28D9 100%)",
-        glowColor: "rgba(145, 70, 255, 0.25)",
-        cardBgLight: "rgba(145, 70, 255, 0.03)",
-        borderColor: "rgba(145, 70, 255, 0.2)",
+        brandColor: "#9146ff",
+        ctaColor: "#772ce8",
+        signInId: "twitch",
         perks: [
-            "Free sub with Prime Gaming",
+            "ChoTato Club (Twitch Subs & Prime Gaming)",
+            "Unlocks 11 Core VIP Sub Islands",
             "VIP Island & ChoBot privileges",
             "Custom animated Twitch emotes",
-            "Instant Discord role sync"
-        ]
+            "Instant Discord role sync",
+        ],
     },
     {
         id: "patreon",
         name: "Patreon",
         badge: "Full Tier Access",
-        badgeBg: "rgba(255, 66, 77, 0.12)",
-        badgeText: "#EA580C",
         tagline: "Dedicated membership tiers",
-        description: "Explore membership tiers on Patreon tailored for private island trips, item requests, and VIP perks.",
+        description:
+            "Explore membership tiers on Patreon tailored for private island trips, item requests, and VIP perks.",
         icon: "fa-brands fa-patreon",
         url: "https://www.patreon.com/cw/chopaeng/membership",
         cta: "Join on Patreon",
-        brandColor: "#FF424D",
-        brandGradient: "linear-gradient(135deg, #FF424D 0%, #EA580C 100%)",
-        glowColor: "rgba(255, 66, 77, 0.25)",
-        cardBgLight: "rgba(255, 66, 77, 0.03)",
-        borderColor: "rgba(255, 66, 77, 0.2)",
+        brandColor: "#ff424d",
+        ctaColor: "#d92d3a",
+        signInId: "patreon",
         perks: [
-            "Multiple tiers to fit your needs",
+            "Tiers: ChoSoup, ChoColate, ChoFries",
+            "ChoSoup unlocks all 20 Sub Islands",
             "Private VIP Treasure Islands",
             "Priority ChoBot request slots",
-            "Direct Discord role integration"
-        ]
+            "Direct Discord role integration",
+        ],
     },
     {
         id: "tiktok",
         name: "TikTok",
         badge: "LIVE Subscriber",
-        badgeBg: "rgba(15, 23, 42, 0.08)",
-        badgeText: "#0F172A",
         tagline: "Subscribe on TikTok LIVE",
-        description: "Subscribe during TikTok LIVE streams to support the community, get subscriber badges, and access member perks.",
+        description:
+            "Subscribe during TikTok LIVE streams to support the community, get subscriber badges, and access member perks.",
         icon: "fa-brands fa-tiktok",
         url: "https://www.tiktok.com/@ChoPaengTV",
         cta: "Subscribe on TikTok",
-        brandColor: "#000000",
-        brandGradient: "linear-gradient(135deg, #1E293B 0%, #0F172A 100%)",
-        glowColor: "rgba(37, 244, 238, 0.25)",
-        cardBgLight: "rgba(15, 23, 42, 0.03)",
-        borderColor: "rgba(15, 23, 42, 0.18)",
+        brandColor: "#161823",
+        ctaColor: "#161823",
         perks: [
             "LIVE stream subscriber badge",
             "Subscriber-only stream chat",
             "Member community & island perks",
-            "Discord community integration"
-        ]
-    }
+            "Discord community integration",
+        ],
+    },
 ];
 
 const generalPerks = [
     {
         icon: "fa-solid fa-umbrella-beach",
         title: "VIP Treasure Islands",
-        desc: "24/7 access to private, low-traffic islands stocked with all items, DIYs, materials, and villagers."
+        desc: "24/7 access to private, low-traffic islands stocked with all items, DIYs, materials, and villagers.",
     },
     {
         icon: "fa-solid fa-robot",
-        title: "Priority ChoBot Drops",
-        desc: "Fast-track item drop requests, custom pocket orders, and inventory deliveries with VIP queue priority."
+        title: "Priority ChoBot drops",
+        desc: "Fast-track item drop requests, custom pocket orders, and inventory deliveries with VIP queue priority.",
     },
     {
         icon: "fa-brands fa-discord",
-        title: "Exclusive Discord Roles",
-        desc: "Unlock member-only channels, direct support from island hosts, early event notices, and community giveaways."
+        title: "Exclusive Discord roles",
+        desc: "Unlock member-only channels, direct support from island hosts, early event notices, and community giveaways.",
     },
     {
         icon: "fa-solid fa-bolt",
-        title: "24/7 Fast Access",
-        desc: "Automated island management and resets ensure smooth visits anytime, regardless of your time zone."
-    }
+        title: "24/7 fast access",
+        desc: "Automated island management and resets ensure smooth visits anytime, regardless of your time zone.",
+    },
 ];
 
+const steps = [
+    {
+        title: "Subscribe on your preferred platform",
+        desc: "Choose YouTube, Twitch, Patreon, or TikTok and complete your subscription.",
+    },
+    {
+        title: "Connect your account to Discord",
+        desc: (
+            <>
+                In Discord, open <strong>User Settings &gt; Connections</strong> and connect your
+                YouTube, Twitch, or Patreon account.
+            </>
+        ),
+    },
+    {
+        title: "Get instant VIP island and bot access",
+        desc: "Your role syncs automatically, granting immediate access to private Dodo codes and ChoBot commands.",
+    },
+];
+
+const STYLES = `
+.nook-os.cpg {
+    --ink: #1d3328; --ink-soft: #5b6e63; --leaf: #1f8a4c; --leaf-dark: #166b3a;
+    --line: #cfdcd3; --sky: #e3f4f1;
+    color: var(--ink);
+    background:
+        radial-gradient(1200px 380px at 50% -140px, #c9ebe4 0%, transparent 70%),
+        var(--sky);
+}
+.cpg__wrap { width: 100%; max-width: 1140px; }
+
+/* Top bar */
+.cpg-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .6rem; margin-bottom: 2rem; }
+.cpg-pill { display: inline-flex; align-items: center; gap: .5rem; padding: .5rem 1rem; border-radius: 999px; background: #fff; border: 1.5px solid var(--line); color: var(--ink); font-size: .9rem; font-weight: 700; text-decoration: none; transition: border-color .15s ease, background .15s ease; }
+.cpg-pill:hover { border-color: var(--leaf); background: #f6faf7; color: var(--ink); }
+.cpg-pill i { color: var(--leaf); }
+.cpg-pill--discord i { color: #5865f2; }
+
+/* Hero */
+.cpg-hero { display: flex; align-items: center; gap: 1.4rem; margin-bottom: 1.75rem; }
+.cpg-crest { width: 84px; height: 84px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--leaf); color: #fff; font-size: 2rem; border: 4px double rgba(255,255,255,.7); box-shadow: 0 0 0 4px var(--leaf), 0 10px 24px -10px rgba(29,51,40,.5); margin: 4px; }
+.cpg-h1 { margin: 0 0 .35rem; font-size: clamp(1.9rem, 4.2vw, 2.7rem); line-height: 1.1; font-weight: 800; }
+.cpg-lead { margin: 0; max-width: 62ch; color: var(--ink-soft); font-size: 1.05rem; line-height: 1.55; font-weight: 600; }
+.cpg-note { margin: .65rem 0 0; font-size: .88rem; color: var(--ink-soft); font-weight: 600; }
+.cpg-note i { color: var(--leaf); margin-right: .4rem; }
+@media (max-width: 575px) { .cpg-hero { flex-direction: column; align-items: flex-start; } }
+
+/* Tier matrix callout */
+.cpg-callout { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding: 1rem 1.25rem; margin-bottom: 2.25rem; background: #fff; border: 2px dashed var(--leaf); border-radius: 20px; }
+.cpg-callout__text { display: flex; align-items: center; gap: .9rem; min-width: 0; flex: 1 1 320px; }
+.cpg-callout__icon { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; background: #e6f4ec; color: var(--leaf-dark); font-size: 1.1rem; }
+.cpg-callout h2 { margin: 0 0 .15rem; font-size: 1.05rem; font-weight: 800; }
+.cpg-callout p { margin: 0; font-size: .88rem; color: var(--ink-soft); font-weight: 600; line-height: 1.45; }
+
+.cpg-btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; border: 0; border-radius: 14px; padding: .7rem 1.2rem; background: var(--leaf); color: #fff; font-weight: 800; font-size: .95rem; text-decoration: none; box-shadow: 0 4px 0 var(--leaf-dark); transition: transform .08s ease, box-shadow .08s ease, background .15s ease; }
+.cpg-btn:hover { background: #22984f; color: #fff; }
+.cpg-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--leaf-dark); }
+
+/* Platform passes */
+.cpg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.25rem; margin-bottom: 2.75rem; }
+.cpg-pass { display: flex; flex-direction: column; background: #fff; border-radius: 24px; overflow: hidden; box-shadow: 0 1px 0 rgba(29,51,40,.04), 0 14px 30px -18px rgba(29,51,40,.35); transition: transform .2s ease, box-shadow .2s ease; }
+.cpg-pass:hover { transform: translateY(-3px); box-shadow: 0 1px 0 rgba(29,51,40,.04), 0 20px 36px -18px rgba(29,51,40,.45); }
+.cpg-pass__band { background: var(--brand); color: #fff; padding: 1.1rem 1.25rem; display: flex; align-items: center; gap: .85rem; }
+.cpg-pass__icon { width: 46px; height: 46px; flex: none; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.18); border: 2px dashed rgba(255,255,255,.55); font-size: 1.3rem; }
+.cpg-pass__name { margin: 0; font-size: 1.35rem; font-weight: 800; line-height: 1.1; }
+.cpg-pass__tag { margin: .15rem 0 0; font-size: .82rem; opacity: .92; font-weight: 600; }
+.cpg-pass__seam { border-top: 3px dashed #fff; margin: 0 12px; position: relative; top: -2px; opacity: .85; }
+.cpg-pass__body { display: flex; flex-direction: column; flex: 1; padding: 1rem 1.25rem 1.25rem; }
+.cpg-badge { align-self: flex-start; padding: .25rem .7rem; border-radius: 999px; font-size: .78rem; font-weight: 800; background: color-mix(in srgb, var(--brand) 12%, white); color: var(--cta); margin-bottom: .75rem; }
+.cpg-pass__desc { margin: 0 0 1rem; font-size: .9rem; line-height: 1.5; color: var(--ink-soft); font-weight: 600; }
+.cpg-perks { list-style: none; margin: 0 0 1.25rem; padding: .9rem 0 0; border-top: 1.5px dashed var(--line); display: flex; flex-direction: column; gap: .55rem; flex: 1; }
+.cpg-perks li { display: flex; gap: .6rem; align-items: flex-start; font-size: .88rem; font-weight: 700; line-height: 1.35; }
+.cpg-perks i { margin-top: .2rem; color: var(--brand); flex: none; }
+.cpg-cta { display: flex; align-items: center; justify-content: center; gap: .5rem; width: 100%; border-radius: 14px; padding: .75rem 1rem; background: var(--cta); color: #fff; font-weight: 800; font-size: .95rem; text-decoration: none; transition: filter .15s ease; }
+.cpg-cta:hover { filter: brightness(1.12); color: #fff; }
+.cpg-signin { width: 100%; margin-top: .55rem; border: 1.5px solid var(--line); background: #fff; color: var(--ink-soft); border-radius: 14px; padding: .55rem 1rem; font-size: .85rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: .45rem; transition: border-color .15s ease, color .15s ease; }
+.cpg-signin:hover { border-color: var(--leaf); color: var(--ink); }
+.cpg-signin i { color: var(--leaf); }
+
+/* Sections */
+.cpg-panel { background: #fff; border-radius: 28px; padding: 2rem 1.75rem; margin-bottom: 2.25rem; box-shadow: 0 1px 0 rgba(29,51,40,.04), 0 14px 30px -18px rgba(29,51,40,.3); }
+.cpg-h2 { margin: 0 0 .3rem; font-size: 1.6rem; font-weight: 800; }
+.cpg-sub { margin: 0 0 1.5rem; color: var(--ink-soft); font-size: .95rem; font-weight: 600; max-width: 62ch; line-height: 1.5; }
+.cpg-benefits { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem 2rem; }
+.cpg-benefit__icon { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: #e6f4ec; color: var(--leaf-dark); font-size: 1.1rem; margin-bottom: .75rem; }
+.cpg-benefit h3 { margin: 0 0 .3rem; font-size: 1.02rem; font-weight: 800; }
+.cpg-benefit p { margin: 0; font-size: .88rem; line-height: 1.5; color: var(--ink-soft); font-weight: 600; }
+
+.cpg-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.cpg-step { display: flex; gap: 1rem; position: relative; padding-bottom: 1.4rem; }
+.cpg-step:last-child { padding-bottom: 0; }
+.cpg-step:not(:last-child)::before { content: ""; position: absolute; left: 17px; top: 38px; bottom: 4px; border-left: 2px dashed var(--line); }
+.cpg-step__num { width: 36px; height: 36px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--leaf); color: #fff; font-weight: 800; }
+.cpg-step h3 { margin: .3rem 0 .2rem; font-size: 1.02rem; font-weight: 800; }
+.cpg-step p { margin: 0; font-size: .9rem; color: var(--ink-soft); font-weight: 600; line-height: 1.5; }
+.cpg-activate { display: grid; grid-template-columns: 1fr; gap: 1.75rem; }
+@media (min-width: 992px) { .cpg-activate { grid-template-columns: 5fr 7fr; gap: 3rem; align-items: center; } }
+
+.cpg-fine { text-align: center; color: var(--ink-soft); font-size: .8rem; font-weight: 600; margin: 0 0 .5rem; }
+
+.cpg :is(a, button):focus-visible { outline: 3px solid #0f5132; outline-offset: 2px; }
+.cpg-pass__band :is(a, button):focus-visible { outline-color: #fff; }
+@media (prefers-reduced-motion: reduce) {
+    .cpg * { transition: none !important; }
+    .cpg-pass:hover { transform: none; }
+}
+`;
+
 const Membership = () => {
+    const { user, loginWithProvider } = useAuth();
+
+    const isPlatformLinked = (provId?: string) => {
+        if (!provId || !user) return false;
+        return Boolean(
+            user.connected_providers?.includes(provId) ||
+            (user.connected_accounts && user.connected_accounts[provId]) ||
+            user.provider === provId
+        );
+    };
+
+    const handleDirectLogin = (provId: SignInProvider) => {
+        playChimeClick();
+        loginWithProvider(provId);
+    };
+
     useEffect(() => {
         const site = window.location.origin;
         const url = `${site}/membership`;
@@ -165,7 +283,7 @@ const Membership = () => {
             let el = document.querySelector(`link[rel="${rel}"]`);
             if (!el) {
                 el = document.createElement("link");
-                el.setAttribute(rel, rel);
+                el.setAttribute("rel", rel); // was setAttribute(rel, rel), which never set the rel attribute
                 document.head.appendChild(el);
             }
             el.setAttribute("href", href);
@@ -188,257 +306,186 @@ const Membership = () => {
     }, []);
 
     return (
-        <div className="nook-os min-vh-100 p-3 p-lg-5 font-nunito d-flex flex-column align-items-center">
-            <div className="app-container w-100" style={{ maxWidth: "1140px" }}>
+        <div className="nook-os cpg min-vh-100 p-3 p-lg-5 font-nunito d-flex flex-column align-items-center">
+            <style>{STYLES}</style>
 
-                {/* Top Navigation Bar */}
-                <div className="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
-                    <Link
-                        to="/islands"
-                        className="btn btn-sm btn-white bg-white border rounded-pill px-3 py-1.5 fw-bold text-dark shadow-2xs text-decoration-none d-inline-flex align-items-center gap-2 hover-lift"
-                    >
-                        <i className="fa-solid fa-arrow-left text-success"></i>
-                        <span>Back to Islands</span>
+            <div className="cpg__wrap">
+                {/* Top bar */}
+                <nav className="cpg-top" aria-label="Page navigation">
+                    <Link to="/islands" className="cpg-pill">
+                        <i className="fa-solid fa-arrow-left" aria-hidden="true" />
+                        Back to islands
                     </Link>
-
                     <a
                         href="https://discord.com/invite/chopaeng"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="btn btn-sm btn-outline-primary rounded-pill px-3 py-1.5 fw-bold d-inline-flex align-items-center gap-2 text-decoration-none shadow-2xs hover-lift"
+                        className="cpg-pill cpg-pill--discord"
                     >
-                        <i className="fa-brands fa-discord"></i>
-                        <span>Need Help? Join Discord</span>
+                        <i className="fa-brands fa-discord" aria-hidden="true" />
+                        Need help? Join Discord
                     </a>
-                </div>
+                </nav>
 
-                {/* Header Banner */}
-                <div className="text-center mb-5">
-                    <div className="d-inline-flex align-items-center justify-content-center bg-white p-3 rounded-4 shadow-sm mb-3 border border-3 border-light transform-rotate-n3">
-                        <i className="fa-solid fa-crown fs-1 text-warning"></i>
+                {/* Hero */}
+                <header className="cpg-hero">
+                    <div className="cpg-crest" aria-hidden="true">
+                        <i className="fa-solid fa-crown" />
                     </div>
-                    <h1 className="display-5 fw-black ac-font text-dark mb-2">Choose Your Membership</h1>
-                    <p className="lead text-muted fw-bold mx-auto mb-3" style={{ maxWidth: "700px" }}>
-                        Support Chopaeng on your preferred platform to unlock private Treasure Islands, priority ChoBot access, and exclusive Discord perks!
-                    </p>
-                    <div className="d-inline-flex align-items-center gap-2 bg-white bg-opacity-75 border rounded-pill px-3 py-1.5 shadow-2xs">
-                        <i className="fa-solid fa-wand-magic-sparkles text-warning"></i>
-                        <span className="small fw-bold text-muted">
-                            Plans, pricing, and perks are managed directly on each platform
-                        </span>
+                    <div>
+                        <h1 className="ac-font cpg-h1">Choose your membership</h1>
+                        <p className="cpg-lead">
+                            Support Chopaeng on the platform you already use to unlock private Treasure Islands,
+                            priority ChoBot access, and exclusive Discord perks.
+                        </p>
+                        <p className="cpg-note">
+                            <i className="fa-solid fa-circle-info" aria-hidden="true" />
+                            Plans, pricing, and perks are managed on each platform.
+                        </p>
                     </div>
-                </div>
+                </header>
 
-                {/* Platform Selector Grid (4 Platforms) */}
-                <div className="row g-4 justify-content-center mb-5">
-                    {platforms.map((platform) => (
-                        <div key={platform.id} className="col-12 col-md-6 col-xl-3">
-                            <a
-                                href={platform.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="platform-card h-100 d-flex flex-column bg-white rounded-4 p-4 shadow-sm border border-2 text-decoration-none position-relative overflow-hidden"
-                                style={{
-                                    borderColor: "rgba(0, 0, 0, 0.08)",
-                                    "--card-glow": platform.glowColor,
-                                    "--hover-border": platform.brandColor
-                                } as React.CSSProperties}
-                                aria-label={`Join Chopaeng on ${platform.name}`}
-                            >
-                                {/* Platform Top Header */}
-                                <div className="d-flex align-items-center justify-content-between mb-3">
-                                    <div
-                                        className="platform-icon-box d-flex align-items-center justify-content-center rounded-3 shadow-2xs"
-                                        style={{
-                                            width: "52px",
-                                            height: "52px",
-                                            background: platform.brandGradient,
-                                            color: "#FFFFFF"
-                                        }}
-                                    >
-                                        <i className={`${platform.icon} fs-3`}></i>
-                                    </div>
-                                    <span
-                                        className="badge rounded-pill px-2.5 py-1.5 fw-bold small border"
-                                        style={{
-                                            backgroundColor: platform.badgeBg,
-                                            color: platform.badgeText,
-                                            borderColor: platform.borderColor,
-                                            fontSize: "0.74rem"
-                                        }}
-                                    >
-                                        {platform.badge}
-                                    </span>
-                                </div>
+                {/* ChoPaeng Account & OAuth 2.0 Account Linking Hub */}
+                <AccountLinkingHub className="mb-5" />
 
-                                {/* Platform Title & Tagline */}
-                                <h3 className="h4 fw-black ac-font text-dark mb-1">{platform.name}</h3>
-                                <p className="small text-muted fw-bold mb-3">{platform.tagline}</p>
-                                <p className="small text-secondary lh-sm mb-3 opacity-90">{platform.description}</p>
-
-                                <div className="receipt-line my-2 opacity-50"></div>
-
-                                {/* Perks List */}
-                                <div className="mb-4 flex-grow-1 pt-2">
-                                    <div className="tiny-text text-uppercase fw-bold text-muted spacing-wide mb-2 opacity-75">
-                                        Included Perks
-                                    </div>
-                                    <ul className="list-unstyled d-flex flex-column gap-2 mb-0">
-                                        {platform.perks.map((perk, idx) => (
-                                            <li key={idx} className="d-flex align-items-start small fw-bold text-dark opacity-90">
-                                                <i
-                                                    className="fa-solid fa-circle-check me-2 flex-shrink-0 mt-1"
-                                                    style={{ color: platform.brandColor }}
-                                                ></i>
-                                                <span className="lh-sm">{perk}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-
-                                {/* Action CTA Button */}
-                                <div className="mt-auto pt-2">
-                                    <div
-                                        className="platform-cta-btn btn w-100 rounded-pill fw-black py-2.5 px-3 text-white text-uppercase d-flex align-items-center justify-content-center gap-2 shadow-sm border-0"
-                                        style={{
-                                            background: platform.brandGradient
-                                        }}
-                                    >
-                                        <span>{platform.cta}</span>
-                                        <i className="fa-solid fa-arrow-up-right-from-square small"></i>
-                                    </div>
-                                </div>
-                            </a>
+                {/* Tier matrix callout */}
+                <section className="cpg-callout" aria-labelledby="cpg-matrix-title">
+                    <div className="cpg-callout__text">
+                        <div className="cpg-callout__icon" aria-hidden="true">
+                            <i className="fa-solid fa-table-cells" />
                         </div>
-                    ))}
-                </div>
-
-                {/* Member Perks Overview */}
-                <div className="bg-white p-4 p-md-5 rounded-4 shadow-sm border border-light mb-5 position-relative overflow-hidden">
-                    <div className="position-absolute top-0 start-0 w-100 h-100 bg-grid opacity-10 pointer-events-none"></div>
-
-                    <div className="position-relative z-1">
-                        <div className="text-center mb-4">
-                            <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-1.5 rounded-pill fw-bold text-uppercase spacing-wide mb-2">
-                                <i className="fa-solid fa-gem me-1.5"></i> All Members Enjoy
-                            </span>
-                            <h2 className="h3 fw-black ac-font text-dark mb-1">What You Get With Any Membership</h2>
-                            <p className="text-muted small fw-bold mb-0">
-                                Whichever platform you choose, connecting your membership unlocks these core community benefits:
+                        <div>
+                            <h2 id="cpg-matrix-title" className="ac-font">
+                                Which sub islands does each tier unlock?
+                            </h2>
+                            <p>
+                                Compare all 20 sub islands across Patreon, Twitch (ChoTato Club), and YouTube tiers.
                             </p>
                         </div>
+                    </div>
+                    <Link to="/membership-tiers" className="cpg-btn">
+                        View tier access matrix
+                        <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+                    </Link>
+                </section>
 
-                        <div className="row g-3 g-md-4">
-                            {generalPerks.map((perk, i) => (
-                                <div key={i} className="col-12 col-md-6 col-lg-3">
-                                    <div className="p-3 rounded-4 bg-light border h-100 d-flex flex-column">
-                                        <div className="icon-circle mb-3 bg-white shadow-2xs text-success border d-flex align-items-center justify-content-center">
-                                            <i className={`${perk.icon} fs-5`}></i>
-                                        </div>
-                                        <h4 className="h6 fw-bold text-dark mb-1.5">{perk.title}</h4>
-                                        <p className="small text-muted fw-semibold lh-sm mb-0">{perk.desc}</p>
-                                    </div>
+                {/* Platform passes */}
+                <section className="cpg-grid" aria-label="Membership platforms">
+                    {platforms.map((p) => (
+                        <article
+                            key={p.id}
+                            className="cpg-pass"
+                            style={{ ["--brand" as string]: p.brandColor, ["--cta" as string]: p.ctaColor }}
+                        >
+                            <div className="cpg-pass__band">
+                                <div className="cpg-pass__icon" aria-hidden="true">
+                                    <i className={p.icon} />
                                 </div>
+                                <div>
+                                    <h3 className="ac-font cpg-pass__name">{p.name}</h3>
+                                    <p className="cpg-pass__tag">{p.tagline}</p>
+                                </div>
+                            </div>
+                            <div className="cpg-pass__seam" aria-hidden="true" />
+
+                            <div className="cpg-pass__body">
+                                <div className="d-flex align-items-center justify-content-between mb-2">
+                                    <span className="cpg-badge mb-0">{p.badge}</span>
+                                    {p.signInId && isPlatformLinked(p.signInId) && (
+                                        <span className="badge bg-success bg-opacity-10 text-success rounded-pill px-2.5 py-1 small fw-bold">
+                                            <i className="fa-solid fa-circle-check me-1" /> Linked
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="cpg-pass__desc">{p.description}</p>
+
+                                <ul className="cpg-perks" aria-label={`${p.name} perks`}>
+                                    {p.perks.map((perk) => (
+                                        <li key={perk}>
+                                            <i className="fa-solid fa-circle-check" aria-hidden="true" />
+                                            <span>{perk}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+
+                                <a
+                                    href={p.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="cpg-cta"
+                                >
+                                    <span>{p.cta}</span>
+                                    <i className="fa-solid fa-arrow-up-right-from-square small" aria-hidden="true" />
+                                    <span className="visually-hidden">(opens in a new tab)</span>
+                                </a>
+
+                                {p.signInId && (
+                                    <button
+                                        type="button"
+                                        className={`cpg-signin ${isPlatformLinked(p.signInId) ? "border-success text-success" : ""}`}
+                                        onClick={() => handleDirectLogin(p.signInId!)}
+                                    >
+                                        <i className={`fa-solid ${isPlatformLinked(p.signInId) ? "fa-circle-check text-success" : "fa-right-to-bracket"}`} aria-hidden="true" />
+                                        {isPlatformLinked(p.signInId)
+                                            ? `Linked with ${p.name} • Click to Re-sync`
+                                            : `Already a member? Link with ${p.name}`}
+                                    </button>
+                                )}
+                            </div>
+                        </article>
+                    ))}
+                </section>
+
+                {/* What every member gets */}
+                <section className="cpg-panel" aria-labelledby="cpg-perks-title">
+                    <h2 id="cpg-perks-title" className="ac-font cpg-h2">What every member gets</h2>
+                    <p className="cpg-sub">
+                        Whichever platform you choose, connecting your membership unlocks these benefits.
+                    </p>
+                    <div className="cpg-benefits">
+                        {generalPerks.map((perk) => (
+                            <div key={perk.title} className="cpg-benefit">
+                                <div className="cpg-benefit__icon" aria-hidden="true">
+                                    <i className={perk.icon} />
+                                </div>
+                                <h3>{perk.title}</h3>
+                                <p>{perk.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
+                {/* Activation guide */}
+                <section className="cpg-panel" aria-labelledby="cpg-activate-title">
+                    <div className="cpg-activate">
+                        <div>
+                            <h2 id="cpg-activate-title" className="ac-font cpg-h2">Activate your perks</h2>
+                            <p className="cpg-sub" style={{ marginBottom: 0 }}>
+                                Three steps to sync your membership and start visiting islands.
+                            </p>
+                        </div>
+                        <ol className="cpg-steps">
+                            {steps.map((s, i) => (
+                                <li key={s.title} className="cpg-step">
+                                    <span className="cpg-step__num" aria-hidden="true">{i + 1}</span>
+                                    <div>
+                                        <h3>{s.title}</h3>
+                                        <p>{s.desc}</p>
+                                    </div>
+                                </li>
                             ))}
-                        </div>
+                        </ol>
                     </div>
-                </div>
+                </section>
 
-                {/* Activation & Sync Guide */}
-                <div className="bg-white p-4 p-md-5 rounded-4 shadow-sm border border-light mb-5 position-relative overflow-hidden">
-                    <div className="row align-items-center position-relative z-1">
-                        <div className="col-lg-4 text-center mb-4 mb-lg-0">
-                            <div className="d-inline-block p-4 rounded-circle bg-success bg-opacity-10 border border-success border-opacity-25 mb-3">
-                                <i className="fa-solid fa-rotate fs-1 text-success spin-hover"></i>
-                            </div>
-                            <h3 className="h4 fw-black ac-font text-dark mb-1">Perk Activation</h3>
-                            <p className="text-muted small fw-bold mb-0">How to sync your account & start playing</p>
-                        </div>
-                        <div className="col-lg-8">
-                            <div className="d-flex flex-column gap-3">
-                                <div className="d-flex align-items-center gap-3 bg-light p-3 rounded-3 border">
-                                    <span className="badge bg-dark rounded-circle p-2 px-3 fw-bold fs-6">1</span>
-                                    <div>
-                                        <div className="fw-bold text-dark">Subscribe on your preferred platform</div>
-                                        <div className="small text-muted fw-semibold">
-                                            Choose YouTube, Twitch, Patreon, or TikTok and complete your subscription.
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="d-flex align-items-center gap-3 bg-light p-3 rounded-3 border">
-                                    <span className="badge bg-dark rounded-circle p-2 px-3 fw-bold fs-6">2</span>
-                                    <div>
-                                        <div className="fw-bold text-dark">Connect your account with Discord</div>
-                                        <div className="small text-muted fw-semibold">
-                                            In Discord, open <strong>User Settings &gt; Connections</strong> and connect your YouTube/Twitch/Patreon account.
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="d-flex align-items-center gap-3 bg-light p-3 rounded-3 border">
-                                    <span className="badge bg-dark rounded-circle p-2 px-3 fw-bold fs-6">3</span>
-                                    <div>
-                                        <div className="fw-bold text-dark">Instant VIP island and bot access!</div>
-                                        <div className="small text-muted fw-semibold">
-                                            Your role will sync automatically, granting immediate access to private Dodo codes and ChoBot commands.
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Footer Disclaimers */}
-                <div className="text-center mt-4">
-                    <p className="tiny-text text-muted fw-bold text-uppercase opacity-60 mb-2">
-                        * NO REFUNDS ON DIGITAL GOODS. ISLANDS MANAGED BY THE CHOPAENG COMMUNITY.
+                {/* Footer */}
+                <footer className="text-center mt-4">
+                    <p className="cpg-fine">
+                        No refunds on digital goods. Islands are managed by the Chopaeng community.
                     </p>
                     <DisclaimerBanner variant="text" className="mb-0" />
-                </div>
-
+                </footer>
             </div>
-
-            <style>{`
-                .platform-card {
-                    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-                }
-                .platform-card:hover {
-                    transform: translateY(-8px);
-                    border-color: var(--hover-border) !important;
-                    box-shadow: 0 16px 32px var(--card-glow) !important;
-                }
-                .platform-card:hover .platform-icon-box {
-                    transform: scale(1.08) rotate(-4deg);
-                }
-                .platform-icon-box {
-                    transition: transform 0.25s ease;
-                }
-                .platform-cta-btn {
-                    transition: transform 0.2s ease, filter 0.2s ease;
-                }
-                .platform-card:hover .platform-cta-btn {
-                    transform: scale(1.02);
-                    filter: brightness(1.1);
-                }
-                .receipt-line {
-                    border-top: 1px dashed rgba(0, 0, 0, 0.15);
-                }
-                .hover-lift {
-                    transition: transform 0.15s ease;
-                }
-                .hover-lift:hover {
-                    transform: translateY(-2px);
-                }
-                .tiny-text {
-                    font-size: 0.72rem;
-                }
-                .shadow-2xs {
-                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-                }
-                .spacing-wide {
-                    letter-spacing: 0.08em;
-                }
-            `}</style>
         </div>
     );
 };

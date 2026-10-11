@@ -201,30 +201,7 @@ export const useSavedCharacters = (rawDiscordName?: string | null) => {
         };
     }, [refresh, syncCharactersWithDb]);
 
-    // Automatically sync from Discord Nickname on first load if no custom characters exist for this user
-    useEffect(() => {
-        if (!rawDiscordName) return;
-        const currentUid = getActiveUserId();
-        const current = getStoredCharacters(currentUid);
-        // If empty or never set for this user, parse from Discord Nickname
-        if (current.length === 0) {
-            const parsed = parseDiscordNicknameToCharacters(rawDiscordName);
-            if (parsed.length > 0) {
-                const initialChars: SavedCharacter[] = parsed.slice(0, maxSlots).map((p, idx) => ({
-                    id: `char_dc_${Date.now()}_${idx}`,
-                    ign: p.ign,
-                    islandName: p.islandName,
-                    icon: idx === 0 ? 'fa-crown' : 'fa-leaf',
-                    isDefault: idx === 0,
-                    createdAt: new Date().toISOString(),
-                    source: 'discord',
-                }));
-                saveStoredCharacters(initialChars, currentUid);
-                setCharacters(initialChars);
-                saveCharactersToDb(initialChars).catch(() => {});
-            }
-        }
-    }, [rawDiscordName, maxSlots]);
+
 
     // Active character fallback
     const activeCharacter: SavedCharacter = characters.find((c) => c.isDefault) ||

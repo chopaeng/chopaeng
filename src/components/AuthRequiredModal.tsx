@@ -9,7 +9,7 @@ export interface AuthRequiredEventDetail {
 }
 
 export const AuthRequiredModal: React.FC = () => {
-    const { login } = useAuth();
+    const { loginWithProvider } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [modalData, setModalData] = useState<AuthRequiredEventDetail>({});
 
@@ -39,22 +39,23 @@ export const AuthRequiredModal: React.FC = () => {
     if (!isOpen) return null;
 
     const actionName = modalData.action || 'This Feature';
-    const message = modalData.message || `Please sign in with Discord to use ${actionName} and save your progress to ChoBot.`;
-
-    const handleLogin = () => {
-        playChimeClick();
-        login(modalData.returnPath || window.location.pathname + window.location.search);
-        setIsOpen(false);
-    };
+    const message = modalData.message || `Please sign in with your membership account to use ${actionName}.`;
+    const targetPath = modalData.returnPath || window.location.pathname + window.location.search;
 
     const handleClose = () => {
         playChimeClick();
         setIsOpen(false);
     };
 
+    const handleSelectProvider = (provider: "twitch" | "patreon" | "youtube") => {
+        playChimeClick();
+        setIsOpen(false);
+        loginWithProvider(provider, targetPath);
+    };
+
     return (
         <div
-            className="modal-backdrop-custom d-flex align-items-center justify-content-center"
+            className="modal-backdrop-custom d-flex align-items-center justify-content-center animate-fade"
             style={{
                 position: 'fixed',
                 top: 0,
@@ -69,9 +70,9 @@ export const AuthRequiredModal: React.FC = () => {
             onClick={handleClose}
         >
             <div
-                className="bg-white rounded-4 shadow-lg border p-4 text-center position-relative animate-fade"
+                className="bg-white rounded-5 shadow-lg border p-4 p-md-5 text-center position-relative animate-up"
                 style={{
-                    maxWidth: 460,
+                    maxWidth: 480,
                     width: '100%',
                     border: '1.5px solid rgba(0, 0, 0, 0.08)',
                 }}
@@ -88,17 +89,17 @@ export const AuthRequiredModal: React.FC = () => {
                     <i className="fa-solid fa-xmark text-muted"></i>
                 </button>
 
-                {/* Discord Badge Icon */}
+                {/* Badge Icon */}
                 <div
                     className="d-inline-flex align-items-center justify-content-center rounded-circle text-white mb-3 shadow-sm"
                     style={{
-                        width: 64,
-                        height: 64,
-                        backgroundColor: '#5865F2',
-                        fontSize: '1.6rem',
+                        width: 60,
+                        height: 60,
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        fontSize: '1.5rem',
                     }}
                 >
-                    <i className="fa-brands fa-discord"></i>
+                    <i className="fa-solid fa-passport"></i>
                 </div>
 
                 <div className="mb-2">
@@ -115,25 +116,60 @@ export const AuthRequiredModal: React.FC = () => {
                     {message}
                 </p>
 
-
-                <div className="d-flex flex-column gap-2">
+                {/* Active OAuth Provider Buttons */}
+                <div className="d-flex flex-column gap-2 mb-3">
                     <button
                         type="button"
-                        onClick={handleLogin}
-                        className="btn btn-lg rounded-pill fw-black py-2.5 text-white shadow-sm border-0 d-flex align-items-center justify-content-center gap-2"
-                        style={{ backgroundColor: '#5865F2', fontSize: '0.95rem' }}
+                        onClick={() => handleSelectProvider("twitch")}
+                        className="btn btn-lg rounded-pill fw-bold py-2.5 text-white shadow-sm border-0 d-flex align-items-center justify-content-center gap-2 hover-lift"
+                        style={{ backgroundColor: '#9146FF', fontSize: '0.92rem' }}
                     >
-                        <i className="fa-brands fa-discord fs-5"></i>
-                        <span>Log in with Discord</span>
+                        <i className="fa-brands fa-twitch fs-5"></i>
+                        <span>Log in with Twitch (ChoTato Club)</span>
                     </button>
+
                     <button
                         type="button"
-                        onClick={handleClose}
-                        className="btn btn-sm btn-link text-muted fw-bold text-decoration-none"
+                        onClick={() => handleSelectProvider("patreon")}
+                        className="btn btn-lg rounded-pill fw-bold py-2.5 text-white shadow-sm border-0 d-flex align-items-center justify-content-center gap-2 hover-lift"
+                        style={{ backgroundColor: '#FF424D', fontSize: '0.92rem' }}
                     >
-                        Not Now
+                        <i className="fa-brands fa-patreon fs-5"></i>
+                        <span>Log in with Patreon</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => handleSelectProvider("youtube")}
+                        className="btn btn-lg rounded-pill fw-bold py-2.5 text-white shadow-sm border-0 d-flex align-items-center justify-content-center gap-2 hover-lift"
+                        style={{ backgroundColor: '#FF0000', fontSize: '0.92rem' }}
+                    >
+                        <i className="fa-brands fa-youtube fs-5"></i>
+                        <span>Log in with YouTube</span>
+                    </button>
+
+                    {/* Discord disabled option */}
+                    <button
+                        type="button"
+                        disabled
+                        className="btn btn-lg rounded-pill fw-bold py-2 text-white border-0 d-flex align-items-center justify-content-between px-3 opacity-60"
+                        style={{ backgroundColor: '#5865F2', fontSize: '0.85rem', cursor: 'not-allowed' }}
+                    >
+                        <span className="d-flex align-items-center gap-2">
+                            <i className="fa-brands fa-discord fs-6"></i>
+                            <span>Discord</span>
+                        </span>
+                        <span className="badge bg-dark bg-opacity-25 rounded-pill tiny-text">Temporarily Disabled</span>
                     </button>
                 </div>
+
+                <button
+                    type="button"
+                    onClick={handleClose}
+                    className="btn btn-sm btn-link text-muted fw-bold text-decoration-none"
+                >
+                    Not Now
+                </button>
             </div>
         </div>
     );

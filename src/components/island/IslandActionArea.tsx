@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useCommandBuilderPockets } from "../../hooks/useCommandBuilderPockets";
 import type { BotStatusResponse } from "../../utils/orderBotApi";
 import { ORDER_MAX } from "../../constants/limits";
+import { getSubIslandAllowedTiers, getTierBadgeMeta } from "../../utils/subIslandAccess";
 
 interface IslandActionAreaProps {
     islandName?: string;
@@ -249,10 +250,37 @@ export const IslandActionArea: React.FC<IslandActionAreaProps> = ({
                                     Subscribers Only
                                 </span>
                             </div>
-                            <p className="text-muted small mb-3 lh-sm" style={{ fontSize: '0.82rem' }}>
-                                You are signed in as <strong className="text-dark">{user.username}</strong>, but your Discord account doesn't have the subscriber tier required for this VIP island. Upgrade your membership or sync your Discord roles to get instant Dodo code access!
+                            <p className="text-muted small mb-2 lh-sm" style={{ fontSize: '0.82rem' }}>
+                                You are signed in as <strong className="text-dark">{user.username}</strong>, but your connected membership account doesn't have the subscriber tier required for this VIP island. Upgrade your membership or sync your Discord roles to get instant Dodo code access!
                             </p>
+                            {islandName && getSubIslandAllowedTiers(islandName).length > 0 && (
+                                <div className="mb-3 p-2 bg-light rounded-3 border">
+                                    <div className="tiny-text fw-bold text-muted text-uppercase mb-1">Allowed Tiers for {islandName}:</div>
+                                    <div className="d-flex flex-wrap gap-1">
+                                        {getSubIslandAllowedTiers(islandName).map(tier => {
+                                            const meta = getTierBadgeMeta(tier);
+                                            return (
+                                                <span
+                                                    key={tier}
+                                                    className="badge rounded-pill px-2 py-0.5 fw-bold border"
+                                                    style={{ backgroundColor: meta.bgColor, color: meta.color, borderColor: meta.borderColor, fontSize: "0.7rem" }}
+                                                >
+                                                    <i className={`${meta.icon} me-1`}></i>
+                                                    {tier}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                             <div className="d-flex align-items-center gap-2 flex-wrap">
+                                <Link
+                                    to="/membership-tiers"
+                                    className="btn btn-sm btn-success text-white rounded-pill fw-bold px-3 py-1.5 shadow-2xs d-inline-flex align-items-center gap-1.5"
+                                    style={{ fontSize: "0.82rem" }}
+                                >
+                                    <i className="fa-solid fa-table-cells" /> View Tier Matrix
+                                </Link>
                                 <Link
                                     to="/membership"
                                     className="btn btn-sm btn-warning text-dark rounded-pill fw-bold px-3 py-1.5 shadow-2xs d-inline-flex align-items-center gap-1.5"
@@ -303,8 +331,8 @@ export const IslandActionArea: React.FC<IslandActionAreaProps> = ({
                         onClick={login}
                         className="btn btn-link text-muted text-decoration-none small fw-bold d-inline-flex align-items-center gap-1.5"
                     >
-                        <i className="fa-brands fa-discord text-primary" />
-                        <span>Login with Discord to check your island access</span>
+                        <i className="fa-solid fa-passport text-success" />
+                        <span>Sign in with Twitch, Patreon, or YouTube to check your island access</span>
                     </button>
                 </div>
             )}

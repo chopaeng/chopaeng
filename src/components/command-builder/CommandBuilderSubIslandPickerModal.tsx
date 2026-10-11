@@ -135,13 +135,15 @@ export const CommandBuilderSubIslandPickerModal = ({
                     <div className="modal-body p-4">
                         {!user ? (
                             <div className="bg-white rounded-4 border p-4 text-center">
-                                <i className="fa-brands fa-discord fs-1 text-primary mb-3"></i>
-                                <h3 className="h6 fw-bold text-dark">Discord Login Required</h3>
+                                <div className="rounded-circle d-inline-flex align-items-center justify-content-center bg-success bg-opacity-10 text-success p-3 mb-3">
+                                    <i className="fa-solid fa-passport fs-2"></i>
+                                </div>
+                                <h3 className="h6 fw-bold text-dark">Resident Sign In Required</h3>
                                 <p className="small text-muted mb-3">
-                                    You must be logged in with Discord and have an active Subscriber/VIP role to send drops to sub islands.
+                                    Sign in with your Twitch, Patreon, or YouTube membership account to send drops and inject villagers to Sub Islands.
                                 </p>
-                                <button type="button" className="btn btn-primary rounded-pill px-4 fw-bold" onClick={login}>
-                                    <i className="fa-brands fa-discord me-2"></i>Login with Discord
+                                <button type="button" className="btn btn-success rounded-pill px-4 fw-bold" onClick={login}>
+                                    <i className="fa-solid fa-right-to-bracket me-2"></i>Resident Sign In
                                 </button>
                             </div>
                         ) : totalDropItems === 0 ? (

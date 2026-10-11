@@ -94,7 +94,7 @@ export const SOUND_TYPE_CONFIGS: Record<AnimaleseSoundType, SoundTypeConfig> = {
 };
 
 // Index all .ogg sound files eagerly via Vite's asset globber
-const SOUND_MODULES = import.meta.glob('/src/assets/sounds/**/*.ogg', {
+const SOUND_MODULES = import.meta.glob('../assets/sounds/**/*.ogg', {
     eager: true,
     query: '?url',
     import: 'default',

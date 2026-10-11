@@ -436,8 +436,8 @@ export const DropBot: React.FC = () => {
                                     className="btn btn-success rounded-pill fw-black px-5 py-3 shadow-sm d-inline-flex align-items-center gap-2 hover-scale transition-all"
                                     style={{ fontSize: '1.05rem', backgroundColor: '#37b06d', borderColor: '#37b06d' }}
                                 >
-                                    <i className="fa-brands fa-discord me-1" />
-                                    <span>Login with Discord</span>
+                                    <i className="fa-solid fa-passport me-1" />
+                                    <span>Resident Sign In</span>
                                 </button>
                             </div>
 
@@ -1125,7 +1125,7 @@ export const DropBot: React.FC = () => {
                                                 onClick={login}
                                                 className="btn btn-xs btn-dark rounded-pill fw-bold px-3 py-1 text-nowrap"
                                             >
-                                                <i className="fa-brands fa-discord me-1" /> Log In
+                                                <i className="fa-solid fa-passport me-1" /> Log In
                                             </button>
                                         )}
                                     </div>

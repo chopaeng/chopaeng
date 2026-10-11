@@ -17,11 +17,12 @@ export const RequireAuthView: React.FC<RequireAuthViewProps> = ({
     badge = 'Resident Account Required',
     returnPath,
 }) => {
-    const { login, loading } = useAuth();
+    const { loginWithProvider, loading } = useAuth();
+    const targetPath = returnPath || window.location.pathname + window.location.search;
 
-    const handleLogin = () => {
+    const handleLogin = (prov: "twitch" | "patreon" | "youtube") => {
         playChimeClick();
-        login(returnPath || window.location.pathname + window.location.search);
+        loginWithProvider(prov, targetPath);
     };
 
     if (loading) {
@@ -51,7 +52,7 @@ export const RequireAuthView: React.FC<RequireAuthViewProps> = ({
                         left: 0,
                         right: 0,
                         height: 6,
-                        background: 'linear-gradient(90deg, #10b981 0%, #5865f2 50%, #38bdf8 100%)',
+                        background: 'linear-gradient(90deg, #9146ff 0%, #ff424d 50%, #ff0000 100%)',
                     }}
                 />
 
@@ -70,7 +71,7 @@ export const RequireAuthView: React.FC<RequireAuthViewProps> = ({
                     style={{
                         width: 84,
                         height: 84,
-                        backgroundColor: '#5865F2',
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                         color: '#ffffff',
                         fontSize: '2rem',
                     }}
@@ -92,7 +93,7 @@ export const RequireAuthView: React.FC<RequireAuthViewProps> = ({
                 <div className="bg-light rounded-3 p-3 mb-4 text-start border d-flex flex-column gap-2 mx-auto w-100" style={{ maxWidth: 460 }}>
                     <div className="d-flex align-items-center gap-2 small fw-bold text-secondary">
                         <i className="fa-solid fa-circle-check text-success"></i>
-                        <span>Saved to ChoBot automatically</span>
+                        <span>Twitch, Patreon, or YouTube membership access</span>
                     </div>
                     <div className="d-flex align-items-center gap-2 small fw-bold text-secondary">
                         <i className="fa-solid fa-circle-check text-success"></i>
@@ -100,25 +101,61 @@ export const RequireAuthView: React.FC<RequireAuthViewProps> = ({
                     </div>
                     <div className="d-flex align-items-center gap-2 small fw-bold text-secondary">
                         <i className="fa-solid fa-circle-check text-success"></i>
-                        <span>Protected under your private Discord resident account</span>
+                        <span>Private Sub Island access & priority ChoBot queues</span>
                     </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="d-flex flex-column flex-sm-row align-items-center justify-content-center gap-3">
+                {/* Multi-provider Action Buttons */}
+                <div className="d-flex flex-column gap-2 mx-auto w-100 mb-3" style={{ maxWidth: 460 }}>
                     <button
                         type="button"
-                        onClick={handleLogin}
-                        className="btn btn-lg rounded-pill fw-black px-4 py-2.5 shadow-sm d-inline-flex align-items-center gap-2 text-white border-0"
-                        style={{ backgroundColor: '#5865F2', fontSize: '0.95rem' }}
+                        onClick={() => handleLogin("twitch")}
+                        className="btn btn-lg rounded-pill fw-bold py-2.5 text-white shadow-sm border-0 d-flex align-items-center justify-content-center gap-2 hover-lift"
+                        style={{ backgroundColor: '#9146FF', fontSize: '0.95rem' }}
                     >
-                        <i className="fa-brands fa-discord fs-5"></i>
-                        <span>Login with Discord</span>
+                        <i className="fa-brands fa-twitch fs-5"></i>
+                        <span>Login with Twitch (ChoTato Club)</span>
                     </button>
+
+                    <button
+                        type="button"
+                        onClick={() => handleLogin("patreon")}
+                        className="btn btn-lg rounded-pill fw-bold py-2.5 text-white shadow-sm border-0 d-flex align-items-center justify-content-center gap-2 hover-lift"
+                        style={{ backgroundColor: '#FF424D', fontSize: '0.95rem' }}
+                    >
+                        <i className="fa-brands fa-patreon fs-5"></i>
+                        <span>Login with Patreon</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => handleLogin("youtube")}
+                        className="btn btn-lg rounded-pill fw-bold py-2.5 text-white shadow-sm border-0 d-flex align-items-center justify-content-center gap-2 hover-lift"
+                        style={{ backgroundColor: '#FF0000', fontSize: '0.95rem' }}
+                    >
+                        <i className="fa-brands fa-youtube fs-5"></i>
+                        <span>Login with YouTube</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        disabled
+                        className="btn btn-sm rounded-pill fw-bold py-2 text-white border-0 d-flex align-items-center justify-content-between px-3 opacity-50"
+                        style={{ backgroundColor: '#5865F2', cursor: 'not-allowed' }}
+                    >
+                        <span className="d-flex align-items-center gap-2">
+                            <i className="fa-brands fa-discord"></i>
+                            <span>Discord</span>
+                        </span>
+                        <span className="badge bg-dark bg-opacity-25 rounded-pill tiny-text">Temporarily Disabled</span>
+                    </button>
+                </div>
+
+                <div>
                     <a
                         href="/"
-                        className="btn btn-lg btn-light border rounded-pill fw-bold px-4 py-2.5 small text-secondary"
-                        style={{ fontSize: '0.9rem' }}
+                        className="btn btn-sm btn-light border rounded-pill fw-bold px-4 py-2 small text-secondary"
+                        style={{ fontSize: '0.85rem' }}
                     >
                         Return Home
                     </a>

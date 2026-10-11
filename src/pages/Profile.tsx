@@ -9,18 +9,14 @@ import { useFavoriteIslands, getStoredFavoriteIslands, saveStoredFavoriteIslands
 import { useSavedCharacters, type SavedCharacter } from "../hooks/useSavedCharacters";
 import { useCaughtCritters } from "../hooks/useCaughtCritters";
 import { parseItemCodes } from "../utils/itemCodeParser";
-import { formatCharactersToNickname } from "../utils/characterParser";
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
 import { fetchUserOrderHistory, type OrderHistoryItem } from "../utils/orderBotApi";
-import { getStoredPassport, saveStoredPassport, fetchPublicPassportFromDb, fetchUserPassportFromDb, updateDiscordNickname, cleanPassportUsername, type PublicPassportData } from "../utils/userProfileApi";
+import { getStoredPassport, fetchPublicPassportFromDb, fetchUserPassportFromDb, cleanPassportUsername, type PublicPassportData } from "../utils/userProfileApi";
 import { HowItWorksExplainer, PROFILE_EXPLAINER_CONFIG } from "../components/HowItWorksExplainer";
 import { SavedCharactersCard } from "../components/profile/SavedCharactersCard";
-import { AccountInfoCard } from "../components/profile/AccountInfoCard";
 import { CritterpediaSummaryCard } from "../components/profile/CritterpediaSummaryCard";
-import { PassportStudio } from "../components/profile/PassportStudio";
+import { AccountInformationTab } from "../components/profile/AccountInformationTab";
 import { AddEditCharacterModal } from "../components/profile/modals/AddEditCharacterModal";
-import { DiscordNickModal } from "../components/profile/modals/DiscordNickModal";
-import { SyncDiscordModal } from "../components/profile/modals/SyncDiscordModal";
 import { setUserScopedItem } from "../utils/accountStorage";
 import "./Profile.css";
 
@@ -159,7 +155,7 @@ const Profile = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [prefNotice, setPrefNotice] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<"profile" | "access" | "favorites" | "orders" | "history">("profile");
+    const [activeTab, setActiveTab] = useState<"profile" | "account" | "access" | "favorites" | "orders" | "history">("profile");
     const [accessFilter, setAccessFilter] = useState<"all" | "public" | "member" | "order">("all");
 
     // Load catalog if user is viewing orders, history, or passport studio (for villagers & sprites)
@@ -175,18 +171,9 @@ const Profile = () => {
             username: cleanPassportUsername(base.username, authHandle),
         };
     });
-    const [savingPassport, setSavingPassport] = useState(false);
     const [passportLinkCopied, setPassportLinkCopied] = useState(false);
-    const [passportDirty, setPassportDirty] = useState(false);
-    const [lastSavedDbTime, setLastSavedDbTime] = useState<number | null>(() => passportData.updatedAt || null);
-    const [passportNotice, setPassportNotice] = useState<{ type: "success" | "warning" | "error"; message: string } | null>(null);
 
-    // Auto-persist local passport updates as the user edits in studio
-    useEffect(() => {
-        if (passportDirty) {
-            saveStoredPassport(passportData);
-        }
-    }, [passportData, passportDirty]);
+
 
     // Orders History & Reorder State
     const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
@@ -289,8 +276,7 @@ const Profile = () => {
         updateCharacter,
         deleteCharacter,
         setDefaultCharacter,
-        syncFromDiscordNickname,
-    } = useSavedCharacters(rawDiscordName);
+        } = useSavedCharacters(rawDiscordName);
 
     // Sync and hydrate Public Passport state from ChoBot database & local storage
     useEffect(() => {
@@ -312,7 +298,7 @@ const Profile = () => {
                 const resolvedUsername = cleanPassportUsername(base.username, queryTarget);
 
                 setPassportData((prev) => {
-                    const chosenUsername = !passportDirty && dbPassport?.username
+                    const chosenUsername = dbPassport?.username
                         ? cleanPassportUsername(dbPassport.username, resolvedUsername)
                         : cleanPassportUsername(prev.username, resolvedUsername);
                     return {
@@ -326,10 +312,6 @@ const Profile = () => {
                         primaryIsland: activeCharacter.islandName || base.primaryIsland || "",
                     };
                 });
-
-                if (dbPassport?.updatedAt) {
-                    setLastSavedDbTime(typeof dbPassport.updatedAt === "number" ? dbPassport.updatedAt : Date.now());
-                }
             }).catch(() => {
                 const stored = getStoredPassport(queryTarget);
                 const resolvedUsername = cleanPassportUsername(stored.username, queryTarget);
@@ -346,36 +328,18 @@ const Profile = () => {
 
     // Saved in-game character creation / editing state
     const [characterModalOpen, setCharacterModalOpen] = useState(false);
-    const [syncDiscordModalOpen, setSyncDiscordModalOpen] = useState(false);
+    
     const [editingCharId, setEditingCharId] = useState<string | null>(null);
     const [charIgn, setCharIgn] = useState("");
     const [charIsland, setCharIsland] = useState("");
     const [charIcon, setCharIcon] = useState("fa-leaf");
     const [charError, setCharError] = useState("");
-    const [syncToDiscordNick, setSyncToDiscordNick] = useState(true);
-    const [targetDiscordNick, setTargetDiscordNick] = useState("");
-    const [customizedNick, setCustomizedNick] = useState(false);
+    
+    
+    
     const [isSavingChar, setIsSavingChar] = useState(false);
 
-    // Automatically update target Discord nickname preview as user types IGN and Island
-    useEffect(() => {
-        if (!customizedNick) {
-            const ign = charIgn.trim();
-            const isl = charIsland.trim();
-            if (ign && isl) {
-                const candidateChar = { ign, islandName: isl };
-                const candidateList = editingCharId
-                    ? characters.map((c) => (c.id === editingCharId ? { ...candidateChar, isDefault: c.isDefault } : c))
-                    : [...characters, { ...candidateChar, isDefault: characters.length === 0 }];
-                const formatted = formatCharactersToNickname(candidateList);
-                setTargetDiscordNick(formatted || `${ign} | ${isl}`.slice(0, 32));
-            } else if (ign) {
-                setTargetDiscordNick(ign.slice(0, 32));
-            } else {
-                setTargetDiscordNick("");
-            }
-        }
-    }, [charIgn, charIsland, customizedNick, editingCharId, characters]);
+    
 
     const handleOpenAddCharacter = () => {
         setEditingCharId(null);
@@ -383,9 +347,7 @@ const Profile = () => {
         setCharIsland("");
         setCharIcon("fa-leaf");
         setCharError("");
-        setSyncToDiscordNick(true);
-        setTargetDiscordNick(formatCharactersToNickname(characters));
-        setCustomizedNick(false);
+        
         setCharacterModalOpen(true);
         playChimeClick();
     };
@@ -396,9 +358,7 @@ const Profile = () => {
         setCharIsland(char.islandName);
         setCharIcon(char.icon || "fa-leaf");
         setCharError("");
-        setSyncToDiscordNick(true);
-        setTargetDiscordNick(formatCharactersToNickname(characters));
-        setCustomizedNick(false);
+        
         setCharacterModalOpen(true);
         playChimeClick();
     };
@@ -437,46 +397,7 @@ const Profile = () => {
                 playChimeClick();
             }
 
-            // Sync to Discord Server Nickname if requested
-            let discordMsg = "";
-            if (syncToDiscordNick) {
-                const candidateChar = { ign: cleanIgn, islandName: cleanIsland, icon: charIcon };
-                const candidateList = editingCharId
-                    ? characters.map((c) => (c.id === editingCharId ? { ...candidateChar, isDefault: c.isDefault } : c))
-                    : [...characters, { ...candidateChar, isDefault: characters.length === 0 }];
-                const multiNick = formatCharactersToNickname(candidateList);
-                const finalNick = (targetDiscordNick.trim() || multiNick || `${cleanIgn} | ${cleanIsland}`).slice(0, 32);
-                const token = getAuthToken();
-                if (token) {
-                    try {
-                        const res = await updateDiscordNickname(finalNick, token);
-                        if (res.success) {
-                            const updated = res.nickname || finalNick;
-                            setUserScopedItem('chopaeng_discord_nickname', updated, authUser?.user_id);
-                            window.dispatchEvent(
-                                new CustomEvent('chopaeng_nickname_updated', {
-                                    detail: { nickname: updated },
-                                })
-                            );
-                            if (profile) {
-                                setProfile((prev) =>
-                                    prev
-                                        ? {
-                                            ...prev,
-                                            user: { ...prev.user, nickname: updated },
-                                        }
-                                        : null
-                                );
-                            }
-                            discordMsg = ` & Discord nickname updated to "${updated}"`;
-                        } else {
-                            discordMsg = ` (Discord nickname notice: ${res.message || 'update skipped'})`;
-                        }
-                    } catch {
-                        // Background discord sync failed gracefully
-                    }
-                }
-            }
+let discordMsg = "";
 
             setPrefNotice(
                 editingCharId
@@ -491,146 +412,23 @@ const Profile = () => {
         }
     };
 
-    const handleSetActiveCharacter = async (char: SavedCharacter) => {
+    const handleSetActiveCharacter = (char: SavedCharacter) => {
         setDefaultCharacter(char.id);
         playChimeClick();
-
-        // Slot 1 is the active character, followed by other saved slots (Slots 2 & 3)
-        const reordered = [
-            { ...char, isDefault: true },
-            ...characters.filter((c) => c.id !== char.id).map((c) => ({ ...c, isDefault: false })),
-        ];
-        const newNick = formatCharactersToNickname(reordered) || `${char.ign} | ${char.islandName}`.slice(0, 32);
-        const token = getAuthToken();
-        let nickUpdated = false;
-        if (token) {
-            try {
-                const res = await updateDiscordNickname(newNick, token);
-                if (res.success) {
-                    const updated = res.nickname || newNick;
-                    setUserScopedItem('chopaeng_discord_nickname', updated, authUser?.user_id);
-                    window.dispatchEvent(
-                        new CustomEvent('chopaeng_nickname_updated', {
-                            detail: { nickname: updated },
-                        })
-                    );
-                    if (profile) {
-                        setProfile((prev) =>
-                            prev
-                                ? {
-                                    ...prev,
-                                    user: { ...prev.user, nickname: updated },
-                                }
-                                : null
-                        );
-                    }
-                    nickUpdated = true;
-                }
-            } catch {
-                // Ignore
-            }
-        }
-
-        setPrefNotice(
-            nickUpdated
-                ? `Active character set to "${char.ign}" & Discord nickname synced to "${newNick}"!`
-                : `Active character set to "${char.ign}".`
-        );
+        setPrefNotice(`Active character set to "${char.ign}".`);
         setTimeout(() => setPrefNotice(null), 3500);
     };
 
-    const handleDeleteCharacter = async (char: SavedCharacter) => {
+    const handleDeleteCharacter = (char: SavedCharacter) => {
         if (window.confirm(`Are you sure you want to delete character "${char.ign}"?`)) {
             deleteCharacter(char.id);
             playChimeClick();
-
-            const remaining = characters.filter((c) => c.id !== char.id);
-            let nickNotice = '';
-            if (remaining.length > 0) {
-                const remainingNick = formatCharactersToNickname(remaining);
-                const token = getAuthToken();
-                if (token && remainingNick) {
-                    try {
-                        const res = await updateDiscordNickname(remainingNick, token);
-                        if (res.success) {
-                            const updated = res.nickname || remainingNick;
-                            setUserScopedItem('chopaeng_discord_nickname', updated, authUser?.user_id);
-                            window.dispatchEvent(
-                                new CustomEvent('chopaeng_nickname_updated', {
-                                    detail: { nickname: updated },
-                                })
-                            );
-                            if (profile) {
-                                setProfile((prev) =>
-                                    prev ? { ...prev, user: { ...prev.user, nickname: updated } } : null
-                                );
-                            }
-                            nickNotice = ` & Discord nickname synced to "${updated}"`;
-                        }
-                    } catch {
-                        // ignore
-                    }
-                }
-            }
-
-            setPrefNotice(`Character "${char.ign}" deleted${nickNotice}.`);
+            setPrefNotice(`Character "${char.ign}" deleted.`);
             setTimeout(() => setPrefNotice(null), 3500);
         }
     };
 
-    // Discord Server Nickname Modal State
-    const [discordNickModalOpen, setDiscordNickModalOpen] = useState(false);
-    const [newDiscordNick, setNewDiscordNick] = useState("");
-    const [updatingNick, setUpdatingNick] = useState(false);
-    const [nickModalMessage, setNickModalMessage] = useState<{ type: "success" | "danger"; text: string } | null>(null);
 
-    const handleOpenDiscordNickModal = (initialVal?: string) => {
-        setNickModalMessage(null);
-        if (initialVal !== undefined) {
-            setNewDiscordNick(initialVal.slice(0, 32));
-        } else if (characters.length > 0) {
-            const multiNick = formatCharactersToNickname(characters);
-            setNewDiscordNick(multiNick || (profile?.user?.nickname || rawDiscordName || "").slice(0, 32));
-        } else {
-            setNewDiscordNick((profile?.user?.nickname || rawDiscordName || "").slice(0, 32));
-        }
-        setDiscordNickModalOpen(true);
-        playChimeClick();
-    };
-
-    const handleSaveDiscordNick = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const clean = newDiscordNick.trim();
-        if (!clean) return;
-        setUpdatingNick(true);
-        setNickModalMessage(null);
-        playChimeClick();
-
-        const token = getAuthToken();
-        const res = await updateDiscordNickname(clean, token);
-        setUpdatingNick(false);
-
-        if (res.success) {
-            const updated = res.nickname || clean;
-            setNickModalMessage({ type: "success", text: res.message || "Nickname updated on Discord!" });
-            if (profile) {
-                setProfile({
-                    ...profile,
-                    user: {
-                        ...profile.user,
-                        nickname: updated,
-                    },
-                });
-            }
-            setPrefNotice(`Discord server nickname updated to "${updated}"!`);
-            setTimeout(() => {
-                setDiscordNickModalOpen(false);
-                setNickModalMessage(null);
-            }, 1800);
-        } else {
-            setNickModalMessage({ type: "danger", text: res.message || "Failed to update Discord nickname." });
-        }
-    };
 
     useEffect(() => {
         document.title = "Resident Passport & Dashboard • Chopaeng";
@@ -750,18 +548,18 @@ const Profile = () => {
                 <div className="container" style={{ maxWidth: 680 }}>
                     <div className="bg-white rounded-4 shadow-sm border p-4 p-md-5 text-center mb-4">
                         <div
-                            className="d-inline-flex align-items-center justify-content-center rounded-circle text-white mb-4"
-                            style={{ width: 76, height: 76, backgroundColor: "#5865F2" }}
+                            className="d-inline-flex align-items-center justify-content-center rounded-circle text-white mb-4 shadow-sm"
+                            style={{ width: 76, height: 76, background: "linear-gradient(135deg, #10b981 0%, #059669 100%)" }}
                         >
-                            <i className="fa-brands fa-discord fa-2x"></i>
+                            <i className="fa-solid fa-passport fa-2x"></i>
                         </div>
                         <h1 className="ac-font h2 text-dark mb-3">Resident Passport & Profile</h1>
                         <p className="text-muted fw-bold mb-4">
-                            Login with Discord to view your verified Island Passport, track your Order Bot & Drop orders, manage multi-character slots, and check accessible treasure islands.
+                            Sign in with your Twitch, Patreon, or YouTube membership account to view your verified Island Passport, track your Order Bot & Drop orders, manage multi-character slots, and check accessible treasure islands.
                         </p>
                         <button type="button" onClick={login} className="btn btn-success rounded-pill fw-black px-4 py-3 shadow-sm">
                             <i className="fa-solid fa-right-to-bracket me-2"></i>
-                            Login with Discord
+                            Resident Sign In
                         </button>
                     </div>
                 </div>
@@ -850,6 +648,12 @@ const Profile = () => {
                                     <div className="d-flex flex-wrap align-items-center justify-content-center justify-content-sm-start gap-2">
                                         {profileUser?.is_admin && <span className="badge rounded-pill bg-danger px-3 py-1">Admin</span>}
                                         {profileUser?.is_mod && <span className="badge rounded-pill bg-success px-3 py-1">Moderator</span>}
+                                        {authUser?.sub_tier && (
+                                            <span className="badge rounded-pill bg-warning text-dark px-3 py-1 fw-black shadow-2xs border border-warning">
+                                                <i className="fa-solid fa-crown me-1.5 text-dark"></i>
+                                                {authUser.sub_tier}
+                                            </span>
+                                        )}
                                         {subscriptionRoleNames.length > 0 ? (
                                             subscriptionRoleNames.map((role) => (
                                                 <span key={role} className="badge rounded-pill bg-warning text-dark px-3 py-1 fw-bold">
@@ -904,8 +708,20 @@ const Profile = () => {
                             onClick={() => setActiveTab("profile")}
                         >
                             <i className="fa-solid fa-user"></i>
-                            <span>Profile</span>
+                            <span>Profile Hub</span>
                             <span className="pf-tab-count">{characters.length}/3</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={activeTab === "account"}
+                            className={`pf-tab-btn ${activeTab === "account" ? "active" : ""}`}
+                            onClick={() => setActiveTab("account")}
+                        >
+                            <i className="fa-solid fa-user-shield text-success"></i>
+                            <span>Account Information</span>
+                            <span className="pf-tab-count">{authUser?.connected_providers?.length || (authUser?.email ? 1 : 0)}</span>
                         </button>
 
                         <button
@@ -960,6 +776,12 @@ const Profile = () => {
 
             {/* ── 2. TAB CONTENT ─────────────────────────────────────────────────── */}
             <div className="container py-4">
+                {prefNotice && (
+                    <div className="alert alert-success rounded-4 py-2.5 px-3 small fw-bold mb-4 animate-fade d-flex align-items-center gap-2 shadow-2xs">
+                        <i className="fa-solid fa-circle-check text-success fs-6" />
+                        <span>{prefNotice}</span>
+                    </div>
+                )}
                 {/* ── REUSABLE HOW IT WORKS EXPLAINER ── */}
                 <HowItWorksExplainer {...PROFILE_EXPLAINER_CONFIG} className="mb-4" defaultExpanded={false} />
 
@@ -970,9 +792,6 @@ const Profile = () => {
                             <SavedCharactersCard
                                 characters={characters}
                                 isSyncingDb={isSyncingDb}
-                                rawDiscordName={rawDiscordName}
-                                onOpenSyncDiscordModal={() => setSyncDiscordModalOpen(true)}
-                                onOpenDiscordNickModal={handleOpenDiscordNickModal}
                                 onOpenAddCharacter={handleOpenAddCharacter}
                                 onOpenEditCharacter={handleOpenEditCharacter}
                                 onDeleteCharacter={handleDeleteCharacter}
@@ -1025,38 +844,61 @@ const Profile = () => {
                                 </div>
                             </div>
 
-                            {/* 2. Discord & Account Information Card */}
-                            <AccountInfoCard
-                                profileUser={profile?.user}
-                                authUser={authUser}
-                                rawDiscordName={rawDiscordName}
-                                subscriptionRoleNames={subscriptionRoleNames}
-                                handleOpenDiscordNickModal={handleOpenDiscordNickModal}
-                                prefNotice={prefNotice}
-                            />
+                            {/* 2. Account Information Quick Card */}
+                            <div className="pf-card">
+                                <div className="d-flex align-items-center justify-content-between mb-3">
+                                    <div className="d-flex align-items-center gap-2">
+                                        <div className="icon-bubble bg-success bg-opacity-10 text-success" style={{ width: 36, height: 36, fontSize: "1rem" }}>
+                                            <i className="fa-solid fa-user-shield" />
+                                        </div>
+                                        <div>
+                                            <h3 className="h6 ac-font text-dark mb-0">Account Standing</h3>
+                                            <span className="tiny-text text-muted">ID &amp; Entitlements</span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab("account")}
+                                        className="btn btn-xs btn-outline-success rounded-pill px-2.5 py-1 fw-bold"
+                                    >
+                                        Manage
+                                    </button>
+                                </div>
+                                <div className="p-2.5 rounded-3 bg-light border mb-2 small d-flex align-items-center justify-content-between">
+                                    <span className="text-muted fw-bold">Primary ID:</span>
+                                    <span className="fw-bold text-dark font-monospace text-truncate ms-2">
+                                        {authUser?.username || profile?.user?.discord_name || "Resident"}
+                                    </span>
+                                </div>
+                                <div className="p-2.5 rounded-3 bg-light border mb-3 small d-flex align-items-center justify-content-between">
+                                    <span className="text-muted fw-bold">Entitlement:</span>
+                                    <span className={`badge rounded-pill fw-bold ${authUser?.sub_tier ? "bg-warning text-dark" : "bg-light text-muted border"}`}>
+                                        {authUser?.sub_tier || "Standard Resident"}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab("account")}
+                                    className="btn btn-sm btn-nook text-white w-100 rounded-pill fw-bold py-1.5 d-flex align-items-center justify-content-center gap-1.5"
+                                >
+                                    <i className="fa-solid fa-link" />
+                                    <span>Open Account Information Tab</span>
+                                </button>
+                            </div>
 
                             {/* 3. Museum & Critterpedia Progress Card */}
                             <CritterpediaSummaryCard caughtCritters={caughtCritters} />
                         </div>
 
-                        {/* 2. Authentic Nook Inc. Resident Passport Studio */}
-                        <PassportStudio
-                            passportData={passportData}
-                            setPassportData={setPassportData}
-                            passportDirty={passportDirty}
-                            setPassportDirty={setPassportDirty}
-                            lastSavedDbTime={lastSavedDbTime}
-                            setLastSavedDbTime={setLastSavedDbTime}
-                            savingPassport={savingPassport}
-                            setSavingPassport={setSavingPassport}
-                            passportNotice={passportNotice}
-                            setPassportNotice={setPassportNotice}
-                            catalogData={catalogData}
-                            profileUser={profile?.user}
-                            authUser={authUser}
-                            setPrefNotice={setPrefNotice}
-                        />
                     </div>
+                )}
+
+                {/* Account Information Tab */}
+                {activeTab === "account" && (
+                    <AccountInformationTab
+                        profileUser={profile?.user}
+                        passportData={passportData}
+                    />
                 )}
 
                 {/* ── TAB 2: YOUR ACCESS & SUBSCRIPTION ISLANDS ────────────────────── */}
@@ -1691,36 +1533,12 @@ const Profile = () => {
                 charIcon={charIcon}
                 setCharIcon={setCharIcon}
                 charError={charError}
-                syncToDiscordNick={syncToDiscordNick}
-                setSyncToDiscordNick={setSyncToDiscordNick}
-                targetDiscordNick={targetDiscordNick}
-                setTargetDiscordNick={setTargetDiscordNick}
-                setCustomizedNick={setCustomizedNick}
                 isSavingChar={isSavingChar}
                 onSave={handleSaveCharacterModal}
                 characterIcons={CHARACTER_ICONS}
             />
 
-            <DiscordNickModal
-                isOpen={discordNickModalOpen}
-                onClose={() => setDiscordNickModalOpen(false)}
-                profileUser={profileUser}
-                authUser={authUser}
-                newDiscordNick={newDiscordNick}
-                setNewDiscordNick={setNewDiscordNick}
-                updatingNick={updatingNick}
-                nickModalMessage={nickModalMessage}
-                onSave={handleSaveDiscordNick}
-            />
 
-            <SyncDiscordModal
-                isOpen={syncDiscordModalOpen}
-                onClose={() => setSyncDiscordModalOpen(false)}
-                rawDiscordName={rawDiscordName}
-                charactersCount={characters.length}
-                syncFromDiscordNickname={syncFromDiscordNickname}
-                setPrefNotice={setPrefNotice}
-            />
 
         </div>
     );

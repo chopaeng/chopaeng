@@ -234,14 +234,17 @@ export const IslandActionArea: React.FC<IslandActionAreaProps> = ({
                         <div className="d-flex align-items-center gap-2">
                             <span
                                 className="rounded-circle d-flex align-items-center justify-content-center drop-bot-suggestion-icon flex-shrink-0"
-                                style={{ width: 34, height: 34 }}
+                                style={{ width: 36, height: 36 }}
                             >
                                 <i className="fa-solid fa-parachute-box" />
                             </span>
                             <div>
-                                <strong className="d-block small fw-bold text-dark">VIP Tools for {islandName || "This Island"}</strong>
+                                <div className="d-flex align-items-center gap-2">
+                                    <strong className="d-block small fw-bold text-dark">VIP Tools for {islandName || "This Island"}</strong>
+                                    <span className="badge bg-warning text-dark px-2 py-0.5 rounded-pill fw-bold" style={{ fontSize: '0.65rem' }}>Sub Access</span>
+                                </div>
                                 <span className="tiny-text text-dark text-opacity-75">
-                                    Drop up to 9 custom items in real-time or inject villagers directly into plots 0–9.
+                                    Drop up to 9 custom items in real-time or inject any villager directly into {islandName || "this island"}'s plots 0–9.
                                 </span>
                             </div>
                         </div>

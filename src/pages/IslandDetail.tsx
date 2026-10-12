@@ -788,45 +788,6 @@ const IslandDetail = () => {
                                     </div>
                                 )}
 
-                                {isSubIsland && hasMemberAccess && (
-                                    <div className="card rounded-4 p-3 drop-bot-suggestion-banner shadow-2xs mb-4">
-                                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                            <div className="d-flex align-items-center gap-2">
-                                                <span
-                                                    className="rounded-circle d-flex align-items-center justify-content-center drop-bot-suggestion-icon flex-shrink-0"
-                                                    style={{ width: 36, height: 36 }}
-                                                >
-                                                    <i className="fa-solid fa-parachute-box"></i>
-                                                </span>
-                                                <div>
-                                                    <div className="d-flex align-items-center gap-2">
-                                                        <strong className="d-block small fw-bold text-dark">VIP Drop &amp; Villager Injector Available</strong>
-                                                        <span className="badge bg-warning text-dark px-2 py-0.5 rounded-pill fw-bold" style={{ fontSize: '0.65rem' }}>Sub Access</span>
-                                                    </div>
-                                                    <span className="tiny-text text-dark text-opacity-75">
-                                                        Drop up to 9 custom items in real-time or inject any villager directly into {island.name}'s plots 0–9.
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            <div className="d-flex gap-2 align-items-center flex-wrap">
-                                                <Link
-                                                    to={`/drop?island=${encodeURIComponent(island.name)}`}
-                                                    className="btn btn-xs btn-warning text-dark rounded-pill fw-bold px-3 py-1 shadow-2xs hover-scale"
-                                                >
-                                                    <i className="fa-solid fa-parachute-box me-1"></i>Drop Bot (9 Slots)
-                                                </Link>
-                                                <Link
-                                                    to={`/drop?island=${encodeURIComponent(island.name)}&tab=villagers`}
-                                                    className="btn btn-xs btn-outline-dark rounded-pill fw-bold px-3 py-1 shadow-2xs hover-scale"
-                                                >
-                                                    <i className="fa-solid fa-wand-magic-sparkles me-1 text-warning"></i>Inject Villager
-                                                </Link>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
                                 {isSubIsland && !hasMemberAccess && (
                                     <div className="card rounded-4 p-3 island-no-access-card shadow-2xs mb-4">
                                         <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">

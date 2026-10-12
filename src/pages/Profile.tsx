@@ -19,6 +19,7 @@ import { AccountInformationTab } from "../components/profile/AccountInformationT
 import { AddEditCharacterModal } from "../components/profile/modals/AddEditCharacterModal";
 import { setUserScopedItem } from "../utils/accountStorage";
 import { canUserAccessSubIsland, getUserSubTiers } from "../utils/subIslandAccess";
+import { TIER_ID_TO_NAME } from "../config/constants";
 import "./Profile.css";
 
 const CHARACTER_ICONS = [
@@ -109,7 +110,32 @@ interface ProfileResponse {
 
 const asArray = <T,>(value: T[] | undefined): T[] => (Array.isArray(value) ? value : []);
 const uniqueValues = (items: string[]) => Array.from(new Set(items.filter(Boolean)));
-const roleNamesFrom = (roles?: ProfileRole[]) => asArray(roles).map((role) => role.name || role.id);
+const roleNamesFrom = (roles?: ProfileRole[]) =>
+    asArray(roles)
+        .map((role) => {
+            const name = role.name?.trim();
+            if (name && !/^\d+$/.test(name)) return name;
+            const id = role.id?.trim();
+            if (id && TIER_ID_TO_NAME[id]) return TIER_ID_TO_NAME[id];
+            return null;
+        })
+        .filter((n): n is string => Boolean(n));
+
+const getTierScore = (tierName: string): number => {
+    const lower = tierName.toLowerCase();
+    let score = 0;
+    if (lower.includes("chosoup")) score += 300;
+    else if (lower.includes("chocolate")) score += 200;
+    else if (lower.includes("chotato") || lower.includes("chofries") || lower.includes("booster")) score += 100;
+    else score += 50;
+
+    // Detailed label with platform/tier descriptor (e.g. "ChoSoup (Patreon Tier 3)") preferred over bare "ChoSoup"
+    if (lower.includes("patreon") || lower.includes("youtube") || lower.includes("twitch") || lower.includes("tier")) {
+        score += 25;
+    }
+    score += Math.min(lower.length, 10);
+    return score;
+};
 
 const MS_TIMESTAMP_THRESHOLD = 1e12;
 
@@ -646,42 +672,90 @@ const Profile = () => {
 
     const subscriptionRoleNames = useMemo(() => {
         const subscriptions = profile?.subscriptions;
-        const preferredNames = uniqueValues([
+        const candidateNames = uniqueValues([
             ...asArray(subscriptions?.matched_subscription_role_names),
             ...roleNamesFrom(subscriptions?.matched_subscription_roles),
-        ]);
-        if (preferredNames.length > 0) return preferredNames;
-
-        const roleNames = uniqueValues([
             ...asArray(subscriptions?.role_names),
             ...roleNamesFrom(subscriptions?.roles),
         ]);
-        if (roleNames.length > 0) return roleNames;
+        const validNames = candidateNames
+            .map((name) => {
+                const trimmed = name?.trim();
+                if (!trimmed) return null;
+                if (/^\d+$/.test(trimmed)) {
+                    return TIER_ID_TO_NAME[trimmed] || null;
+                }
+                return trimmed;
+            })
+            .filter((n): n is string => Boolean(n));
 
-        return uniqueValues([
+        if (validNames.length > 0) return uniqueValues(validNames);
+
+        const idCandidates = uniqueValues([
             ...asArray(subscriptions?.role_ids),
             ...asArray(subscriptions?.matched_subscription_role_ids),
             ...asArray(subscriptions?.subscription_role_ids),
         ]);
+        return idCandidates
+            .map((id) => TIER_ID_TO_NAME[id?.trim() || ""])
+            .filter((n): n is string => Boolean(n));
     }, [profile]);
 
     // Consolidate tiers from Discord, Twitch, Patreon, and YouTube
     const allSubscriptionTierNames = useMemo(() => {
-        const combined = new Set<string>();
+        const rawCandidates = new Set<string>();
         if (authUser?.sub_tier && typeof authUser.sub_tier === "string" && authUser.sub_tier.trim()) {
-            combined.add(authUser.sub_tier.trim());
+            rawCandidates.add(authUser.sub_tier.trim());
         }
         for (const t of userSubTiers) {
-            if (t && typeof t === "string" && t.trim()) combined.add(t.trim());
+            if (t && typeof t === "string" && t.trim()) rawCandidates.add(t.trim());
         }
         for (const r of subscriptionRoleNames) {
-            if (r && typeof r === "string" && r.trim()) combined.add(r.trim());
+            if (r && typeof r === "string" && r.trim()) rawCandidates.add(r.trim());
         }
-        return Array.from(combined);
+
+        const validCandidates = Array.from(rawCandidates)
+            .map((name) => {
+                const trimmed = name.trim();
+                if (/^\d+$/.test(trimmed)) {
+                    return TIER_ID_TO_NAME[trimmed] || null;
+                }
+                return trimmed;
+            })
+            .filter((n): n is string => Boolean(n));
+
+        if (validCandidates.length === 0) return [];
+
+        // Deduplicate redundant base forms (e.g. if "ChoSoup (Patreon Tier 3)" exists, remove bare "ChoSoup")
+        const deduplicated = validCandidates.filter((cand) => {
+            const isRedundantBase = validCandidates.some(
+                (other) =>
+                    other !== cand &&
+                    other.toLowerCase().startsWith(cand.toLowerCase()) &&
+                    other.length > cand.length
+            );
+            return !isRedundantBase;
+        });
+
+        return deduplicated.sort((a, b) => getTierScore(b) - getTierScore(a));
     }, [authUser?.sub_tier, userSubTiers, subscriptionRoleNames]);
+
+    const primarySubscriptionTier = useMemo(() => {
+        if (allSubscriptionTierNames.length > 0) {
+            return allSubscriptionTierNames[0];
+        }
+        if (authUser?.sub_tier && !/^\d+$/.test(authUser.sub_tier.trim())) {
+            return authUser.sub_tier.trim();
+        }
+        if (authUser?.is_subscriber) {
+            return "Active subscriber";
+        }
+        return null;
+    }, [allSubscriptionTierNames, authUser]);
 
     const hasActiveSubscription =
         allSubscriptionTierNames.length > 0 ||
+        Boolean(primarySubscriptionTier) ||
         Boolean(authUser?.is_subscriber) ||
         Boolean(authUser?.is_admin) ||
         Boolean(authUser?.is_mod);
@@ -1098,13 +1172,11 @@ const Profile = () => {
                                                 <span className="cpp-badge cpp-badge--leaf">Moderator</span>
                                             )}
 
-                                            {allSubscriptionTierNames.length > 0 ? (
-                                                allSubscriptionTierNames.map((tier) => (
-                                                    <span key={tier} className="cpp-badge cpp-badge--gold">
-                                                        <i className="fa-solid fa-crown" aria-hidden="true" />
-                                                        <span>{tier}</span>
-                                                    </span>
-                                                ))
+                                            {primarySubscriptionTier ? (
+                                                <span className="cpp-badge cpp-badge--gold">
+                                                    <i className="fa-solid fa-crown" aria-hidden="true" />
+                                                    <span>{primarySubscriptionTier}</span>
+                                                </span>
                                             ) : hasActiveSubscription ? (
                                                 <span className="cpp-badge cpp-badge--gold">
                                                     <i className="fa-solid fa-crown" aria-hidden="true" />
@@ -1383,7 +1455,7 @@ const Profile = () => {
                                     <div className="p-2.5 rounded-3 bg-light border mb-3 small d-flex align-items-center justify-content-between">
                                         <span className="text-muted fw-bold">Pass status:</span>
                                         <span className={`cpp-badge ${hasActiveSubscription ? "cpp-badge--gold" : "cpp-badge--muted"}`}>
-                                            {allSubscriptionTierNames[0] || (hasActiveSubscription ? "Active subscriber" : "Standard resident pass")}
+                                            {primarySubscriptionTier || (hasActiveSubscription ? "Active subscriber" : "Standard resident pass")}
                                         </span>
                                     </div>
                                     <button
@@ -1480,13 +1552,11 @@ const Profile = () => {
                                                 </span>
                                             </div>
                                             <div className="d-flex flex-wrap gap-1.5 align-items-center">
-                                                {allSubscriptionTierNames.length > 0 ? (
-                                                    allSubscriptionTierNames.map((tier) => (
-                                                        <span key={tier} className="cpp-badge cpp-badge--gold-outline">
-                                                            <i className="fa-solid fa-check text-success" aria-hidden="true" />
-                                                            <span>{tier}</span>
-                                                        </span>
-                                                    ))
+                                                {primarySubscriptionTier ? (
+                                                    <span className="cpp-badge cpp-badge--gold-outline">
+                                                        <i className="fa-solid fa-check text-success" aria-hidden="true" />
+                                                        <span>{primarySubscriptionTier}</span>
+                                                    </span>
                                                 ) : hasActiveSubscription ? (
                                                     <span className="small text-muted fw-bold">
                                                         Connected subscriber account (all eligible sub islands unlocked)

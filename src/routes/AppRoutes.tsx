@@ -65,6 +65,7 @@ const DashboardAuditLog      = lazy(() => import("../pages/dashboard/DashboardAu
 const DashboardScheduled     = lazy(() => import("../pages/dashboard/DashboardScheduled.tsx"));
 const DashboardMaintenance   = lazy(() => import("../pages/dashboard/DashboardMaintenance.tsx"));
 const DashboardDevices       = lazy(() => import("../pages/dashboard/DashboardDevices.tsx"));
+const ControlPanel           = lazy(() => import("../pages/control-panel/ControlPanelPage.tsx"));
 const UnderConstruction      = lazy(() => import("../pages/UnderConstruction.tsx"));
 import { IS_UNDER_CONSTRUCTION } from "../config/config";
 
@@ -135,6 +136,7 @@ const AppRoutes = () => {
                 </Route>
 
                 <Route element={<RequireMod />}>
+                    <Route path="/control-panel" element={<AppErrorBoundary label="Control Panel"><ControlPanel /></AppErrorBoundary>} />
                     <Route path="/dashboard" element={<DashboardLayout />}>
                         <Route index element={<DashboardHome />} />
                         <Route path="login" element={<DashboardHome />} />

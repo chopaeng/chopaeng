@@ -79,11 +79,10 @@ const STYLES = `
     border: 0; background: transparent; color: var(--cp-ink-soft);
     font-weight: 700; font-size: .92rem; padding: .55rem 0; border-radius: 999px;
     transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+    cursor: pointer;
 }
 .cp-tab[aria-selected="true"] { background: #fff; color: var(--cp-ink); box-shadow: 0 1px 3px rgba(29,51,40,.18); }
 .cp-tab:not([aria-selected="true"]):hover { color: var(--cp-ink); }
-
-.cp-lead { color: var(--cp-ink-soft); font-size: .92rem; line-height: 1.5; margin: 0 0 1.25rem; }
 
 /* Alert */
 .cp-alert {
@@ -116,6 +115,7 @@ const STYLES = `
 .cp-reveal {
     border: 0; background: transparent; color: var(--cp-ink-soft);
     padding: 0 1rem; align-self: stretch; border-radius: 0 14px 14px 0;
+    cursor: pointer;
 }
 .cp-reveal:hover { color: var(--cp-ink); }
 .cp-hint { font-size: .8rem; color: var(--cp-ink-soft); margin: .35rem 0 0; }
@@ -140,26 +140,27 @@ const STYLES = `
     display: inline-flex; align-items: center; justify-content: center; gap: .55rem;
     box-shadow: 0 4px 0 var(--cp-leaf-dark);
     transition: transform .08s ease, box-shadow .08s ease, background .15s ease;
+    cursor: pointer;
 }
 .cp-submit:hover:not(:disabled) { background: #22984f; }
 .cp-submit:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--cp-leaf-dark); }
 .cp-submit:disabled { opacity: .75; cursor: progress; }
 
-/* Divider + socials */
-.cp-divider { display: flex; align-items: center; gap: .8rem; margin: 1.4rem 0 1rem; color: var(--cp-ink-soft); font-size: .82rem; font-weight: 600; }
+/* Big Discord button */
+.cp-discord-btn {
+    width: 100%; border: 0; border-radius: 16px; padding: 1rem 1.25rem;
+    background: #5865f2; color: #fff; font-weight: 800; font-size: 1.08rem;
+    display: flex; align-items: center; justify-content: center; gap: .7rem;
+    box-shadow: 0 4px 0 #3b47d1; cursor: pointer;
+    transition: background .15s ease, transform .08s ease, box-shadow .08s ease;
+}
+.cp-discord-btn:hover { background: #4752c4; }
+.cp-discord-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #3b47d1; }
+.cp-discord-btn i { font-size: 1.3rem; }
+
+/* Divider */
+.cp-divider { display: flex; align-items: center; gap: .8rem; margin: 1.1rem 0 1rem; color: var(--cp-ink-soft); font-size: .82rem; font-weight: 600; }
 .cp-divider::before, .cp-divider::after { content: ""; flex: 1; border-top: 1.5px dashed var(--cp-line); }
-.cp-socials { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; }
-.cp-social {
-    display: flex; align-items: center; justify-content: center; gap: .5rem;
-    border: 1.5px solid var(--cp-line); background: #fff; color: var(--cp-ink);
-    border-radius: 14px; padding: .65rem .4rem; font-size: .88rem; font-weight: 700;
-    transition: border-color .15s ease, background .15s ease;
-}
-.cp-social:hover { background: #f6faf7; border-color: var(--social, var(--cp-leaf)); }
-.cp-social i { font-size: 1.1rem; color: var(--social); }
-@media (max-width: 400px) {
-    .cp-social { flex-direction: column; gap: .25rem; font-size: .78rem; }
-}
 
 /* Footer links */
 .cp-links { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1.5px dashed var(--cp-line); font-size: .88rem; font-weight: 700; }
@@ -322,11 +323,6 @@ export const Login: React.FC<{ defaultRegister?: boolean }> = ({ defaultRegister
         }
     };
 
-    const socials = [
-        { id: "youtube", label: "YouTube", icon: "fa-youtube", color: "#e00000" },
-        { id: "patreon", label: "Patreon", icon: "fa-patreon", color: "#ff424d" },
-        { id: "twitch", label: "Twitch", icon: "fa-twitch", color: "#9146ff" },
-    ] as const;
 
     return (
         <div className="cp-login">
@@ -353,6 +349,18 @@ export const Login: React.FC<{ defaultRegister?: boolean }> = ({ defaultRegister
                     <div className="cp-card__seam" aria-hidden="true" />
 
                     <div className="cp-card__body">
+                        {/* Primary: Discord – big button at top */}
+                        <button
+                            type="button"
+                            className="cp-discord-btn"
+                            onClick={() => auth.loginWithProvider("discord", returnTo)}
+                        >
+                            <i className="fa-brands fa-discord" aria-hidden="true" />
+                            Continue with Discord
+                        </button>
+
+                        <div className="cp-divider">or sign in with email</div>
+
                         {/* Mode switch */}
                         <div className="cp-tabs" role="tablist" aria-label="Account mode">
                             <button
@@ -479,23 +487,6 @@ export const Login: React.FC<{ defaultRegister?: boolean }> = ({ defaultRegister
                                 )}
                             </button>
                         </form>
-
-                        <div className="cp-divider">or continue with</div>
-
-                        <div className="cp-socials">
-                            {socials.map((s) => (
-                                <button
-                                    key={s.id}
-                                    type="button"
-                                    className="cp-social"
-                                    style={{ ["--social" as string]: s.color }}
-                                    onClick={() => auth.loginWithProvider(s.id, returnTo)}
-                                >
-                                    <i className={`fa-brands ${s.icon}`} aria-hidden="true" />
-                                    <span>{s.label}</span>
-                                </button>
-                            ))}
-                        </div>
 
                         <nav className="cp-links" aria-label="More options">
                             <Link to="/membership">View membership plans</Link>

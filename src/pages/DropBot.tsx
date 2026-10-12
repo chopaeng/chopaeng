@@ -117,7 +117,7 @@ export const DropBot: React.FC = () => {
     const [variantModalItem, setVariantModalItem] = useState<PocketItem | null>(null);
 
     // ── Destination Island State ──
-    const [dropFilter, setDropFilter] = useState<'all' | 'sub' | 'free' | 'unlocked'>('all');
+    const [dropFilter, setDropFilter] = useState<'all' | 'unlocked'>('all');
     const [selectedDropIsland, setSelectedDropIsland] = useState<IslandData | null>(null);
     const [dropDodoCode, setDropDodoCode] = useState<string | null>(null);
     const [dropDodoLoading, setDropDodoLoading] = useState(false);
@@ -140,48 +140,32 @@ export const DropBot: React.FC = () => {
         }
     };
 
-    // Island category breakdown
+    // Drop bot is exclusively for VIP Sub Member islands
     const subMemberIslands = useMemo(() => {
         return islands.filter(
             (i) => i.cat === 'member' || i.type?.toLowerCase().includes('sub') || i.type === 'VIP'
         );
     }, [islands]);
 
-    const freeTreasureIslands = useMemo(() => {
-        return islands.filter(
-            (i) => i.cat === 'public' || i.type?.toLowerCase().includes('free')
-        );
-    }, [islands]);
-
-    const orderBotIslands = useMemo(() => {
-        return islands.filter(
-            (i) => i.cat === 'order' || i.type?.toLowerCase().includes('order')
-        );
-    }, [islands]);
-
     // Check if user has permission for an island
     const canAccessIsland = (island?: IslandData | null) => {
         if (!island) return false;
-        // Free and Order islands are public/open to everyone
-        if (island.cat !== 'member' && !island.type?.toLowerCase().includes('sub') && island.type !== 'VIP') {
-            return true;
-        }
         if (user?.is_admin || user?.is_mod) return true;
-        if (!island.requiredRoles || island.requiredRoles.length === 0) return true;
+        if (!island.requiredRoles || island.requiredRoles.length === 0) {
+            return Boolean(user?.is_subscriber || user?.sub_tier);
+        }
         if (!user || !user.roles) return false;
         return island.requiredRoles.some((role) => user.roles.includes(role));
     };
 
     const unlockedIslands = useMemo(() => {
-        return islands.filter((i) => canAccessIsland(i));
-    }, [islands, user]);
+        return subMemberIslands.filter((i) => canAccessIsland(i));
+    }, [subMemberIslands, user]);
 
     const availableDropIslands = useMemo(() => {
-        if (dropFilter === 'sub') return subMemberIslands;
-        if (dropFilter === 'free') return freeTreasureIslands;
         if (dropFilter === 'unlocked') return unlockedIslands;
-        return islands;
-    }, [islands, subMemberIslands, freeTreasureIslands, unlockedIslands, dropFilter]);
+        return subMemberIslands;
+    }, [subMemberIslands, unlockedIslands, dropFilter]);
 
     // Handle URL query parameters (?island=...&tab=...)
     useEffect(() => {
@@ -191,9 +175,9 @@ export const DropBot: React.FC = () => {
     }, [urlTab]);
 
     useEffect(() => {
-        if (urlIsland && islands.length > 0) {
+        if (urlIsland && subMemberIslands.length > 0) {
             const clean = urlIsland.trim().toLowerCase();
-            const matched = islands.find(
+            const matched = subMemberIslands.find(
                 (i) =>
                     i.name.toLowerCase() === clean ||
                     i.id.toLowerCase() === clean ||
@@ -201,28 +185,25 @@ export const DropBot: React.FC = () => {
             );
             if (matched) {
                 setSelectedDropIsland(matched);
-                if (matched.cat === 'member' || matched.type?.toLowerCase().includes('sub') || matched.type === 'VIP') {
-                    setDropFilter('sub');
-                }
                 if (matched.dodoCode && matched.dodoCode !== 'SUB ONLY' && matched.dodoCode !== '.....') {
                     setDropDodoCode(matched.dodoCode);
                 }
             }
         }
-    }, [urlIsland, islands]);
+    }, [urlIsland, subMemberIslands]);
 
     // Auto-select first accessible island
     useEffect(() => {
-        if (!selectedDropIsland && islands.length > 0) {
+        if (!selectedDropIsland && subMemberIslands.length > 0) {
             const firstAccessible =
-                islands.find((i) => canAccessIsland(i)) ||
-                islands[0];
+                subMemberIslands.find((i) => canAccessIsland(i)) ||
+                subMemberIslands[0];
             setSelectedDropIsland(firstAccessible);
             if (firstAccessible?.dodoCode && firstAccessible.dodoCode !== 'SUB ONLY' && firstAccessible.dodoCode !== '.....') {
                 setDropDodoCode(firstAccessible.dodoCode);
             }
         }
-    }, [islands, selectedDropIsland]);
+    }, [subMemberIslands, selectedDropIsland]);
 
     // Update Dodo if island has explicit public dodo
     useEffect(() => {
@@ -357,7 +338,7 @@ export const DropBot: React.FC = () => {
 
     const handleCopyDodoCode = () => {
         if (!dropDodoCode) return;
-        navigator.clipboard.writeText(dropDodoCode).catch(() => {});
+        navigator.clipboard.writeText(dropDodoCode).catch(() => { });
         playSound();
         setDodoCopied(true);
         setTimeout(() => setDodoCopied(false), 2000);
@@ -581,7 +562,7 @@ export const DropBot: React.FC = () => {
 
     const handleCopyCommand = (command: string, label = 'command') => {
         if (!command) return;
-        navigator.clipboard.writeText(command).catch(() => {});
+        navigator.clipboard.writeText(command).catch(() => { });
         playSound();
         setSubmissionNotice({
             type: 'success',
@@ -1050,11 +1031,10 @@ export const DropBot: React.FC = () => {
                                                 return (
                                                     <div key={v.id} className="col-6 col-sm-4 col-md-3">
                                                         <div
-                                                            className={`p-2 rounded-4 text-center border h-100 transition-all position-relative shadow-2xs hover-shadow ${
-                                                                isChosen
+                                                            className={`p-2 rounded-4 text-center border h-100 transition-all position-relative shadow-2xs hover-shadow ${isChosen
                                                                     ? 'bg-success-subtle border-2 border-success'
                                                                     : 'bg-white'
-                                                            }`}
+                                                                }`}
                                                             style={{ cursor: 'pointer' }}
                                                             onClick={() => {
                                                                 playSound();
@@ -1149,35 +1129,7 @@ export const DropBot: React.FC = () => {
                                             }`}
                                         style={{ fontSize: '0.72rem' }}
                                     >
-                                        All ({islands.length})
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            playSound();
-                                            setDropFilter('sub');
-                                        }}
-                                        className={`btn btn-xs rounded-pill fw-bold px-2.5 py-1 ${dropFilter === 'sub'
-                                            ? 'btn-dark text-white'
-                                            : 'text-muted border-0 bg-transparent'
-                                            }`}
-                                        style={{ fontSize: '0.72rem' }}
-                                    >
                                         VIP Sub ({subMemberIslands.length})
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            playSound();
-                                            setDropFilter('free');
-                                        }}
-                                        className={`btn btn-xs rounded-pill fw-bold px-2.5 py-1 ${dropFilter === 'free'
-                                            ? 'btn-dark text-white'
-                                            : 'text-muted border-0 bg-transparent'
-                                            }`}
-                                        style={{ fontSize: '0.72rem' }}
-                                    >
-                                        Free ({freeTreasureIslands.length})
                                     </button>
                                     <button
                                         type="button"
@@ -1206,54 +1158,18 @@ export const DropBot: React.FC = () => {
                                         style={{ fontSize: '0.88rem' }}
                                         value={selectedDropIsland?.id || ''}
                                         onChange={(e) => {
-                                            const found = islands.find((i) => i.id === e.target.value);
+                                            const found = subMemberIslands.find((i) => i.id === e.target.value);
                                             setSelectedDropIsland(found || null);
                                             setAlreadyOnIsland(false);
                                             playSound();
                                         }}
                                     >
-                                        <option value="">-- Choose Island ({availableDropIslands.length} Available) --</option>
-                                        {dropFilter === 'all' ? (
-                                            <>
-                                                {subMemberIslands.length > 0 && (
-                                                    <optgroup label="⭐ VIP Sub Member Islands">
-                                                        {subMemberIslands.map((isl) => (
-                                                            <option key={isl.id} value={isl.id}>
-                                                                ⭐ {isl.name} · VIP Sub Island
-                                                            </option>
-                                                        ))}
-                                                    </optgroup>
-                                                )}
-                                                {freeTreasureIslands.length > 0 && (
-                                                    <optgroup label="🌴 Free Treasure Islands">
-                                                        {freeTreasureIslands.map((isl) => (
-                                                            <option key={isl.id} value={isl.id}>
-                                                                🌴 {isl.name} · Free Treasure Island
-                                                            </option>
-                                                        ))}
-                                                    </optgroup>
-                                                )}
-                                                {orderBotIslands.length > 0 && (
-                                                    <optgroup label="🤖 Order Bot">
-                                                        {orderBotIslands.map((isl) => (
-                                                            <option key={isl.id} value={isl.id}>
-                                                                🤖 {isl.name} · Order Bot
-                                                            </option>
-                                                        ))}
-                                                    </optgroup>
-                                                )}
-                                            </>
-                                        ) : (
-                                            availableDropIslands.map((isl) => {
-                                                const isSub = isl.cat === 'member' || isl.type === 'VIP' || isl.type?.toLowerCase().includes('sub');
-                                                const icon = isSub ? '⭐' : (isl.cat === 'order' ? '🤖' : '🌴');
-                                                return (
-                                                    <option key={isl.id} value={isl.id}>
-                                                        {icon} {isl.name} · {isl.type || (isSub ? 'VIP Sub' : 'Free')}
-                                                    </option>
-                                                );
-                                            })
-                                        )}
+                                        <option value="">-- Choose VIP Sub Island ({availableDropIslands.length} Available) --</option>
+                                        {availableDropIslands.map((isl) => (
+                                            <option key={isl.id} value={isl.id}>
+                                                ⭐ {isl.name} · VIP Sub Island
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
                             )}
@@ -1287,22 +1203,17 @@ export const DropBot: React.FC = () => {
                                                         {selectedDropIsland.name}
                                                     </h4>
                                                     <span className="text-muted tiny-text">
-                                                        {selectedDropIsland.cat === 'member' || selectedDropIsland.type === 'VIP' || selectedDropIsland.type?.toLowerCase().includes('sub')
-                                                            ? '⭐ VIP Sub Member Island'
-                                                            : selectedDropIsland.cat === 'order'
-                                                            ? '🤖 Order Bot Island'
-                                                            : '🌴 Free Treasure Island'}
+                                                        ⭐ VIP Sub Member Island
                                                     </span>
                                                 </div>
                                             </div>
 
                                             <div className="d-flex align-items-center gap-1.5 flex-wrap">
                                                 <span
-                                                    className={`badge rounded-pill fw-bold px-2.5 py-1 ${
-                                                        isCurrentIslandAccessible
+                                                    className={`badge rounded-pill fw-bold px-2.5 py-1 ${isCurrentIslandAccessible
                                                             ? 'bg-success text-white'
                                                             : 'bg-warning text-dark'
-                                                    }`}
+                                                        }`}
                                                     style={{ fontSize: '0.7rem' }}
                                                 >
                                                     {isCurrentIslandAccessible ? 'Access Granted' : 'Sub Pass Needed'}
@@ -1596,7 +1507,7 @@ export const DropBot: React.FC = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    navigator.clipboard.writeText(dropCommandText).catch(() => {});
+                                                    navigator.clipboard.writeText(dropCommandText).catch(() => { });
                                                     playSound();
                                                 }}
                                                 className="btn btn-link p-0 text-success fw-bold text-decoration-none"

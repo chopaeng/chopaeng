@@ -9,7 +9,7 @@ interface LoginModalProps {
     isOpen?: boolean;
     onClose?: () => void;
     returnPath?: string;
-    initialMode?: "login" | "register" | "platforms";
+    initialMode?: "login" | "register";
 }
 
 interface ProviderOption {
@@ -23,34 +23,8 @@ interface ProviderOption {
     disabledReason?: string;
 }
 
+// Only Discord is available for OAuth sign-in
 const PROVIDERS: ProviderOption[] = [
-    {
-        id: "youtube",
-        name: "YouTube",
-        tier: "y ChoSoup • y ChoColate • y ChoTato",
-        description: "Channel Member badges and sub island perks",
-        icon: "fa-brands fa-youtube",
-        color: "#e00000",
-        enabled: true,
-    },
-    {
-        id: "patreon",
-        name: "Patreon",
-        tier: "ChoSoup • ChoColate • ChoFries",
-        description: "Direct tier perks, item drops and priority",
-        icon: "fa-brands fa-patreon",
-        color: "#ff424d",
-        enabled: true,
-    },
-    {
-        id: "twitch",
-        name: "Twitch",
-        tier: "ChoTato Club",
-        description: "Subscriber or Amazon Prime Gaming",
-        icon: "fa-brands fa-twitch",
-        color: "#9146ff",
-        enabled: true,
-    },
     {
         id: "discord",
         name: "Discord",
@@ -103,13 +77,13 @@ const STYLES = `
 .cpm__crest { width: 50px; height: 50px; flex: none; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.16); border: 2px dashed rgba(255,255,255,.55); font-size: 1.25rem; }
 .cpm__title { margin: 0; font-size: 1.35rem; line-height: 1.15; font-weight: 800; }
 .cpm__sub { margin: .2rem 0 0; font-size: .84rem; opacity: .9; line-height: 1.4; }
-.cpm__close { position: absolute; top: .8rem; right: .8rem; width: 36px; height: 36px; border: 0; border-radius: 50%; background: rgba(255,255,255,.18); color: #fff; display: grid; place-items: center; transition: background .15s ease; }
+.cpm__close { position: absolute; top: .8rem; right: .8rem; width: 36px; height: 36px; border: 0; border-radius: 50%; background: rgba(255,255,255,.18); color: #fff; display: grid; place-items: center; transition: background .15s ease; cursor: pointer; }
 .cpm__close:hover { background: rgba(255,255,255,.3); }
 .cpm__seam { flex: none; border-top: 3px dashed #fff; margin: 0 14px; position: relative; top: -2px; opacity: .85; }
 .cpm__body { padding: 1.25rem 1.5rem 1.5rem; overflow-y: auto; }
 
 .cpm-tabs { display: grid; grid-template-columns: 1fr 1fr; background: #eef3ef; border-radius: 999px; padding: 4px; margin-bottom: 1.1rem; }
-.cpm-tab { border: 0; background: transparent; color: var(--ink-soft); font-weight: 700; font-size: .88rem; padding: .55rem .25rem; border-radius: 999px; transition: background .15s ease, color .15s ease; }
+.cpm-tab { border: 0; background: transparent; color: var(--ink-soft); font-weight: 700; font-size: .88rem; padding: .55rem .25rem; border-radius: 999px; transition: background .15s ease, color .15s ease; cursor: pointer; }
 .cpm-tab[aria-selected="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(29,51,40,.18); }
 .cpm-tab:not([aria-selected="true"]):hover { color: var(--ink); }
 
@@ -128,7 +102,7 @@ const STYLES = `
 .cpm-control__icon { width: 2.6rem; padding-left: .95rem; flex: none; color: var(--ink-soft); }
 .cpm-input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; padding: .72rem .9rem .72rem .25rem; font-size: 1rem; font-weight: 600; color: var(--ink); }
 .cpm-input::placeholder { color: #9aaba1; font-weight: 500; }
-.cpm-reveal { border: 0; background: transparent; color: var(--ink-soft); padding: 0 1rem; align-self: stretch; border-radius: 0 14px 14px 0; }
+.cpm-reveal { border: 0; background: transparent; color: var(--ink-soft); padding: 0 1rem; align-self: stretch; border-radius: 0 14px 14px 0; cursor: pointer; }
 .cpm-reveal:hover { color: var(--ink); }
 .cpm-hint { font-size: .8rem; color: var(--ink-soft); margin: .35rem 0 0; }
 .cpm-hint--error { color: var(--error); font-weight: 600; }
@@ -143,27 +117,36 @@ const STYLES = `
 .cpm-check { display: inline-flex; align-items: center; gap: .55rem; font-size: .88rem; font-weight: 600; color: var(--ink-soft); cursor: pointer; margin: 0 0 1rem; }
 .cpm-check input { width: 1.1rem; height: 1.1rem; accent-color: var(--leaf); cursor: pointer; }
 
-.cpm-submit { width: 100%; border: 0; border-radius: 14px; padding: .82rem 1rem; background: var(--leaf); color: #fff; font-weight: 800; font-size: 1rem; display: inline-flex; align-items: center; justify-content: center; gap: .55rem; box-shadow: 0 4px 0 var(--leaf-dark); transition: transform .08s ease, box-shadow .08s ease, background .15s ease; }
+.cpm-submit { width: 100%; border: 0; border-radius: 14px; padding: .82rem 1rem; background: var(--leaf); color: #fff; font-weight: 800; font-size: 1rem; display: inline-flex; align-items: center; justify-content: center; gap: .55rem; box-shadow: 0 4px 0 var(--leaf-dark); transition: transform .08s ease, box-shadow .08s ease, background .15s ease; cursor: pointer; }
 .cpm-submit:hover:not(:disabled) { background: #22984f; }
 .cpm-submit:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--leaf-dark); }
 .cpm-submit:disabled { opacity: .75; cursor: progress; }
 
 .cpm-switch { text-align: center; font-size: .88rem; font-weight: 600; color: var(--ink-soft); margin: 1.1rem 0 0; }
-.cpm-linkbtn { border: 0; background: transparent; padding: 0; margin-left: .3rem; color: var(--leaf-dark); font-weight: 800; }
+.cpm-linkbtn { border: 0; background: transparent; padding: 0; margin-left: .3rem; color: var(--leaf-dark); font-weight: 800; cursor: pointer; }
 .cpm-linkbtn:hover { text-decoration: underline; }
 
-.cpm-divider { display: flex; align-items: center; gap: .8rem; margin: 1.25rem 0 .9rem; color: var(--ink-soft); font-size: .82rem; font-weight: 600; }
+.cpm-divider { display: flex; align-items: center; gap: .8rem; margin: 1.1rem 0 1rem; color: var(--ink-soft); font-size: .82rem; font-weight: 600; }
 .cpm-divider::before, .cpm-divider::after { content: ""; flex: 1; border-top: 1.5px dashed var(--line); }
-.cpm-socials { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; }
-.cpm-social { display: flex; align-items: center; justify-content: center; gap: .5rem; border: 1.5px solid var(--line); background: #fff; color: var(--ink); border-radius: 14px; padding: .62rem .4rem; font-size: .88rem; font-weight: 700; transition: border-color .15s ease, background .15s ease; }
-.cpm-social:hover { background: #f6faf7; border-color: var(--social); }
-.cpm-social i { font-size: 1.1rem; color: var(--social); }
-@media (max-width: 400px) { .cpm-social { flex-direction: column; gap: .25rem; font-size: .78rem; } }
+
+/* Big Discord button */
+.cpm-discord-btn {
+    width: 100%; border: 0; border-radius: 16px; padding: 1rem 1.25rem;
+    background: #5865f2; color: #fff; font-weight: 800; font-size: 1.08rem;
+    display: flex; align-items: center; justify-content: center; gap: .7rem;
+    box-shadow: 0 4px 0 #3b47d1; cursor: pointer;
+    transition: background .15s ease, transform .08s ease, box-shadow .08s ease;
+    margin-bottom: .1rem;
+}
+.cpm-discord-btn:hover { background: #4752c4; }
+.cpm-discord-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #3b47d1; }
+.cpm-discord-btn i { font-size: 1.3rem; }
 
 /* Platform list */
 .cpm-providers { display: flex; flex-direction: column; gap: .65rem; }
-.cpm-provider { display: flex; align-items: center; gap: .9rem; width: 100%; text-align: left; border: 1.5px solid var(--line); background: #fff; border-radius: 16px; padding: .8rem .95rem; color: var(--ink); transition: border-color .15s ease, background .15s ease; }
-.cpm-provider:hover:not([aria-disabled="true"]) { border-color: var(--p); background: #f9fcfa; }
+.cpm-provider { display: flex; align-items: center; gap: .9rem; width: 100%; text-align: left; border: 1.5px solid var(--line); background: #fff; border-radius: 16px; padding: .8rem .95rem; color: var(--ink); transition: border-color .15s ease, background .15s ease, transform .08s ease; cursor: pointer; }
+.cpm-provider:hover:not([aria-disabled="true"]) { border-color: var(--p); background: #f9fcfa; transform: translateY(-1px); }
+.cpm-provider:active:not([aria-disabled="true"]) { transform: translateY(0); }
 .cpm-provider[aria-disabled="true"] { background: #f4f6f5; cursor: not-allowed; }
 .cpm-provider[aria-disabled="true"] .cpm-provider__badge { filter: grayscale(1); opacity: .55; }
 .cpm-provider__badge { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 1.2rem; background: var(--p); }
@@ -258,9 +241,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     const dialogRef = useRef<HTMLDivElement>(null);
     const firstInputRef = useRef<HTMLInputElement>(null);
 
-    const [activeTab, setActiveTab] = useState<"account" | "platforms">(
-        initialMode === "platforms" ? "platforms" : "account"
-    );
     const [isRegisterMode, setIsRegisterMode] = useState(initialMode === "register");
 
     const [email, setEmail] = useState("");
@@ -319,7 +299,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         setErrorMsg(null);
         setTooltipMsg(null);
         setTouched({ email: false, password: false });
-    }, [activeTab, isRegisterMode]);
+    }, [isRegisterMode]);
 
     const emailError = !email.trim()
         ? "Enter your email address."
@@ -334,12 +314,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     const strength = useMemo(() => scorePassword(password), [password]);
 
     if (!isOpen) return null;
-
-    const switchTab = (tab: "account" | "platforms") => {
-        if (tab === activeTab) return;
-        playChimeClick();
-        setActiveTab(tab);
-    };
 
     const handleNativeSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -404,21 +378,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     };
 
     const titleId = `${uid}-title`;
-    const enabledProviders = PROVIDERS.filter((p) => p.enabled);
 
-    const title =
-        activeTab === "platforms"
-            ? "Connect a membership"
-            : isRegisterMode
-                ? "Get your ChoPaeng passport"
-                : "Welcome back, resident";
+    const title = isRegisterMode
+        ? "Get your ChoPaeng passport"
+        : "Welcome back, resident";
 
-    const subtitle =
-        activeTab === "platforms"
-            ? "Sign in with a platform to verify and link your perks."
-            : isRegisterMode
-                ? "One account for your cart, wishlist and island drops."
-                : "Sign in to see your subscriptions, orders and private islands.";
+    const subtitle = isRegisterMode
+        ? "One account for your cart, wishlist and island drops."
+        : "Sign in to see your subscriptions, orders and private islands.";
 
     return (
         <div className="cpm-backdrop" onClick={onClose}>
@@ -447,26 +414,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 <div className="cpm__seam" aria-hidden="true" />
 
                 <div className="cpm__body">
-                    <div className="cpm-tabs" role="tablist" aria-label="Sign-in method">
-                        <button
-                            type="button"
-                            role="tab"
-                            aria-selected={activeTab === "account"}
-                            className="cpm-tab"
-                            onClick={() => switchTab("account")}
-                        >
-                            Email account
-                        </button>
-                        <button
-                            type="button"
-                            role="tab"
-                            aria-selected={activeTab === "platforms"}
-                            className="cpm-tab"
-                            onClick={() => switchTab("platforms")}
-                        >
-                            Membership platforms
-                        </button>
-                    </div>
+
+                    {/* Primary: Discord */}
+                    <button
+                        type="button"
+                        className="cpm-discord-btn"
+                        onClick={() => handleSelectProvider(PROVIDERS[0])}
+                    >
+                        <i className="fa-brands fa-discord" aria-hidden="true" />
+                        Continue with Discord
+                    </button>
+
+                    <div className="cpm-divider">or sign in with email</div>
 
                     <div role="alert" aria-live="assertive">
                         {errorMsg && (
@@ -485,8 +444,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                         )}
                     </div>
 
-                    {activeTab === "account" && (
-                        <>
+                    <>
                             <form onSubmit={handleNativeSubmit} noValidate>
                                 {isRegisterMode && (
                                     <Field
@@ -499,13 +457,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                                         autoComplete="username"
                                         maxLength={50}
                                         optional
-                                        hint="Shown on your profile and in community areas."
-                                        inputRef={firstInputRef}
+                                        hint="Shown on your profile and resident card."
                                     />
                                 )}
 
                                 <Field
                                     id={`${uid}-email`}
+                                    inputRef={firstInputRef}
                                     label="Email"
                                     icon="fa-envelope"
                                     type="email"
@@ -515,7 +473,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                                     placeholder="resident@chopaeng.com"
                                     autoComplete="email"
                                     error={touched.email ? emailError : null}
-                                    inputRef={isRegisterMode ? undefined : firstInputRef}
                                 />
 
                                 <Field
@@ -604,56 +561,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                                 </button>
                             </p>
 
-                            <div className="cpm-divider">or continue with</div>
-
-                            <div className="cpm-socials">
-                                {enabledProviders.map((p) => (
-                                    <button
-                                        key={p.id}
-                                        type="button"
-                                        className="cpm-social"
-                                        style={{ ["--social" as string]: p.color }}
-                                        onClick={() => handleSelectProvider(p)}
-                                    >
-                                        <i className={p.icon} aria-hidden="true" />
-                                        <span>{p.name}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </>
-                    )}
-
-                    {activeTab === "platforms" && (
-                        <div className="cpm-providers">
-                            {PROVIDERS.map((prov) => {
-                                const disabled = !prov.enabled;
-                                return (
-                                    <button
-                                        key={prov.id}
-                                        type="button"
-                                        className="cpm-provider"
-                                        style={{ ["--p" as string]: prov.color }}
-                                        aria-disabled={disabled}
-                                        onClick={() => handleSelectProvider(prov)}
-                                    >
-                                        <span className="cpm-provider__badge" aria-hidden="true">
-                                            <i className={prov.icon} />
-                                        </span>
-                                        <span className="cpm-provider__main">
-                                            <span className="cpm-provider__name d-block">{prov.name}</span>
-                                            <span className="cpm-provider__tier d-block">{prov.tier}</span>
-                                            <span className="cpm-provider__desc d-block">{prov.description}</span>
-                                        </span>
-                                        <i
-                                            className={`fa-solid ${disabled ? "fa-lock" : "fa-chevron-right"} cpm-provider__end`}
-                                            aria-hidden="true"
-                                        />
-                                        {disabled && <span className="visually-hidden">Currently unavailable</span>}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
+                    </>
 
                     <div className="cpm-foot">
                         <span>Want to see what each tier includes?</span>

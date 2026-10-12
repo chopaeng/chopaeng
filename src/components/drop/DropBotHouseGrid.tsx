@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CatalogEntity } from '../../data/commandBuilderData';
 import { playChimeClick } from '../../utils/kkAudioSynthesizer';
+import type { IslandData } from '../../data/islands';
 
 interface DropBotHouseGridProps {
     selectedVillager: CatalogEntity | null;
@@ -11,7 +12,11 @@ interface DropBotHouseGridProps {
     onClearPlot: (plot: number) => void;
     onClearAllPlots: () => void;
     onCopyCommand?: (cmd: string, label?: string) => void;
-    onCopyAndOpenDiscord?: (cmd: string, label?: string) => void;
+    targetIsland?: IslandData | null;
+    onInjectVillagerNow?: (plot: number, villager: CatalogEntity) => Promise<void>;
+    onBatchInjectNow?: (command: string) => Promise<void>;
+    injectingPlot?: number | null;
+    isBatchInjecting?: boolean;
 }
 
 export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
@@ -23,7 +28,11 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
     onClearPlot,
     onClearAllPlots,
     onCopyCommand,
-    onCopyAndOpenDiscord,
+    targetIsland,
+    onInjectVillagerNow,
+    onBatchInjectNow,
+    injectingPlot = null,
+    isBatchInjecting = false,
 }) => {
     const playSound = () => {
         try {
@@ -59,17 +68,6 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
         }
     };
 
-    const handleCopyDiscord = (text: string, label = 'command') => {
-        if (!text) return;
-        if (onCopyAndOpenDiscord) {
-            onCopyAndOpenDiscord(text, label);
-        } else {
-            navigator.clipboard.writeText(text).catch(() => {});
-            playSound();
-            window.open('https://discord.gg/chopaeng', '_blank');
-        }
-    };
-
     return (
         <div className="bg-white rounded-4 border border-light p-3 p-md-4 shadow-sm">
             {/* Header */}
@@ -86,7 +84,7 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
                             Villager House Plots (0 – 9)
                         </h2>
                         <p className="text-muted mb-0" style={{ fontSize: '0.78rem' }}>
-                            Select a plot to inject your chosen villager into on the island.
+                            Select a plot to inject your chosen villager into {targetIsland ? <strong>{targetIsland.name}</strong> : 'the island'}.
                         </p>
                     </div>
                 </div>
@@ -115,7 +113,7 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
             {/* Selected Villager Action Bar */}
             {selectedVillager && (
                 <div
-                    className="p-3 mb-3 rounded-4 d-flex align-items-center justify-content-between gap-3 flex-wrap"
+                    className="p-3 mb-3 rounded-4 d-flex align-items-center justify-content-between gap-3 flex-wrap animate-fade"
                     style={{ background: '#f0fdf4', border: '1.5px solid #86efac' }}
                 >
                     <div className="d-flex align-items-center gap-3">
@@ -123,7 +121,7 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
                             src={selectedVillager.image}
                             alt={selectedVillager.name}
                             className="rounded-circle border bg-white shadow-2xs"
-                            style={{ width: 44, height: 44, objectFit: 'contain' }}
+                            style={{ width: 46, height: 46, objectFit: 'contain' }}
                             onError={(e) => {
                                 (e.currentTarget as HTMLImageElement).src =
                                     'https://dodo.ac/np/images/4/43/Nook_Miles_Ticket_NH_Inv_Icon.png';
@@ -131,7 +129,7 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
                         />
                         <div>
                             <div className="d-flex align-items-center gap-2">
-                                <span className="fw-black text-dark" style={{ fontSize: '0.95rem' }}>
+                                <span className="fw-black text-dark" style={{ fontSize: '0.98rem' }}>
                                     {selectedVillager.name}
                                 </span>
                                 {selectedVillager.category && (
@@ -141,15 +139,43 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
                                 )}
                             </div>
                             <span className="text-muted" style={{ fontSize: '0.78rem' }}>
-                                Target: <strong>Plot #{activePlot}</strong>
+                                Target: <strong>House Plot #{activePlot}</strong>
+                                {targetIsland ? <> on <span className="text-success fw-bold">{targetIsland.name}</span></> : ''}
                             </span>
                         </div>
                     </div>
 
                     <div className="d-flex align-items-center gap-2 flex-wrap">
+                        {/* Direct Inject Button */}
+                        {onInjectVillagerNow && (
+                            <button
+                                type="button"
+                                disabled={injectingPlot === activePlot || !targetIsland}
+                                className="btn btn-sm btn-success rounded-pill fw-black px-3.5 shadow-sm d-flex align-items-center gap-1.5 transition-all hover-scale"
+                                style={{ fontSize: '0.82rem', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none' }}
+                                onClick={async () => {
+                                    playSound();
+                                    await onInjectVillagerNow(activePlot, selectedVillager);
+                                }}
+                                title={targetIsland ? `Directly inject ${selectedVillager.name} into plot ${activePlot} on ${targetIsland.name}` : 'Select an island first'}
+                            >
+                                {injectingPlot === activePlot ? (
+                                    <>
+                                        <span className="spinner-border spinner-border-sm me-1" />
+                                        Injecting…
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="fa-solid fa-bolt text-warning" />
+                                        <span>Inject Now</span>
+                                    </>
+                                )}
+                            </button>
+                        )}
+
                         <button
                             type="button"
-                            className="btn btn-sm btn-success rounded-pill fw-bold px-3 shadow-2xs"
+                            className="btn btn-sm btn-outline-success rounded-pill fw-bold px-3 shadow-2xs"
                             style={{ fontSize: '0.82rem' }}
                             onClick={() => {
                                 playSound();
@@ -157,17 +183,6 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
                             }}
                         >
                             <i className="fa-solid fa-check me-1" /> Assign to Plot #{activePlot}
-                        </button>
-                        <button
-                            type="button"
-                            className="btn btn-sm btn-dark rounded-pill fw-bold px-3 shadow-2xs d-flex align-items-center gap-1.5"
-                            style={{ fontSize: '0.82rem' }}
-                            onClick={() => {
-                                handleCopyDiscord(`!injectvillager ${selectedVillager.name} ${activePlot}`, `!injectvillager ${selectedVillager.name}`);
-                            }}
-                            title="Copy command and open Discord"
-                        >
-                            <i className="fa-brands fa-discord text-primary" /> Copy &amp; Open Discord
                         </button>
                     </div>
                 </div>
@@ -178,6 +193,7 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
                 {Array.from({ length: 10 }).map((_, index) => {
                     const plotVillager = injectedHouses[index] || null;
                     const isActive = activePlot === index;
+                    const isPlotInjecting = injectingPlot === index;
 
                     return (
                         <div key={index} className="col-6 col-sm-4 col-md-3 col-lg-2-4" style={{ flex: '0 0 20%', maxWidth: '20%' }}>
@@ -231,7 +247,12 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
                                 </div>
 
                                 {/* Plot Center Visual */}
-                                {plotVillager ? (
+                                {isPlotInjecting ? (
+                                    <div className="d-flex flex-column align-items-center justify-content-center py-3">
+                                        <div className="spinner-border spinner-border-sm text-success mb-1" role="status" />
+                                        <span className="text-success fw-bold tiny-text">Injecting…</span>
+                                    </div>
+                                ) : plotVillager ? (
                                     <div className="d-flex flex-column align-items-center justify-content-center py-1">
                                         <img
                                             src={plotVillager.image}
@@ -282,19 +303,19 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
 
             {/* Live Command Dispatch Box */}
             <div className="bg-light rounded-4 p-3 border">
-                <div className="d-flex align-items-center justify-content-between mb-2">
+                <div className="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
                     <span className="text-muted fw-bold text-uppercase tracking-wider" style={{ fontSize: '0.72rem' }}>
                         <i className="fa-solid fa-terminal text-success me-1" />
-                        SysBot Injection Command Preview
+                        SysBot Live Injection Controls
                     </span>
                     <span className="badge bg-white text-muted border rounded-pill" style={{ fontSize: '0.7rem' }}>
-                        {assignedCount > 1 ? 'Multi-Villager (!mvi)' : 'Single Plot (!injectvillager)'}
+                        {assignedCount > 1 ? 'Multi-Plot (!mvi)' : 'Single Plot (!injectvillager)'}
                     </span>
                 </div>
 
                 {assignedCount === 0 && !singleCommand ? (
                     <p className="text-muted mb-0 fst-italic" style={{ fontSize: '0.8rem' }}>
-                        Select a villager from the catalog and assign them to a plot (0–9) to generate commands.
+                        Select a villager from the catalog on the left to assign or inject into House Plots 0–9.
                     </p>
                 ) : (
                     <div className="d-flex flex-column gap-2">
@@ -304,7 +325,27 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
                                 <span className="font-monospace text-dark text-truncate" style={{ fontSize: '0.82rem' }}>
                                     {singleCommand}
                                 </span>
-                                <div className="d-flex align-items-center gap-1.5 flex-shrink-0">
+                                <div className="d-flex align-items-center gap-1.5 flex-shrink-0 flex-wrap">
+                                    {onInjectVillagerNow && activeVillager && (
+                                        <button
+                                            type="button"
+                                            disabled={injectingPlot === activePlot || !targetIsland}
+                                            className="btn btn-sm btn-success rounded-pill px-3 py-1 d-flex align-items-center gap-1 fw-bold shadow-2xs"
+                                            style={{ fontSize: '0.78rem' }}
+                                            onClick={async () => {
+                                                playSound();
+                                                await onInjectVillagerNow(activePlot, activeVillager);
+                                            }}
+                                            title={targetIsland ? `Inject ${activeVillager.name} to plot ${activePlot} on ${targetIsland.name}` : 'Select an island first'}
+                                        >
+                                            {injectingPlot === activePlot ? (
+                                                <span className="spinner-border spinner-border-sm" />
+                                            ) : (
+                                                <i className="fa-solid fa-bolt" />
+                                            )}
+                                            <span>Inject Now</span>
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         className="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1 d-flex align-items-center gap-1"
@@ -313,15 +354,6 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
                                         title="Copy command to clipboard"
                                     >
                                         <i className="fa-solid fa-copy" /> Copy
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="btn btn-sm btn-dark rounded-pill px-2.5 py-1 d-flex align-items-center gap-1"
-                                        style={{ fontSize: '0.75rem' }}
-                                        onClick={() => handleCopyDiscord(singleCommand, `!injectvillager #${activePlot}`)}
-                                        title="Copy and open Discord"
-                                    >
-                                        <i className="fa-brands fa-discord text-primary" /> Discord
                                     </button>
                                 </div>
                             </div>
@@ -333,7 +365,27 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
                                 <span className="font-monospace text-success text-truncate fw-semibold" style={{ fontSize: '0.82rem' }}>
                                     {fullMviCommand}
                                 </span>
-                                <div className="d-flex align-items-center gap-1.5 flex-shrink-0">
+                                <div className="d-flex align-items-center gap-1.5 flex-shrink-0 flex-wrap">
+                                    {onBatchInjectNow && (
+                                        <button
+                                            type="button"
+                                            disabled={isBatchInjecting || !targetIsland}
+                                            className="btn btn-sm btn-success rounded-pill px-3 py-1 d-flex align-items-center gap-1.5 fw-black shadow-sm"
+                                            style={{ fontSize: '0.78rem', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none' }}
+                                            onClick={async () => {
+                                                playSound();
+                                                await onBatchInjectNow(fullMviCommand);
+                                            }}
+                                            title={targetIsland ? `Batch inject all ${assignedCount} plots to ${targetIsland.name}` : 'Select an island first'}
+                                        >
+                                            {isBatchInjecting ? (
+                                                <span className="spinner-border spinner-border-sm" />
+                                            ) : (
+                                                <i className="fa-solid fa-rocket text-warning" />
+                                            )}
+                                            <span>Batch Inject Now</span>
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         className="btn btn-sm btn-outline-success rounded-pill px-2.5 py-1 d-flex align-items-center gap-1"
@@ -342,15 +394,6 @@ export const DropBotHouseGrid: React.FC<DropBotHouseGridProps> = ({
                                         title="Copy multi-villager batch command"
                                     >
                                         <i className="fa-solid fa-copy" /> Copy Batch
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="btn btn-sm btn-success text-white rounded-pill px-2.5 py-1 d-flex align-items-center gap-1"
-                                        style={{ fontSize: '0.75rem' }}
-                                        onClick={() => handleCopyDiscord(fullMviCommand, 'Batch !mvi command')}
-                                        title="Copy batch and open Discord"
-                                    >
-                                        <i className="fa-brands fa-discord" /> Copy !mvi &amp; Open Discord
                                     </button>
                                 </div>
                             </div>

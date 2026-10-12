@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import { getAuthToken } from '../context/authToken';
 import { useIslandData } from '../context/useIslandData';
 import { type IslandData } from '../data/islands';
 import { useCommandBuilderPockets, type PocketItem } from '../hooks/useCommandBuilderPockets';
@@ -11,9 +10,14 @@ import { useFavorites } from '../hooks/useFavorites';
 import { DROP_MAX } from '../constants/limits';
 import { playChimeClick } from '../utils/kkAudioSynthesizer';
 import { triggerConfetti } from '../utils/confetti';
-import { DODO_API_BASE } from '../config/api';
 import { CommandBuilderVariantModal } from '../components/command-builder/CommandBuilderVariantModal';
 import { DropBotHouseGrid } from '../components/drop/DropBotHouseGrid';
+import {
+    submitIslandDrop,
+    injectIslandVillager,
+    batchInjectIslandVillagers,
+    revealIslandDodoCode,
+} from '../utils/dropBotApi';
 import type { CatalogEntity } from '../data/commandBuilderData';
 import './OrderBot.css';
 
@@ -94,17 +98,21 @@ export const DropBot: React.FC = () => {
         8: null,
         9: null,
     });
+    const [injectingPlot, setInjectingPlot] = useState<number | null>(null);
+    const [isBatchInjecting, setIsBatchInjecting] = useState(false);
 
     // ── Quick Variant Modal State ──
     const [variantModalItem, setVariantModalItem] = useState<PocketItem | null>(null);
 
-    // ── Destination Sub Island State ──
+    // ── Destination Island State ──
     const [dropFilter, setDropFilter] = useState<'all' | 'unlocked'>('all');
     const [selectedDropIsland, setSelectedDropIsland] = useState<IslandData | null>(null);
     const [dropDodoCode, setDropDodoCode] = useState<string | null>(null);
     const [dropDodoLoading, setDropDodoLoading] = useState(false);
     const [dropDodoError, setDropDodoError] = useState<string | null>(null);
     const [alreadyOnIsland, setAlreadyOnIsland] = useState(false);
+    const [isDropping, setIsDropping] = useState(false);
+    const [dodoCopied, setDodoCopied] = useState(false);
 
     // ── Notice State ──
     const [submissionNotice, setSubmissionNotice] = useState<{
@@ -120,36 +128,59 @@ export const DropBot: React.FC = () => {
         }
     };
 
-    // Filter Sub Member Islands
+    // Drops & Villager Injections are strictly limited to VIP Sub Islands
     const subMemberIslands = useMemo(() => {
         return islands.filter(
             (i) => i.cat === 'member' || i.type?.toLowerCase().includes('sub')
         );
     }, [islands]);
 
-    // Check if user has permission for an island
-    const canAccessIsland = (requiredRoles?: string[]) => {
-        if (!requiredRoles || requiredRoles.length === 0) return true;
+    // Check if user has permission for a sub island
+    const canAccessIsland = (island?: IslandData | null) => {
+        if (!island) return false;
+        if (island.cat !== 'member' && !island.type?.toLowerCase().includes('sub')) {
+            return false; // Free islands cannot receive drops
+        }
+        if (!island.requiredRoles || island.requiredRoles.length === 0) return true;
         if (!user || !user.roles) return false;
-        return requiredRoles.some((role) => user.roles.includes(role));
+        return island.requiredRoles.some((role) => user.roles.includes(role));
     };
 
+    const unlockedSubIslands = useMemo(() => {
+        return subMemberIslands.filter((i) => canAccessIsland(i));
+    }, [subMemberIslands, user]);
+
     const availableDropIslands = useMemo(() => {
-        if (dropFilter === 'unlocked' && user) {
-            return subMemberIslands.filter((i) => canAccessIsland(i.requiredRoles));
+        if (dropFilter === 'unlocked') {
+            return unlockedSubIslands;
         }
         return subMemberIslands;
-    }, [subMemberIslands, dropFilter, user]);
+    }, [subMemberIslands, unlockedSubIslands, dropFilter]);
 
-    // Auto-select first accessible island
+    // Auto-select first accessible sub island
     useEffect(() => {
         if (!selectedDropIsland && subMemberIslands.length > 0) {
             const firstAccessible =
-                subMemberIslands.find((i) => !!user && canAccessIsland(i.requiredRoles)) ||
+                subMemberIslands.find((i) => canAccessIsland(i)) ||
                 subMemberIslands[0];
             setSelectedDropIsland(firstAccessible);
+            if (firstAccessible?.dodoCode && firstAccessible.dodoCode !== 'SUB ONLY' && firstAccessible.dodoCode !== '.....') {
+                setDropDodoCode(firstAccessible.dodoCode);
+            }
         }
-    }, [subMemberIslands, user, selectedDropIsland]);
+    }, [subMemberIslands, selectedDropIsland]);
+
+    // Update Dodo if island has explicit public dodo
+    useEffect(() => {
+        if (selectedDropIsland) {
+            if (selectedDropIsland.dodoCode && selectedDropIsland.dodoCode !== 'SUB ONLY' && selectedDropIsland.dodoCode !== '.....') {
+                setDropDodoCode(selectedDropIsland.dodoCode);
+            } else {
+                setDropDodoCode(null);
+            }
+            setDropDodoError(null);
+        }
+    }, [selectedDropIsland]);
 
     // ── Catalog Data Extraction ──
     const allItems = useMemo(
@@ -223,42 +254,187 @@ export const DropBot: React.FC = () => {
         playSound();
 
         try {
-            const token = getAuthToken();
-            const resp = await fetch(
-                `${DODO_API_BASE}/api/islands/${encodeURIComponent(island.name)}/dodo`,
-                {
-                    method: 'POST',
-                    headers: token ? { Authorization: `Bearer ${token}` } : {},
-                    credentials: 'include',
-                }
-            );
-
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                if (resp.status === 401) {
-                    setDropDodoError('Your login session expired. Please log in again.');
-                    return;
-                }
-                if (resp.status === 403) {
-                    setDropDodoError(
-                        err.error || "You do not have access to this Sub Member island's Dodo code."
-                    );
-                    return;
-                }
-                setDropDodoError(err.error || 'Unable to retrieve Dodo code.');
-                return;
+            const res = await revealIslandDodoCode(island.name);
+            if (res.success && res.dodoCode) {
+                setDropDodoCode(res.dodoCode);
+                triggerConfetti({ theme: 'gold', particleCount: 70 });
+                setSubmissionNotice({
+                    type: 'success',
+                    message: `Dodo code revealed for ${island.name}: ${res.dodoCode}! Head to the airport to fly.`,
+                });
+            } else {
+                setDropDodoError(res.error || 'Unable to retrieve Dodo code.');
             }
-
-            const data = await resp.json();
-            const rawCode = String(data.dodo_code || '');
-            const code = rawCode.split(': ').pop() || rawCode;
-            setDropDodoCode(code);
-            triggerConfetti({ theme: 'gold', particleCount: 65 });
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
             setDropDodoError('Network error while retrieving Dodo code. Please try again.');
         } finally {
             setDropDodoLoading(false);
+        }
+    };
+
+    const handleCopyDodoCode = () => {
+        if (!dropDodoCode) return;
+        navigator.clipboard.writeText(dropDodoCode).catch(() => {});
+        playSound();
+        setDodoCopied(true);
+        setTimeout(() => setDodoCopied(false), 2000);
+        setSubmissionNotice({
+            type: 'info',
+            message: `Copied Dodo code ${dropDodoCode} to clipboard!`,
+        });
+    };
+
+    // ── Direct Drop Items via SysBot HTTP API ──
+    const handleDirectDrop = async () => {
+        if (!selectedDropIsland) {
+            setSubmissionNotice({
+                type: 'danger',
+                message: 'Please select a destination sub island above first.',
+            });
+            return;
+        }
+        if (selectedDropIsland.cat !== 'member' && !selectedDropIsland.type?.toLowerCase().includes('sub')) {
+            setSubmissionNotice({
+                type: 'danger',
+                message: 'Item drops are only supported on VIP Sub Islands. Free islands cannot receive drops.',
+            });
+            return;
+        }
+        if (totalDropCount === 0 || !dropCommandText) {
+            setSubmissionNotice({
+                type: 'danger',
+                message: 'Your drop pocket is empty. Choose up to 9 items first.',
+            });
+            return;
+        }
+
+        playSound();
+        setIsDropping(true);
+        setSubmissionNotice(null);
+
+        // Strip !drop command prefix
+        const itemsClean = dropCommandText.replace(/^!drop\s*/i, '').trim();
+
+        try {
+            const res = await submitIslandDrop(
+                selectedDropIsland.name,
+                itemsClean,
+                'items',
+                user?.username || 'WebUser'
+            );
+
+            if (res.success) {
+                triggerConfetti({ theme: 'rainbow', particleCount: 85 });
+                playSound();
+                setSubmissionNotice({
+                    type: 'success',
+                    message: `🚀 Success! Dispatched drop of ${totalDropCount} item(s) to ${selectedDropIsland.name}! SysBot is placing them at the airport zone.`,
+                });
+            } else {
+                setSubmissionNotice({
+                    type: 'danger',
+                    message: `SysBot Notice: ${res.error || 'Failed to dispatch drop'}.`,
+                });
+            }
+        } catch (err: any) {
+            setSubmissionNotice({
+                type: 'danger',
+                message: `Connection error: ${err?.message || 'Failed to communicate with island SysBot'}.`,
+            });
+        } finally {
+            setIsDropping(false);
+        }
+    };
+
+    // ── Direct Inject Single Villager ──
+    const handleDirectInjectVillager = async (plot: number, villager: CatalogEntity) => {
+        if (!selectedDropIsland) {
+            setSubmissionNotice({
+                type: 'danger',
+                message: 'Please select a destination sub island first.',
+            });
+            return;
+        }
+        if (selectedDropIsland.cat !== 'member' && !selectedDropIsland.type?.toLowerCase().includes('sub')) {
+            setSubmissionNotice({
+                type: 'danger',
+                message: 'Villager injections are only supported on VIP Sub Islands.',
+            });
+            return;
+        }
+
+        playSound();
+        setInjectingPlot(plot);
+
+        try {
+            const res = await injectIslandVillager(selectedDropIsland.name, villager.name, plot);
+            if (res.success) {
+                triggerConfetti({ theme: 'gold', particleCount: 60 });
+                playSound();
+                setInjectedHouses((prev) => ({ ...prev, [plot]: villager }));
+                setSubmissionNotice({
+                    type: 'success',
+                    message: `✨ ${villager.name} is now moving into House Plot #${plot} on ${selectedDropIsland.name}!`,
+                });
+            } else {
+                setSubmissionNotice({
+                    type: 'danger',
+                    message: `SysBot Notice: ${res.error || 'Villager injection failed'}.`,
+                });
+            }
+        } catch (err: any) {
+            setSubmissionNotice({
+                type: 'danger',
+                message: `Error: ${err?.message || 'Failed to inject villager'}.`,
+            });
+        } finally {
+            setInjectingPlot(null);
+        }
+    };
+
+    // ── Direct Batch Inject Villagers ──
+    const handleDirectBatchInject = async (command: string) => {
+        if (!selectedDropIsland) {
+            setSubmissionNotice({
+                type: 'danger',
+                message: 'Please select a destination sub island first.',
+            });
+            return;
+        }
+        if (selectedDropIsland.cat !== 'member' && !selectedDropIsland.type?.toLowerCase().includes('sub')) {
+            setSubmissionNotice({
+                type: 'danger',
+                message: 'Villager injections are only supported on VIP Sub Islands.',
+            });
+            return;
+        }
+
+        playSound();
+        setIsBatchInjecting(true);
+
+        try {
+            const res = await batchInjectIslandVillagers(selectedDropIsland.name, command);
+            if (res.success) {
+                triggerConfetti({ theme: 'rainbow', particleCount: 90 });
+                playSound();
+                setSubmissionNotice({
+                    type: 'success',
+                    message: `🎉 Batch villagers dispatched! Plots assigned on ${selectedDropIsland.name}.`,
+                });
+            } else {
+                setSubmissionNotice({
+                    type: 'danger',
+                    message: `SysBot Notice: ${res.error || 'Batch injection failed'}.`,
+                });
+            }
+        } catch (err: any) {
+            setSubmissionNotice({
+                type: 'danger',
+                message: `Error: ${err?.message || 'Failed to batch inject villagers'}.`,
+            });
+        } finally {
+            setIsBatchInjecting(false);
         }
     };
 
@@ -339,35 +515,14 @@ export const DropBot: React.FC = () => {
         }
     };
 
-    const getDiscordTargetUrl = (island?: IslandData | null) => {
-        return (island as any)?.channel_id
-            ? `https://discord.com/channels/729590421478703135/${(island as any).channel_id}`
-            : 'https://discord.gg/chopaeng';
-    };
-
     const handleCopyCommand = (command: string, label = 'command') => {
         if (!command) return;
-        navigator.clipboard.writeText(command).catch(() => { });
+        navigator.clipboard.writeText(command).catch(() => {});
         playSound();
         setSubmissionNotice({
             type: 'success',
-            message: `Copied ${label} to clipboard! Paste it into the Discord bot channel.`,
+            message: `Copied ${label} to clipboard!`,
         });
-    };
-
-    const handleCopyDiscordDrop = (command?: string, label = '!drop') => {
-        const cmd = command || dropCommandText;
-        if (!cmd) return;
-        navigator.clipboard.writeText(cmd).catch(() => { });
-        playSound();
-        const targetIsland = selectedDropIsland?.name || 'ChoPaeng';
-        setSubmissionNotice({
-            type: 'info',
-            message: `Copied ${label} for ${targetIsland}! Opening Discord...`,
-        });
-        setTimeout(() => {
-            window.open(getDiscordTargetUrl(selectedDropIsland), '_blank');
-        }, 400);
     };
 
     // ── Auth loading skeleton ──
@@ -376,13 +531,13 @@ export const DropBot: React.FC = () => {
             <div className="nook-bg min-vh-100 d-flex align-items-center justify-content-center p-4">
                 <div className="text-center bg-white rounded-4 shadow-sm border p-5">
                     <div className="spinner-border text-success mb-3" role="status" />
-                    <p className="fw-bold text-muted mb-0">Connecting to ChoPaeng...</p>
+                    <p className="fw-bold text-muted mb-0">Connecting to ChoPaeng…</p>
                 </div>
             </div>
         );
     }
 
-    // ── Full-page login wall: Treasure Island Drop Bot requires authentication ──
+    // ── Resident Sign In Wall ──
     if (!user) {
         return (
             <>
@@ -390,7 +545,7 @@ export const DropBot: React.FC = () => {
                     <title>Treasure Island Drop Bot · ChoPaeng</title>
                     <meta
                         name="description"
-                        content="Login with Discord to access the ChoPaeng Treasure Island Drop Bot and Villager Injector."
+                        content="Sign in with ChoPaeng to access the Treasure Island Drop Bot and Villager Injector."
                     />
                 </Helmet>
                 <div className="nook-bg min-vh-100 py-5 px-3 d-flex align-items-center justify-content-center font-nunito">
@@ -398,36 +553,36 @@ export const DropBot: React.FC = () => {
                         <div className="bg-white rounded-5 shadow-sm border p-4 p-md-5 text-center mb-4 animate-fade">
                             <div
                                 className="d-inline-flex align-items-center justify-content-center rounded-circle text-white mb-4 shadow-sm"
-                                style={{ width: 76, height: 76, backgroundColor: '#5865F2' }}
+                                style={{ width: 76, height: 76, backgroundColor: '#37b06d' }}
                             >
-                                <i className="fa-brands fa-discord fa-2x" />
+                                <i className="fa-solid fa-parachute-box fa-2x" />
                             </div>
 
                             <h1 className="ac-font h2 text-dark mb-2 fw-black">
                                 Treasure Island Drop Bot
                             </h1>
                             <p className="text-muted fw-bold mb-4" style={{ fontSize: '0.95rem', lineHeight: 1.6 }}>
-                                Connect your Discord account to access the Treasure Island Drop Bot, spawn up to 9 custom items in real-time, and inject moving-in villagers directly into Sub Island house plots.
+                                Sign in to your ChoPaeng account to select any island, reveal live Dodo codes, drop custom items on the ground, and inject villagers into House Plots 0–9.
                             </p>
 
                             <div className="d-flex gap-2 flex-wrap justify-content-center mb-4">
                                 <span className="badge bg-light text-dark border rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
-                                    <i className="fa-solid fa-parachute-box text-success me-1"></i> Max 9 Drop Slots
+                                    <i className="fa-solid fa-parachute-box text-success me-1" /> Max 9 Drop Slots
                                 </span>
                                 <span className="badge bg-light text-dark border rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
-                                    <i className="fa-solid fa-house-user text-warning me-1"></i> House Plots 0–9 Injector
+                                    <i className="fa-solid fa-house-user text-warning me-1" /> House Plots 0–9 Injector
                                 </span>
                                 <span className="badge bg-light text-dark border rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
-                                    <i className="fa-solid fa-shield-halved text-primary me-1"></i> Sub Member Access
+                                    <i className="fa-solid fa-plane-departure text-primary me-1" /> Live Dodo Reveal
                                 </span>
                                 <span className="badge bg-light text-dark border rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
-                                    <i className="fa-solid fa-ticket text-info me-1"></i> Boarding Pass &amp; Dodo
+                                    <i className="fa-solid fa-bolt text-info me-1" /> Instant In-Browser Dispatch
                                 </span>
                             </div>
 
                             <div className="mb-3">
                                 <button
-                                    id="dropbot-discord-login-wall-btn"
+                                    id="dropbot-resident-login-btn"
                                     type="button"
                                     onClick={() => {
                                         playSound();
@@ -458,10 +613,6 @@ export const DropBot: React.FC = () => {
                                     <span>Sub Member Benefits</span>
                                 </Link>
                             </div>
-
-                            <p className="text-muted tiny-text mt-4 mb-0">
-                                Requires verified Discord login. Sub Member tier is required for in-island drops.
-                            </p>
                         </div>
                     </div>
                 </div>
@@ -469,13 +620,15 @@ export const DropBot: React.FC = () => {
         );
     }
 
+    const isCurrentIslandAccessible = canAccessIsland(selectedDropIsland);
+
     return (
         <div className="ob-page">
             <Helmet>
                 <title>Treasure Island Drop Bot &amp; Villager Injector | ChoPaeng</title>
                 <meta
                     name="description"
-                    content="Drop up to 9 custom items or inject villagers into House Plots 0–9 instantly on ChoPaeng Sub Member Treasure Islands."
+                    content="Drop up to 9 custom items or inject villagers into House Plots 0–9 instantly on ChoPaeng Treasure Islands."
                 />
             </Helmet>
 
@@ -490,14 +643,14 @@ export const DropBot: React.FC = () => {
                                     IN-ISLAND DROP BOT
                                 </span>
                                 <span className="badge rounded-pill bg-light text-muted border px-2 py-1 fw-semibold" style={{ fontSize: '0.72rem' }}>
-                                    Max {DROP_MAX} Slots · House Plots 0–9
+                                    Max {DROP_MAX} Slots · House Plots 0–9 · Live Dodo
                                 </span>
                             </div>
                             <h1 className="h3 fw-black text-dark mb-1" style={{ fontFamily: 'var(--font-heading, "Nunito", sans-serif)' }}>
                                 Treasure Island Drop Bot
                             </h1>
                             <p className="text-muted mb-0" style={{ fontSize: '0.88rem' }}>
-                                Choose up to 9 items or assign villagers to island plots (0 to 9) for live delivery on your Sub Island.
+                                Select any island, reveal your Dodo code, drop items onto the airport zone, and inject villagers directly from your browser!
                             </p>
                         </div>
 
@@ -601,14 +754,15 @@ export const DropBot: React.FC = () => {
                                 </button>
                             </div>
 
-                            {/* ── TAB 1: ITEMS ── */}
+                            {/* ── ITEMS TAB ── */}
                             {activeTab === 'items' && (
-                                <div>
-                                    {/* Search & Category Filter */}
+                                <>
                                     <div className="row g-2 mb-3">
-                                        <div className="col-12 col-sm-7">
-                                            <div className="position-relative">
-                                                <i className="fa-solid fa-magnifying-glass position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" />
+                                        <div className="col-12 col-md-7">
+                                            <div className="input-group">
+                                                <span className="input-group-text bg-light border-end-0 rounded-start-pill text-muted">
+                                                    <i className="fa-solid fa-magnifying-glass" />
+                                                </span>
                                                 <input
                                                     type="text"
                                                     value={itemSearch}
@@ -616,167 +770,89 @@ export const DropBot: React.FC = () => {
                                                         setItemSearch(e.target.value);
                                                         setItemPage(1);
                                                     }}
-                                                    placeholder="Search drop items…"
-                                                    className="form-control form-control-sm rounded-pill ps-5 py-2 border shadow-2xs"
+                                                    placeholder="Search furniture, materials, DIYs, clothes…"
+                                                    className="form-control bg-light border-start-0 rounded-end-pill shadow-none"
                                                     style={{ fontSize: '0.85rem' }}
                                                 />
                                             </div>
                                         </div>
-                                        <div className="col-12 col-sm-5">
+
+                                        <div className="col-12 col-md-5">
                                             <select
                                                 value={selectedCategory}
                                                 onChange={(e) => {
                                                     setSelectedCategory(e.target.value);
                                                     setItemPage(1);
                                                 }}
-                                                className="form-select form-select-sm rounded-pill py-2 border shadow-2xs fw-bold"
-                                                style={{ fontSize: '0.82rem' }}
+                                                className="form-select rounded-pill bg-light border text-muted shadow-none"
+                                                style={{ fontSize: '0.85rem' }}
                                             >
-                                                {itemCategories.map((cat) => (
-                                                    <option key={cat} value={cat}>
-                                                        {cat}
+                                                {itemCategories.map((c) => (
+                                                    <option key={c} value={c}>
+                                                        {c}
                                                     </option>
                                                 ))}
                                             </select>
                                         </div>
                                     </div>
 
-                                    {/* Item Cards Grid */}
+                                    {/* Item Grid */}
                                     {catalogLoading ? (
-                                        <div className="text-center py-5 text-muted">
-                                            <span className="spinner-border spinner-border-sm text-success me-2" />
-                                            <span>Loading items…</span>
+                                        <div className="text-center py-5">
+                                            <div className="spinner-border text-success mb-2" role="status" />
+                                            <p className="text-muted small fw-bold">Loading Nook Catalog…</p>
                                         </div>
                                     ) : paginatedItems.length === 0 ? (
                                         <div className="text-center py-5 text-muted">
                                             <i className="fa-solid fa-box-open fs-2 mb-2 d-block text-secondary" />
-                                            <span>No items match your search.</span>
+                                            <span className="small fw-bold">No items found matching "{itemSearch}".</span>
                                         </div>
                                     ) : (
-                                        <div className="row g-2">
-                                            {paginatedItems.map((item) => {
-                                                const inDrop = getDropPocketQuantity(item.id);
-                                                const hasVariants =
-                                                    Array.isArray(item.variations) &&
-                                                    item.variations.length > 0;
-
+                                        <div className="row g-2 mb-3">
+                                            {paginatedItems.map((it) => {
+                                                const quantity = getDropPocketQuantity(it.id);
                                                 return (
-                                                    <div key={item.id} className="col-6 col-sm-4 col-md-3">
+                                                    <div key={it.id} className="col-6 col-sm-4 col-md-3">
                                                         <div
-                                                            className={`h-100 p-2 rounded-4 text-center border position-relative transition-all d-flex flex-column justify-content-between ${inDrop > 0
-                                                                ? 'bg-success-subtle border-success shadow-2xs'
-                                                                : 'bg-white hover-shadow'
-                                                                }`}
-                                                            style={{ minHeight: 140 }}
+                                                            className="p-2 rounded-4 text-center border h-100 bg-white transition-all position-relative shadow-2xs hover-shadow"
+                                                            style={{ cursor: 'pointer' }}
+                                                            onClick={() => {
+                                                                playSound();
+                                                                addItemToDropPockets(it);
+                                                            }}
                                                         >
                                                             {/* Favorite button */}
                                                             <button
                                                                 type="button"
+                                                                className="btn btn-link p-0 position-absolute top-0 end-0 m-1 border-0"
+                                                                style={{ fontSize: '0.75rem', zIndex: 2 }}
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     playSound();
-                                                                    toggleFavorite(item.id);
+                                                                    toggleFavorite(it.id);
                                                                 }}
-                                                                className="btn btn-link p-0 position-absolute top-0 end-0 m-2 text-decoration-none"
-                                                                style={{ fontSize: '0.85rem' }}
-                                                                title="Toggle favorite"
                                                             >
-                                                                <i
-                                                                    className={`fa-solid fa-star ${isFavorite(item.id)
-                                                                        ? 'text-warning'
-                                                                        : 'text-black-50 opacity-25'
-                                                                        }`}
-                                                                />
+                                                                <i className={`fa-star ${isFavorite(it.id) ? 'fa-solid text-warning' : 'fa-regular text-muted'}`} />
                                                             </button>
 
-                                                            {/* Item Visual */}
-                                                            <div className="pt-2">
-                                                                <img
-                                                                    src={item.image || FALLBACK_IMG}
-                                                                    alt={item.name}
-                                                                    style={{
-                                                                        width: 48,
-                                                                        height: 48,
-                                                                        objectFit: 'contain',
-                                                                    }}
-                                                                    onError={(e) => {
-                                                                        (e.currentTarget as HTMLImageElement).src =
-                                                                            FALLBACK_IMG;
-                                                                    }}
-                                                                />
-                                                                <span
-                                                                    className="fw-bold text-dark text-truncate d-block mt-1"
-                                                                    style={{ fontSize: '0.78rem' }}
-                                                                    title={item.name}
-                                                                >
-                                                                    {item.name}
-                                                                </span>
-                                                                <span
-                                                                    className="badge bg-light text-muted rounded-pill px-2"
-                                                                    style={{ fontSize: '0.65rem' }}
-                                                                >
-                                                                    {item.category || 'Item'}
-                                                                </span>
-                                                            </div>
+                                                            <img
+                                                                src={it.image || FALLBACK_IMG}
+                                                                alt={it.name}
+                                                                className="mb-1"
+                                                                style={{ width: 44, height: 44, objectFit: 'contain' }}
+                                                                onError={(e) => {
+                                                                    (e.currentTarget as HTMLImageElement).src = FALLBACK_IMG;
+                                                                }}
+                                                            />
+                                                            <span className="d-block fw-bold text-dark text-truncate" style={{ fontSize: '0.75rem' }} title={it.name}>
+                                                                {it.name}
+                                                            </span>
 
-                                                            {/* Add / Quantity Button */}
-                                                            <div className="mt-2 pt-1 border-top">
-                                                                {hasVariants ? (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            playSound();
-                                                                            setVariantModalItem(item);
-                                                                        }}
-                                                                        className="btn btn-xs btn-outline-success rounded-pill w-100 fw-bold py-1"
-                                                                        style={{ fontSize: '0.72rem' }}
-                                                                    >
-                                                                        Variants {inDrop > 0 && `(${inDrop})`}
-                                                                    </button>
-                                                                ) : inDrop > 0 ? (
-                                                                    <div className="d-flex align-items-center justify-content-between px-1">
-                                                                        <button
-                                                                            type="button"
-                                                                            className="btn btn-xs btn-light border rounded-circle"
-                                                                            style={{ width: 20, height: 20, padding: 0 }}
-                                                                            onClick={() => {
-                                                                                playSound();
-                                                                                decreaseDropQuantity(item.id);
-                                                                            }}
-                                                                        >
-                                                                            -
-                                                                        </button>
-                                                                        <span className="fw-black text-success small">
-                                                                            ×{inDrop}
-                                                                        </span>
-                                                                        <button
-                                                                            type="button"
-                                                                            disabled={!canIncreaseDrop}
-                                                                            className="btn btn-xs btn-light border rounded-circle"
-                                                                            style={{ width: 20, height: 20, padding: 0 }}
-                                                                            onClick={() => {
-                                                                                playSound();
-                                                                                increaseDropQuantity(item.id);
-                                                                            }}
-                                                                        >
-                                                                            +
-                                                                        </button>
-                                                                    </div>
-                                                                ) : (
-                                                                    <button
-                                                                        type="button"
-                                                                        disabled={totalDropCount >= DROP_MAX}
-                                                                        onClick={() => {
-                                                                            playSound();
-                                                                            addItemToDropPockets(item);
-                                                                        }}
-                                                                        className="btn btn-xs btn-light border rounded-pill w-100 fw-bold py-1 hover-bg-success"
-                                                                        style={{ fontSize: '0.72rem' }}
-                                                                    >
-                                                                        + Drop
-                                                                    </button>
-                                                                )}
-                                                            </div>
+                                                            {quantity > 0 && (
+                                                                <span className="badge bg-success rounded-pill px-2 py-0.5 mt-1" style={{ fontSize: '0.68rem' }}>
+                                                                    ×{quantity} in Drop
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 );
@@ -786,16 +862,13 @@ export const DropBot: React.FC = () => {
 
                                     {/* Pagination */}
                                     {totalItemPages > 1 && (
-                                        <div className="d-flex align-items-center justify-content-between mt-3 pt-3 border-top">
+                                        <div className="d-flex align-items-center justify-content-between pt-2 border-top">
                                             <button
                                                 type="button"
-                                                disabled={itemPage <= 1}
-                                                onClick={() => {
-                                                    playSound();
-                                                    setItemPage((p) => Math.max(1, p - 1));
-                                                }}
-                                                className="btn btn-sm btn-light rounded-pill px-3 fw-bold"
-                                                style={{ fontSize: '0.78rem' }}
+                                                disabled={itemPage === 1}
+                                                onClick={() => setItemPage((p) => Math.max(1, p - 1))}
+                                                className="btn btn-sm btn-outline-secondary rounded-pill px-3"
+                                                style={{ fontSize: '0.75rem' }}
                                             >
                                                 Previous
                                             </button>
@@ -804,121 +877,71 @@ export const DropBot: React.FC = () => {
                                             </span>
                                             <button
                                                 type="button"
-                                                disabled={itemPage >= totalItemPages}
-                                                onClick={() => {
-                                                    playSound();
-                                                    setItemPage((p) => Math.min(totalItemPages, p + 1));
-                                                }}
-                                                className="btn btn-sm btn-light rounded-pill px-3 fw-bold"
-                                                style={{ fontSize: '0.78rem' }}
+                                                disabled={itemPage === totalItemPages}
+                                                onClick={() => setItemPage((p) => Math.min(totalItemPages, p + 1))}
+                                                className="btn btn-sm btn-outline-secondary rounded-pill px-3"
+                                                style={{ fontSize: '0.75rem' }}
                                             >
                                                 Next
                                             </button>
                                         </div>
                                     )}
-                                </div>
+                                </>
                             )}
 
-                            {/* ── TAB 2: FAVORITES & WISHLIST ── */}
+                            {/* ── FAVORITES TAB ── */}
                             {activeTab === 'favorites' && (
                                 <div>
-                                    <div className="d-flex align-items-center justify-content-between mb-3">
-                                        <span className="text-muted small fw-bold">
-                                            {favoriteItems.length} Wishlist Items Saved
-                                        </span>
-                                        {favoriteItems.length > 0 && (
-                                            <button
-                                                type="button"
-                                                disabled={totalDropCount >= DROP_MAX}
-                                                onClick={() => {
-                                                    playSound();
-                                                    let added = 0;
-                                                    favoriteItems.forEach((it) => {
-                                                        if (totalDropCount + added < DROP_MAX) {
-                                                            addItemToDropPockets(it);
-                                                            added++;
-                                                        }
-                                                    });
-                                                }}
-                                                className="btn btn-sm btn-outline-success rounded-pill fw-bold px-3"
-                                                style={{ fontSize: '0.78rem' }}
-                                            >
-                                                <i className="fa-solid fa-plus me-1" /> Add All to Drop (up to {DROP_MAX})
-                                            </button>
-                                        )}
-                                    </div>
-
                                     {favoriteItems.length === 0 ? (
                                         <div className="text-center py-5 text-muted">
-                                            <i className="fa-solid fa-star fs-1 text-warning mb-2 d-block opacity-50" />
-                                            <h3 className="h6 fw-bold text-dark">Your Wishlist is Empty</h3>
-                                            <p className="small mb-3">
-                                                Click the star icon on any catalog item to save it here for fast 1-click drops.
-                                            </p>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    playSound();
-                                                    setActiveTab('items');
-                                                }}
-                                                className="btn btn-sm btn-success rounded-pill px-4 fw-bold shadow-2xs"
-                                            >
-                                                Browse Catalog
-                                            </button>
+                                            <i className="fa-solid fa-star fs-2 mb-2 d-block text-warning opacity-50" />
+                                            <p className="fw-bold mb-1">Your Wishlist is Empty</p>
+                                            <span className="small text-muted">
+                                                Star items or villagers from the catalog to quickly drop or inject them anytime.
+                                            </span>
                                         </div>
                                     ) : (
-                                        <div className="row g-2">
-                                            {favoriteItems.map((item) => {
-                                                const inDrop = getDropPocketQuantity(item.id);
-                                                const hasVariants = Array.isArray(item.variations) && item.variations.length > 0;
+                                        <div className="row g-2 mb-3">
+                                            {favoriteItems.map((it) => {
+                                                const quantity = getDropPocketQuantity(it.id);
                                                 return (
-                                                    <div key={item.id} className="col-6 col-sm-4 col-md-3">
-                                                        <div className="p-2 rounded-4 text-center border bg-white h-100 d-flex flex-column justify-content-between">
-                                                            <div className="pt-2">
-                                                                <img
-                                                                    src={item.image || FALLBACK_IMG}
-                                                                    alt={item.name}
-                                                                    style={{
-                                                                        width: 48,
-                                                                        height: 48,
-                                                                        objectFit: 'contain',
-                                                                    }}
-                                                                />
-                                                                <span
-                                                                    className="fw-bold text-dark text-truncate d-block mt-1"
-                                                                    style={{ fontSize: '0.78rem' }}
-                                                                >
-                                                                    {item.name}
+                                                    <div key={it.id} className="col-6 col-sm-4 col-md-3">
+                                                        <div
+                                                            className="p-2 rounded-4 text-center border h-100 bg-white transition-all position-relative shadow-2xs hover-shadow"
+                                                            style={{ cursor: 'pointer' }}
+                                                            onClick={() => {
+                                                                playSound();
+                                                                addItemToDropPockets(it);
+                                                            }}
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-link p-0 position-absolute top-0 end-0 m-1 border-0"
+                                                                style={{ fontSize: '0.75rem', zIndex: 2 }}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    playSound();
+                                                                    toggleFavorite(it.id);
+                                                                }}
+                                                            >
+                                                                <i className="fa-solid fa-star text-warning" />
+                                                            </button>
+
+                                                            <img
+                                                                src={it.image || FALLBACK_IMG}
+                                                                alt={it.name}
+                                                                className="mb-1"
+                                                                style={{ width: 44, height: 44, objectFit: 'contain' }}
+                                                            />
+                                                            <span className="d-block fw-bold text-dark text-truncate" style={{ fontSize: '0.75rem' }} title={it.name}>
+                                                                {it.name}
+                                                            </span>
+
+                                                            {quantity > 0 && (
+                                                                <span className="badge bg-success rounded-pill px-2 py-0.5 mt-1" style={{ fontSize: '0.68rem' }}>
+                                                                    ×{quantity} in Drop
                                                                 </span>
-                                                            </div>
-                                                            <div className="mt-2 pt-1 border-top">
-                                                                {hasVariants ? (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            playSound();
-                                                                            setVariantModalItem(item);
-                                                                        }}
-                                                                        className="btn btn-xs btn-outline-success rounded-pill w-100 fw-bold py-1"
-                                                                        style={{ fontSize: '0.72rem' }}
-                                                                    >
-                                                                        Variants {inDrop > 0 && `(${inDrop})`}
-                                                                    </button>
-                                                                ) : (
-                                                                    <button
-                                                                        type="button"
-                                                                        disabled={totalDropCount >= DROP_MAX}
-                                                                        onClick={() => {
-                                                                            playSound();
-                                                                            addItemToDropPockets(item);
-                                                                        }}
-                                                                        className="btn btn-xs btn-light border rounded-pill w-100 fw-bold py-1"
-                                                                        style={{ fontSize: '0.72rem' }}
-                                                                    >
-                                                                        {inDrop > 0 ? `In Drop (${inDrop})` : '+ Add to Drop'}
-                                                                    </button>
-                                                                )}
-                                                            </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 );
@@ -928,13 +951,14 @@ export const DropBot: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* ── TAB 3: VILLAGERS ── */}
+                            {/* ── VILLAGERS TAB ── */}
                             {activeTab === 'villagers' && (
-                                <div>
-                                    {/* Villager Search */}
+                                <>
                                     <div className="mb-3">
-                                        <div className="position-relative">
-                                            <i className="fa-solid fa-magnifying-glass position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" />
+                                        <div className="input-group">
+                                            <span className="input-group-text bg-light border-end-0 rounded-start-pill text-muted">
+                                                <i className="fa-solid fa-magnifying-glass" />
+                                            </span>
                                             <input
                                                 type="text"
                                                 value={villagerSearch}
@@ -942,69 +966,51 @@ export const DropBot: React.FC = () => {
                                                     setVillagerSearch(e.target.value);
                                                     setVillagerPage(1);
                                                 }}
-                                                placeholder="Search villagers by name or personality…"
-                                                className="form-control form-control-sm rounded-pill ps-5 py-2 border shadow-2xs"
+                                                placeholder="Search villagers by name or personality (e.g. Raymond, Sasha, Judy)…"
+                                                className="form-control bg-light border-start-0 rounded-end-pill shadow-none"
                                                 style={{ fontSize: '0.85rem' }}
                                             />
                                         </div>
                                     </div>
 
-                                    {/* Villagers Cards Grid */}
-                                    {catalogLoading ? (
+                                    {/* Villager Grid */}
+                                    {paginatedVillagers.length === 0 ? (
                                         <div className="text-center py-5 text-muted">
-                                            <span className="spinner-border spinner-border-sm text-success me-2" />
-                                            <span>Loading villagers…</span>
-                                        </div>
-                                    ) : paginatedVillagers.length === 0 ? (
-                                        <div className="text-center py-5 text-muted">
-                                            <i className="fa-solid fa-paw fs-2 mb-2 d-block text-secondary" />
-                                            <span>No villagers found matching your search.</span>
+                                            <i className="fa-solid fa-user-ninja fs-2 mb-2 d-block text-secondary" />
+                                            <span className="small fw-bold">No villagers found matching "{villagerSearch}".</span>
                                         </div>
                                     ) : (
-                                        <div className="row g-2">
+                                        <div className="row g-2 mb-3">
                                             {paginatedVillagers.map((v) => {
-                                                const isSelected = selectedVillager?.id === v.id;
-                                                const isAssigned = Object.values(injectedHouses).some(
-                                                    (h) => h?.id === v.id
-                                                );
-
+                                                const isChosen = selectedVillager?.id === v.id;
                                                 return (
-                                                    <div key={v.id} className="col-4 col-sm-3 col-md-3">
+                                                    <div key={v.id} className="col-6 col-sm-4 col-md-3">
                                                         <div
+                                                            className={`p-2 rounded-4 text-center border h-100 transition-all position-relative shadow-2xs hover-shadow ${
+                                                                isChosen
+                                                                    ? 'bg-success-subtle border-2 border-success'
+                                                                    : 'bg-white'
+                                                            }`}
+                                                            style={{ cursor: 'pointer' }}
                                                             onClick={() => {
                                                                 playSound();
                                                                 setSelectedVillager(v);
                                                             }}
-                                                            className={`p-2 rounded-4 text-center cursor-pointer transition-all border ${isSelected
-                                                                ? 'bg-success-subtle border-2 border-success shadow-sm'
-                                                                : isAssigned
-                                                                    ? 'bg-light border-primary-subtle'
-                                                                    : 'bg-white hover-shadow'
-                                                                }`}
-                                                            style={{ cursor: 'pointer', minHeight: 120 }}
                                                         >
                                                             <img
-                                                                src={v.image}
+                                                                src={v.image || FALLBACK_IMG}
                                                                 alt={v.name}
-                                                                className="rounded-circle border mb-1 bg-white shadow-2xs"
+                                                                className="rounded-circle border mb-1 bg-white"
                                                                 style={{ width: 44, height: 44, objectFit: 'contain' }}
-                                                                onError={(e) => {
-                                                                    (e.currentTarget as HTMLImageElement).src =
-                                                                        FALLBACK_IMG;
-                                                                }}
                                                             />
-                                                            <strong
-                                                                className="d-block text-dark text-truncate"
-                                                                style={{ fontSize: '0.78rem' }}
-                                                            >
+                                                            <span className="d-block fw-bold text-dark text-truncate" style={{ fontSize: '0.75rem' }}>
                                                                 {v.name}
-                                                            </strong>
-                                                            <span
-                                                                className="badge bg-light text-muted border rounded-pill"
-                                                                style={{ fontSize: '0.62rem' }}
-                                                            >
-                                                                {v.category || 'Villager'}
                                                             </span>
+                                                            {v.category && (
+                                                                <span className="text-muted d-block tiny-text">
+                                                                    {v.category}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 );
@@ -1014,16 +1020,13 @@ export const DropBot: React.FC = () => {
 
                                     {/* Pagination */}
                                     {totalVillagerPages > 1 && (
-                                        <div className="d-flex align-items-center justify-content-between mt-3 pt-3 border-top">
+                                        <div className="d-flex align-items-center justify-content-between pt-2 border-top">
                                             <button
                                                 type="button"
-                                                disabled={villagerPage <= 1}
-                                                onClick={() => {
-                                                    playSound();
-                                                    setVillagerPage((p) => Math.max(1, p - 1));
-                                                }}
-                                                className="btn btn-sm btn-light rounded-pill px-3 fw-bold"
-                                                style={{ fontSize: '0.78rem' }}
+                                                disabled={villagerPage === 1}
+                                                onClick={() => setVillagerPage((p) => Math.max(1, p - 1))}
+                                                className="btn btn-sm btn-outline-secondary rounded-pill px-3"
+                                                style={{ fontSize: '0.75rem' }}
                                             >
                                                 Previous
                                             </button>
@@ -1032,45 +1035,43 @@ export const DropBot: React.FC = () => {
                                             </span>
                                             <button
                                                 type="button"
-                                                disabled={villagerPage >= totalVillagerPages}
-                                                onClick={() => {
-                                                    playSound();
-                                                    setVillagerPage((p) => Math.min(totalVillagerPages, p + 1));
-                                                }}
-                                                className="btn btn-sm btn-light rounded-pill px-3 fw-bold"
-                                                style={{ fontSize: '0.78rem' }}
+                                                disabled={villagerPage === totalVillagerPages}
+                                                onClick={() => setVillagerPage((p) => Math.min(totalVillagerPages, p + 1))}
+                                                className="btn btn-sm btn-outline-secondary rounded-pill px-3"
+                                                style={{ fontSize: '0.75rem' }}
                                             >
                                                 Next
                                             </button>
                                         </div>
                                     )}
-                                </div>
+                                </>
                             )}
                         </div>
                     </div>
 
                     {/* ══════════════════════════════════════════
-                        RIGHT COLUMN: 9-SLOT DROP GRID OR HOUSE PLOTS (0-9)
+                        RIGHT COLUMN: DESTINATION ISLAND & DROP GRID
                     ══════════════════════════════════════════ */}
                     <div className="col-12 col-lg-5">
-                        {/* ── STEP 1: DESTINATION SUB ISLAND SELECTOR (ALWAYS VISIBLE) ── */}
+                        {/* ── STEP 1: DESTINATION ISLAND SELECTOR & DODO BOARDING PASS ── */}
                         <div className="bg-white rounded-4 border border-light p-3 p-md-4 shadow-sm mb-4">
                             <div className="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
                                 <div className="d-flex align-items-center gap-2">
                                     <div
                                         className="rounded-circle d-flex align-items-center justify-content-center text-white"
-                                        style={{ width: 34, height: 34, background: '#f59e0b', fontSize: '0.95rem' }}
+                                        style={{ width: 34, height: 34, background: 'linear-gradient(135deg, #f59e0b, #d97706)', fontSize: '0.95rem' }}
                                     >
-                                        <i className="fa-solid fa-crown" />
+                                        <i className="fa-solid fa-location-dot" />
                                     </div>
                                     <div>
-                                        <h3 className="h6 fw-bold mb-0 text-dark">Destination Sub Island</h3>
+                                        <h3 className="h6 fw-bold mb-0 text-dark">Destination Island</h3>
                                         <span className="text-muted" style={{ fontSize: '0.75rem' }}>
-                                            Select where to drop items or inject villagers
+                                            Select VIP Sub Island for item drops and villager injections
                                         </span>
                                     </div>
                                 </div>
 
+                                {/* Filter categories */}
                                 <div className="d-flex gap-1 bg-light p-1 rounded-pill border">
                                     <button
                                         type="button"
@@ -1078,13 +1079,13 @@ export const DropBot: React.FC = () => {
                                             playSound();
                                             setDropFilter('all');
                                         }}
-                                        className={`btn btn-xs rounded-pill fw-bold px-2 py-1 ${dropFilter === 'all'
+                                        className={`btn btn-xs rounded-pill fw-bold px-2.5 py-1 ${dropFilter === 'all'
                                             ? 'btn-dark text-white'
                                             : 'text-muted border-0 bg-transparent'
                                             }`}
                                         style={{ fontSize: '0.72rem' }}
                                     >
-                                        All ({subMemberIslands.length})
+                                        All Sub ({subMemberIslands.length})
                                     </button>
                                     <button
                                         type="button"
@@ -1092,48 +1093,20 @@ export const DropBot: React.FC = () => {
                                             playSound();
                                             setDropFilter('unlocked');
                                         }}
-                                        className={`btn btn-xs rounded-pill fw-bold px-2 py-1 ${dropFilter === 'unlocked'
+                                        className={`btn btn-xs rounded-pill fw-bold px-2.5 py-1 ${dropFilter === 'unlocked'
                                             ? 'btn-dark text-white'
                                             : 'text-muted border-0 bg-transparent'
                                             }`}
                                         style={{ fontSize: '0.72rem' }}
                                     >
-                                        My Islands
+                                        My Pass ({unlockedSubIslands.length})
                                     </button>
                                 </div>
                             </div>
 
-                            {/* Non-subscriber Notice */}
-                            {(!user ||
-                                subMemberIslands.every((i) => !user || !canAccessIsland(i.requiredRoles))) && (
-                                    <div className="alert alert-warning rounded-4 border-0 p-3 mb-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 shadow-2xs">
-                                        <span className="small fw-bold text-dark">
-                                            {user
-                                                ? 'Sub Member pass required for in-island drops.'
-                                                : 'Log in with Discord to access Sub Islands.'}
-                                        </span>
-                                        {user ? (
-                                            <Link
-                                                to="/membership"
-                                                className="btn btn-xs btn-dark rounded-pill fw-bold px-3 py-1 text-nowrap"
-                                            >
-                                                View Tiers
-                                            </Link>
-                                        ) : (
-                                            <button
-                                                type="button"
-                                                onClick={login}
-                                                className="btn btn-xs btn-dark rounded-pill fw-bold px-3 py-1 text-nowrap"
-                                            >
-                                                <i className="fa-solid fa-passport me-1" /> Log In
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-
                             {/* Island Dropdown */}
                             {islandsLoading ? (
-                                <div className="text-center py-2 text-muted small">Loading islands…</div>
+                                <div className="text-center py-2 text-muted small">Loading sub islands…</div>
                             ) : (
                                 <div className="mb-3">
                                     <select
@@ -1143,8 +1116,6 @@ export const DropBot: React.FC = () => {
                                         onChange={(e) => {
                                             const found = subMemberIslands.find((i) => i.id === e.target.value);
                                             setSelectedDropIsland(found || null);
-                                            setDropDodoCode(null);
-                                            setDropDodoError(null);
                                             setAlreadyOnIsland(false);
                                             playSound();
                                         }}
@@ -1152,66 +1123,163 @@ export const DropBot: React.FC = () => {
                                         <option value="">-- Choose Sub Island --</option>
                                         {availableDropIslands.map((isl) => (
                                             <option key={isl.id} value={isl.id}>
-                                                {isl.name} · {isl.type || 'Treasure Island'}
+                                                ⭐ {isl.name} · {isl.type || 'Sub Island'}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
                             )}
 
-                            {/* Dodo / Presence Actions */}
+                            {/* Selected Island Info & Dodo Boarding Pass */}
                             {selectedDropIsland && (
-                                <div className="d-flex align-items-center gap-2 flex-wrap">
-                                    {dropDodoCode ? (
-                                        <div
-                                            className="badge bg-success text-white rounded-pill fw-bold px-3 py-1.5 shadow-2xs d-inline-flex align-items-center gap-1.5 font-monospace"
-                                            style={{ fontSize: '0.82rem' }}
-                                        >
-                                            <i className="fa-solid fa-plane-departure" />
-                                            <span>Dodo: {dropDodoCode}</span>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            disabled={dropDodoLoading}
-                                            onClick={() => handleGetDodo(selectedDropIsland)}
-                                            className="btn btn-sm btn-warning text-dark rounded-pill fw-bold px-3 py-1 shadow-2xs"
-                                            style={{ fontSize: '0.78rem' }}
-                                        >
-                                            {dropDodoLoading ? (
-                                                <>
-                                                    <span className="spinner-border spinner-border-sm me-1" /> Fetching Dodo…
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <i className="fa-solid fa-eye me-1" /> Reveal Dodo Code
-                                                </>
-                                            )}
-                                        </button>
-                                    )}
-
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            playSound();
-                                            setAlreadyOnIsland(true);
+                                <div className="mb-2">
+                                    {/* Island Header Card */}
+                                    <div
+                                        className="p-3 rounded-4 border mb-3 transition-all"
+                                        style={{
+                                            background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+                                            borderColor: '#fde68a',
                                         }}
-                                        className={`btn btn-sm rounded-pill fw-bold px-3 py-1 transition-all ${alreadyOnIsland
-                                            ? 'btn-success text-white'
-                                            : 'btn-outline-dark'
-                                            }`}
-                                        style={{ fontSize: '0.78rem' }}
                                     >
-                                        <i className="fa-solid fa-location-dot me-1" />
-                                        <span>{alreadyOnIsland ? 'On Island (Confirmed)' : "I'm on the Island"}</span>
-                                    </button>
-                                </div>
-                            )}
+                                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                                            <div className="d-flex align-items-center gap-2">
+                                                <div
+                                                    className="rounded-circle d-flex align-items-center justify-content-center text-white"
+                                                    style={{
+                                                        width: 32,
+                                                        height: 32,
+                                                        background: '#f59e0b',
+                                                        fontSize: '0.85rem',
+                                                    }}
+                                                >
+                                                    <i className="fa-solid fa-crown" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="fw-black text-dark mb-0" style={{ fontSize: '1rem' }}>
+                                                        {selectedDropIsland.name}
+                                                    </h4>
+                                                    <span className="text-muted tiny-text">
+                                                        {selectedDropIsland.type || 'Sub Island'}
+                                                    </span>
+                                                </div>
+                                            </div>
 
-                            {dropDodoError && (
-                                <div className="text-danger small mt-2 fw-semibold">
-                                    <i className="fa-solid fa-circle-exclamation me-1" />
-                                    {dropDodoError}
+                                            <div className="d-flex align-items-center gap-1.5 flex-wrap">
+                                                <span
+                                                    className={`badge rounded-pill fw-bold px-2.5 py-1 ${
+                                                        isCurrentIslandAccessible
+                                                            ? 'bg-success text-white'
+                                                            : 'bg-warning text-dark'
+                                                    }`}
+                                                    style={{ fontSize: '0.7rem' }}
+                                                >
+                                                    {isCurrentIslandAccessible ? 'Access Granted' : 'Sub Pass Needed'}
+                                                </span>
+                                                <span className="badge bg-light text-dark border rounded-pill px-2 py-1 fw-bold tiny-text">
+                                                    🟢 Online
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Boarding Pass Ticket */}
+                                        <div className="bg-white rounded-3 p-3 border shadow-2xs mt-2">
+                                            <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                                <div>
+                                                    <span className="text-muted fw-bold text-uppercase d-block" style={{ fontSize: '0.65rem', letterSpacing: '0.05em' }}>
+                                                        DAL AIRLINE BOARDING PASS
+                                                    </span>
+                                                    {dropDodoCode ? (
+                                                        <div className="d-flex align-items-center gap-2 mt-0.5">
+                                                            <span className="font-monospace fw-black text-success" style={{ fontSize: '1.45rem', letterSpacing: '0.08em' }}>
+                                                                {dropDodoCode}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleCopyDodoCode}
+                                                                className={`btn btn-xs rounded-pill fw-bold px-2.5 py-1 ${dodoCopied ? 'btn-success text-white' : 'btn-outline-success'}`}
+                                                                style={{ fontSize: '0.72rem' }}
+                                                                title="Copy Dodo Code"
+                                                            >
+                                                                <i className={`fa-solid ${dodoCopied ? 'fa-check' : 'fa-copy'} me-1`} />
+                                                                {dodoCopied ? 'Copied!' : 'Copy'}
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-muted fw-bold small">
+                                                            Dodo code hidden for subscriber security
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    {!dropDodoCode ? (
+                                                        <button
+                                                            type="button"
+                                                            disabled={dropDodoLoading}
+                                                            onClick={() => handleGetDodo(selectedDropIsland)}
+                                                            className="btn btn-sm btn-warning text-dark rounded-pill fw-black px-3.5 py-1.5 shadow-2xs hover-scale transition-all"
+                                                            style={{ fontSize: '0.8rem', background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: 'none', color: '#fff' }}
+                                                        >
+                                                            {dropDodoLoading ? (
+                                                                <>
+                                                                    <span className="spinner-border spinner-border-sm me-1" /> Revealing…
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <i className="fa-solid fa-eye me-1.5" /> Reveal Dodo Code
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleGetDodo(selectedDropIsland)}
+                                                            disabled={dropDodoLoading}
+                                                            className="btn btn-xs btn-outline-secondary rounded-pill px-2.5 py-1"
+                                                            style={{ fontSize: '0.72rem' }}
+                                                            title="Refresh Dodo Code"
+                                                        >
+                                                            <i className="fa-solid fa-arrows-rotate me-1" /> Refresh
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Airport hint */}
+                                            <div className="d-flex align-items-center justify-content-between mt-2 pt-2 border-top flex-wrap gap-1">
+                                                <span className="text-muted tiny-text">
+                                                    <i className="fa-solid fa-plane-departure text-primary me-1" />
+                                                    Fly via Dodo Airlines at Orville's airport counter
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        playSound();
+                                                        setAlreadyOnIsland(!alreadyOnIsland);
+                                                    }}
+                                                    className={`btn btn-xs rounded-pill fw-bold px-2 py-0.5 border-0 ${alreadyOnIsland ? 'text-success' : 'text-muted'}`}
+                                                    style={{ fontSize: '0.72rem' }}
+                                                >
+                                                    <i className={`fa-solid ${alreadyOnIsland ? 'fa-circle-check text-success' : 'fa-circle-dot'} me-1`} />
+                                                    {alreadyOnIsland ? "I'm on Island" : "Mark as on Island"}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {dropDodoError && (
+                                            <div className="alert alert-danger rounded-3 p-2 mt-2 mb-0 tiny-text fw-bold d-flex align-items-center justify-content-between">
+                                                <span>
+                                                    <i className="fa-solid fa-circle-exclamation me-1" />
+                                                    {dropDodoError}
+                                                </span>
+                                                {dropDodoError.includes('Sub Member') && (
+                                                    <Link to="/membership" className="btn btn-xs btn-dark rounded-pill px-2 py-0.5 text-nowrap">
+                                                        Unlock
+                                                    </Link>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -1244,7 +1312,11 @@ export const DropBot: React.FC = () => {
                                     });
                                 }}
                                 onCopyCommand={handleCopyCommand}
-                                onCopyAndOpenDiscord={handleCopyDiscordDrop}
+                                targetIsland={selectedDropIsland}
+                                onInjectVillagerNow={handleDirectInjectVillager}
+                                onBatchInjectNow={handleDirectBatchInject}
+                                injectingPlot={injectingPlot}
+                                isBatchInjecting={isBatchInjecting}
                             />
                         ) : (
                             /* ── 9-SLOT DROP POCKET TRACKER & DISPATCH ── */
@@ -1386,13 +1458,13 @@ export const DropBot: React.FC = () => {
                                 <div className="bg-light rounded-4 p-3 border mb-3">
                                     <div className="d-flex align-items-center justify-content-between mb-1">
                                         <span className="text-muted fw-bold text-uppercase" style={{ fontSize: '0.68rem' }}>
-                                            In-Game Drop Command
+                                            In-Game Drop Command Preview
                                         </span>
                                         {dropCommandText && (
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    navigator.clipboard.writeText(dropCommandText).catch(() => { });
+                                                    navigator.clipboard.writeText(dropCommandText).catch(() => {});
                                                     playSound();
                                                 }}
                                                 className="btn btn-link p-0 text-success fw-bold text-decoration-none"
@@ -1428,27 +1500,43 @@ export const DropBot: React.FC = () => {
                                     </div>
                                 </div>
 
-
                                 {/* Dispatch Actions */}
                                 <div className="d-flex flex-column gap-2">
+                                    {/* PRIMARY DIRECT DROP BUTTON */}
                                     <button
                                         type="button"
-                                        disabled={totalDropCount === 0}
-                                        onClick={() => handleCopyDiscordDrop(dropCommandText, '!drop')}
-                                        className="btn btn-success text-white rounded-pill fw-bold py-2.5 shadow-2xs d-flex align-items-center justify-content-center gap-2"
-                                        style={{ fontSize: '0.88rem' }}
+                                        disabled={totalDropCount === 0 || isDropping || !selectedDropIsland}
+                                        onClick={handleDirectDrop}
+                                        className="btn btn-success text-white rounded-pill fw-black py-3 shadow-sm d-flex align-items-center justify-content-center gap-2 hover-scale transition-all"
+                                        style={{
+                                            fontSize: '0.96rem',
+                                            background: 'linear-gradient(135deg, #10b981, #059669)',
+                                            border: 'none',
+                                        }}
                                     >
-                                        <i className="fa-brands fa-discord" /> Copy !drop &amp; Open Discord
+                                        {isDropping ? (
+                                            <>
+                                                <span className="spinner-border spinner-border-sm me-1" />
+                                                <span>Dropping to {selectedDropIsland?.name || 'Island'}…</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <i className="fa-solid fa-parachute-box fa-lg text-warning" />
+                                                <span>
+                                                    Drop {totalDropCount} Item{totalDropCount !== 1 ? 's' : ''} to {selectedDropIsland?.name || 'Island'} Now
+                                                </span>
+                                            </>
+                                        )}
                                     </button>
 
                                     <button
                                         type="button"
                                         disabled={totalDropCount === 0}
                                         onClick={() => handleCopyCommand(dropCommandText, '!drop command')}
-                                        className="btn btn-outline-dark rounded-pill fw-bold py-2 d-flex align-items-center justify-content-center gap-2"
-                                        style={{ fontSize: '0.82rem' }}
+                                        className="btn btn-outline-secondary rounded-pill fw-bold py-1.5 d-flex align-items-center justify-content-center gap-2 border"
+                                        style={{ fontSize: '0.8rem' }}
                                     >
-                                        <i className="fa-solid fa-copy" /> Copy Command Only
+                                        <i className="fa-solid fa-copy" /> Copy Command
                                     </button>
                                 </div>
                             </div>

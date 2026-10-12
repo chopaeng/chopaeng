@@ -345,9 +345,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             if (!resp.ok || !data.success) {
                 setErrorMsg(
                     data.error ||
-                        (isRegisterMode
-                            ? "We couldn't create your account. Try again."
-                            : "Email or password is incorrect.")
+                    (isRegisterMode
+                        ? "We couldn't create your account. Try again."
+                        : "Email or password is incorrect.")
                 );
                 return;
             }
@@ -376,6 +376,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         auth.loginWithProvider(prov.id, propReturnPath);
         onClose();
     };
+
+
 
     const titleId = `${uid}-title`;
 
@@ -445,121 +447,121 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     </div>
 
                     <>
-                            <form onSubmit={handleNativeSubmit} noValidate>
-                                {isRegisterMode && (
-                                    <Field
-                                        id={`${uid}-username`}
-                                        label="Display name"
-                                        icon="fa-user"
-                                        value={username}
-                                        onChange={setUsername}
-                                        placeholder="e.g. MayorNook"
-                                        autoComplete="username"
-                                        maxLength={50}
-                                        optional
-                                        hint="Shown on your profile and resident card."
-                                    />
-                                )}
-
+                        <form onSubmit={handleNativeSubmit} noValidate>
+                            {isRegisterMode && (
                                 <Field
-                                    id={`${uid}-email`}
-                                    inputRef={firstInputRef}
-                                    label="Email"
-                                    icon="fa-envelope"
-                                    type="email"
-                                    value={email}
-                                    onChange={setEmail}
-                                    onBlur={() => setTouched((t) => ({ ...t, email: true }))}
-                                    placeholder="resident@chopaeng.com"
-                                    autoComplete="email"
-                                    error={touched.email ? emailError : null}
+                                    id={`${uid}-username`}
+                                    label="Display name"
+                                    icon="fa-user"
+                                    value={username}
+                                    onChange={setUsername}
+                                    placeholder="e.g. MayorNook"
+                                    autoComplete="username"
+                                    maxLength={50}
+                                    optional
+                                    hint="Shown on your profile and resident card."
                                 />
+                            )}
 
-                                <Field
-                                    id={`${uid}-password`}
-                                    label="Password"
-                                    icon="fa-lock"
-                                    type={showPassword ? "text" : "password"}
-                                    value={password}
-                                    onChange={setPassword}
-                                    onBlur={() => setTouched((t) => ({ ...t, password: true }))}
-                                    placeholder="At least 6 characters"
-                                    autoComplete={isRegisterMode ? "new-password" : "current-password"}
-                                    error={touched.password ? passwordError : null}
-                                    trailing={
-                                        <button
-                                            type="button"
-                                            className="cpm-reveal"
-                                            onClick={() => setShowPassword((s) => !s)}
-                                            aria-label={showPassword ? "Hide password" : "Show password"}
-                                            aria-pressed={showPassword}
-                                        >
-                                            <i
-                                                className={`fa-solid ${showPassword ? "fa-eye-slash" : "fa-eye"}`}
-                                                aria-hidden="true"
-                                            />
-                                        </button>
-                                    }
-                                >
-                                    {isRegisterMode && password && (
-                                        <>
-                                            <div className="cpm-meter" data-score={strength} aria-hidden="true">
-                                                <span /><span /><span /><span />
-                                            </div>
-                                            <p className="cpm-hint" aria-live="polite">
-                                                Password strength: {STRENGTH_LABELS[strength]}
-                                            </p>
-                                        </>
-                                    )}
-                                </Field>
+                            <Field
+                                id={`${uid}-email`}
+                                inputRef={firstInputRef}
+                                label="Email"
+                                icon="fa-envelope"
+                                type="email"
+                                value={email}
+                                onChange={setEmail}
+                                onBlur={() => setTouched((t) => ({ ...t, email: true }))}
+                                placeholder="resident@chopaeng.com"
+                                autoComplete="email"
+                                error={touched.email ? emailError : null}
+                            />
 
-                                {!isRegisterMode && (
-                                    <label className="cpm-check">
-                                        <input
-                                            type="checkbox"
-                                            checked={rememberMe}
-                                            onChange={(e) => setRememberMe(e.target.checked)}
+                            <Field
+                                id={`${uid}-password`}
+                                label="Password"
+                                icon="fa-lock"
+                                type={showPassword ? "text" : "password"}
+                                value={password}
+                                onChange={setPassword}
+                                onBlur={() => setTouched((t) => ({ ...t, password: true }))}
+                                placeholder="At least 6 characters"
+                                autoComplete={isRegisterMode ? "new-password" : "current-password"}
+                                error={touched.password ? passwordError : null}
+                                trailing={
+                                    <button
+                                        type="button"
+                                        className="cpm-reveal"
+                                        onClick={() => setShowPassword((s) => !s)}
+                                        aria-label={showPassword ? "Hide password" : "Show password"}
+                                        aria-pressed={showPassword}
+                                    >
+                                        <i
+                                            className={`fa-solid ${showPassword ? "fa-eye-slash" : "fa-eye"}`}
+                                            aria-hidden="true"
                                         />
-                                        Keep me signed in
-                                    </label>
+                                    </button>
+                                }
+                            >
+                                {isRegisterMode && password && (
+                                    <>
+                                        <div className="cpm-meter" data-score={strength} aria-hidden="true">
+                                            <span /><span /><span /><span />
+                                        </div>
+                                        <p className="cpm-hint" aria-live="polite">
+                                            Password strength: {STRENGTH_LABELS[strength]}
+                                        </p>
+                                    </>
                                 )}
+                            </Field>
 
-                                <button
-                                    type="submit"
-                                    className="cpm-submit"
-                                    disabled={loading}
-                                    style={isRegisterMode ? { marginTop: ".4rem" } : undefined}
-                                >
-                                    {loading ? (
-                                        <>
-                                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
-                                            <span>{isRegisterMode ? "Creating account…" : "Signing in…"}</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <i
-                                                className={`fa-solid ${isRegisterMode ? "fa-user-plus" : "fa-right-to-bracket"}`}
-                                                aria-hidden="true"
-                                            />
-                                            <span>{isRegisterMode ? "Create account" : "Sign in"}</span>
-                                        </>
-                                    )}
-                                </button>
-                            </form>
+                            {!isRegisterMode && (
+                                <label className="cpm-check">
+                                    <input
+                                        type="checkbox"
+                                        checked={rememberMe}
+                                        onChange={(e) => setRememberMe(e.target.checked)}
+                                    />
+                                    Keep me signed in
+                                </label>
+                            )}
 
-                            <p className="cpm-switch">
-                                {isRegisterMode ? "Already have an account?" : "New to ChoPaeng?"}
-                                <button
-                                    type="button"
-                                    className="cpm-linkbtn"
-                                    onClick={() => {
-                                        playChimeClick();
-                                        setIsRegisterMode((m) => !m);
-                                    }}
-                                >
-                                    {isRegisterMode ? "Sign in" : "Create an account"}
-                                </button>
-                            </p>
+                            <button
+                                type="submit"
+                                className="cpm-submit"
+                                disabled={loading}
+                                style={isRegisterMode ? { marginTop: ".4rem" } : undefined}
+                            >
+                                {loading ? (
+                                    <>
+                                        <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
+                                        <span>{isRegisterMode ? "Creating account…" : "Signing in…"}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <i
+                                            className={`fa-solid ${isRegisterMode ? "fa-user-plus" : "fa-right-to-bracket"}`}
+                                            aria-hidden="true"
+                                        />
+                                        <span>{isRegisterMode ? "Create account" : "Sign in"}</span>
+                                    </>
+                                )}
+                            </button>
+                        </form>
+
+                        <p className="cpm-switch">
+                            {isRegisterMode ? "Already have an account?" : "New to ChoPaeng?"}
+                            <button
+                                type="button"
+                                className="cpm-linkbtn"
+                                onClick={() => {
+                                    playChimeClick();
+                                    setIsRegisterMode((m) => !m);
+                                }}
+                            >
+                                {isRegisterMode ? "Sign in" : "Create an account"}
+                            </button>
+                        </p>
 
                     </>
 

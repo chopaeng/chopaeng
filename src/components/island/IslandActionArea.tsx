@@ -8,6 +8,8 @@ import { getSubIslandAllowedTiers, getTierBadgeMeta } from "../../utils/subIslan
 interface IslandActionAreaProps {
     islandName?: string;
     isOrderIsland: boolean;
+    isSubIsland?: boolean;
+    hasMemberAccess?: boolean;
     canShowDodo: boolean;
     needsAuth: boolean;
     onRevealCode: () => void;
@@ -28,6 +30,8 @@ const FALLBACK_IMG =
 export const IslandActionArea: React.FC<IslandActionAreaProps> = ({
     islandName,
     isOrderIsland,
+    isSubIsland,
+    hasMemberAccess,
     canShowDodo,
     needsAuth,
     onRevealCode,
@@ -222,6 +226,42 @@ export const IslandActionArea: React.FC<IslandActionAreaProps> = ({
                     </div>
                 </div>
             </button>
+
+            {/* VIP Quick Tools for Sub Island with access */}
+            {isSubIsland && hasMemberAccess && (
+                <div className="card rounded-4 p-3 mt-3 drop-bot-suggestion-banner shadow-2xs">
+                    <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div className="d-flex align-items-center gap-2">
+                            <span
+                                className="rounded-circle d-flex align-items-center justify-content-center drop-bot-suggestion-icon flex-shrink-0"
+                                style={{ width: 34, height: 34 }}
+                            >
+                                <i className="fa-solid fa-parachute-box" />
+                            </span>
+                            <div>
+                                <strong className="d-block small fw-bold text-dark">VIP Tools for {islandName || "This Island"}</strong>
+                                <span className="tiny-text text-dark text-opacity-75">
+                                    Drop up to 9 custom items in real-time or inject villagers directly into plots 0–9.
+                                </span>
+                            </div>
+                        </div>
+                        <div className="d-flex align-items-center gap-2 flex-wrap">
+                            <Link
+                                to={`/drop?island=${encodeURIComponent(islandName || "")}`}
+                                className="btn btn-xs btn-warning text-dark rounded-pill fw-bold px-3 py-1.5 shadow-2xs hover-scale"
+                            >
+                                <i className="fa-solid fa-parachute-box me-1" /> Drop Bot (9 Slots)
+                            </Link>
+                            <Link
+                                to={`/drop?island=${encodeURIComponent(islandName || "")}&tab=villagers`}
+                                className="btn btn-xs btn-outline-dark rounded-pill fw-bold px-3 py-1.5 shadow-2xs hover-scale"
+                            >
+                                <i className="fa-solid fa-wand-magic-sparkles me-1 text-warning" /> Inject Villager
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* When user is logged in, but has no access to this island -> Upgrade / No Access card */}
             {user && needsAuth && (

@@ -10,7 +10,7 @@ interface AccountLinkingHubProps {
 }
 
 interface ProviderMeta {
-    id: "youtube" | "patreon" | "twitch";
+    id: "youtube" | "patreon" | "twitch" | "discord";
     name: string;
     icon: string;
     color: string;
@@ -21,6 +21,16 @@ interface ProviderMeta {
 }
 
 const PROVIDER_CONFIGS: ProviderMeta[] = [
+    {
+        id: "discord",
+        name: "Discord",
+        icon: "fa-brands fa-discord",
+        color: "#5865F2",
+        bgColor: "rgba(88, 101, 242, 0.06)",
+        borderColor: "rgba(88, 101, 242, 0.25)",
+        tiers: "Community Roles • Member Sub Access",
+        description: "Server roles, community status, and member perks",
+    },
     {
         id: "youtube",
         name: "YouTube",
@@ -82,7 +92,7 @@ export const AccountLinkingHub: React.FC<AccountLinkingHubProps> = ({
         return { name: "Standard Resident Pass", level: 0, islands: 0, badge: "FREE" };
     }, [activeTiers, user]);
 
-    const handleLink = (provider: "youtube" | "patreon" | "twitch") => {
+    const handleLink = (provider: "youtube" | "patreon" | "twitch" | "discord") => {
         playChimeClick();
         loginWithProvider(provider);
     };
@@ -312,7 +322,7 @@ export const AccountLinkingHub: React.FC<AccountLinkingHubProps> = ({
                             const linkedTier = accountDetail?.sub_tier;
 
                             return (
-                                <div key={prov.id} className="col-12 col-md-4">
+                                <div key={prov.id} className="col-12 col-md-6 col-lg-3">
                                     <div
                                         className="cpg-provider-box h-100"
                                         style={{

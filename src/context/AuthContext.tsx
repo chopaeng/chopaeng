@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { DODO_API_BASE } from "../config/api";
 import { AuthContext, type AuthUser, type AuthProviderType } from "./authContextShared";
 import { clearAuthToken, getAuthToken } from "./authToken";
-import { handleAccountSwitchCheck, handleLogoutStorageCleanup } from "../utils/accountStorage";
+import { handleAccountSwitchCheck, handleLogoutStorageCleanup, setUserScopedItem } from "../utils/accountStorage";
 import { checkIsSubscriberOrStaff } from "../utils/subscriberUtils";
 import { TIER_ID_TO_NAME, TIER_NAME_TO_ID } from "../config/constants";
 import { LoginModal } from "../components/LoginModal";
@@ -47,8 +47,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     connected_accounts: data.connected_accounts || {},
                     email: data.email || "",
                     has_password: Boolean(data.has_password),
+                    sub_rules_accepted: Boolean(data.sub_rules_accepted),
                 };
                 handleAccountSwitchCheck(authedUser.user_id);
+                if (data.sub_rules_accepted) {
+                    setUserScopedItem('chopaeng_sub_rules_accepted_v1', 'true', authedUser.user_id);
+                }
                 setUser(authedUser);
                 return authedUser;
             }
@@ -188,6 +192,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             expandedUserRoles.add(s);
             if (TIER_ID_TO_NAME[s]) expandedUserRoles.add(TIER_ID_TO_NAME[s]);
             if (TIER_NAME_TO_ID[s.toLowerCase()]) expandedUserRoles.add(TIER_NAME_TO_ID[s.toLowerCase()]);
+        }
+        if (user.sub_tier) {
+            const st = String(user.sub_tier).trim();
+            expandedUserRoles.add(st);
+            if (TIER_ID_TO_NAME[st]) expandedUserRoles.add(TIER_ID_TO_NAME[st]);
+            if (TIER_NAME_TO_ID[st.toLowerCase()]) expandedUserRoles.add(TIER_NAME_TO_ID[st.toLowerCase()]);
+        }
+        if (user.connected_accounts && typeof user.connected_accounts === "object") {
+            for (const acc of Object.values(user.connected_accounts)) {
+                if (acc && typeof acc === "object" && (acc as any).sub_tier) {
+                    const ct = String((acc as any).sub_tier).trim();
+                    expandedUserRoles.add(ct);
+                    if (TIER_ID_TO_NAME[ct]) expandedUserRoles.add(TIER_ID_TO_NAME[ct]);
+                    if (TIER_NAME_TO_ID[ct.toLowerCase()]) expandedUserRoles.add(TIER_NAME_TO_ID[ct.toLowerCase()]);
+                }
+            }
         }
         
         return roleIds.some(id => {

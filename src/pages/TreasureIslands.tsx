@@ -7,11 +7,14 @@ import { getAuthToken } from "../context/authToken";
 import { useFavoriteIslands } from "../hooks/useFavoriteIslands";
 import { ACNH_FINDER_API_BASE, DODO_API_BASE } from "../config/api";
 import RevealErrorPopup from "../components/RevealErrorPopup";
+import SubRulesModal from "../components/sub/SubRulesModal";
+import { isSubRulesAccepted } from "../utils/subRulesStorage";
 import DisclaimerBanner from "../components/DisclaimerBanner";
 import { HowItWorksExplainer, TREASURE_ISLANDS_EXPLAINER_CONFIG } from "../components/HowItWorksExplainer";
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
 import { openCommunityModal } from "../utils/communityPresenceApi";
 import { getIslandPlatforms } from "../utils/subIslandAccess";
+import { useSavedCharacters } from "../hooks/useSavedCharacters";
 
 type SearchMode = "FILTER" | "ITEM" | "VILLAGER";
 type FilterKey = "ALL" | IslandCategory | "favorites";
@@ -100,12 +103,15 @@ const TreasureIslands = () => {
     const { islands, loading } = useIslandData();
     const { user, login, canAccessIsland } = useAuth();
     const { isFavoriteIsland, toggleFavoriteIsland } = useFavoriteIslands();
+    const { hasSavedCharacters } = useSavedCharacters();
 
     const [filter, setFilter] = useState<FilterKey>("ALL");
     const [sortBy, setSortBy] = useState<SortOption>("DEFAULT");
     const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({});
     const [revealingId, setRevealingId] = useState<string | null>(null);
     const [revealError, setRevealError] = useState<string | null>(null);
+    const [pendingSubIsland, setPendingSubIsland] = useState<IslandData | null>(null);
+    const [showSubRulesModal, setShowSubRulesModal] = useState(false);
     const [selectedMap, setSelectedMap] = useState<IslandData | null>(null);
     const revealingIdsRef = useRef<Set<string>>(new Set());
     const lastRevealTimestamps = useRef<Map<string, number>>(new Map());
@@ -230,6 +236,24 @@ const TreasureIslands = () => {
             login();
             return;
         }
+
+        // Must save in-game character before revealing Dodo codes
+        if (!hasSavedCharacters) {
+            setRevealError(
+                "You must save your In-Game Character (IGN & Island Name) first before you can reveal Dodo codes. Please add your character in your <a href=\"/profile\">Profile Settings</a>."
+            );
+            return;
+        }
+
+        // Sub Member Rules prerequisite - only for Sub members (one time only)
+        const isSubIsland = island.cat === "member";
+        const isSubMember = Boolean(user?.is_subscriber || user?.sub_tier || user?.is_mod || user?.is_admin);
+        if (isSubIsland && isSubMember && !isSubRulesAccepted(user?.user_id)) {
+            setPendingSubIsland(island);
+            setShowSubRulesModal(true);
+            return;
+        }
+
         // Debounce: ignore rapid re-reveals within 2 seconds per island
         const now = Date.now();
         const lastReveal = lastRevealTimestamps.current.get(island.id) ?? 0;
@@ -992,6 +1016,23 @@ const TreasureIslands = () => {
             {revealError && (
                 <RevealErrorPopup message={revealError} onClose={() => setRevealError(null)} />
             )}
+
+            <SubRulesModal
+                isOpen={showSubRulesModal}
+                onClose={() => {
+                    setShowSubRulesModal(false);
+                    setPendingSubIsland(null);
+                }}
+                onAccept={() => {
+                    setShowSubRulesModal(false);
+                    if (pendingSubIsland) {
+                        const targetIsland = pendingSubIsland;
+                        setPendingSubIsland(null);
+                        onRevealCode(targetIsland);
+                    }
+                }}
+                userId={user?.user_id}
+            />
         </div>
     );
 };

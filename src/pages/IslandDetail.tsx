@@ -7,7 +7,10 @@ import { useAuth } from "../context/useAuth";
 import { getAuthToken } from "../context/authToken";
 import { useFavoriteIslands } from "../hooks/useFavoriteIslands";
 import { fetchBotStatus, type BotStatusResponse } from "../utils/orderBotApi";
+import { useSavedCharacters } from "../hooks/useSavedCharacters";
 import RevealErrorPopup from "../components/RevealErrorPopup";
+import SubRulesModal from "../components/sub/SubRulesModal";
+import { isSubRulesAccepted } from "../utils/subRulesStorage";
 import DisclaimerBanner from "../components/DisclaimerBanner";
 import { DODO_API_BASE } from "../config/api";
 import { 
@@ -117,11 +120,13 @@ const IslandDetail = () => {
     const { islands, villagersMap, loading } = useIslandData();
     const { user, login, canAccessIsland, refreshAuth } = useAuth();
     const { isFavoriteIsland, toggleFavoriteIsland } = useFavoriteIslands();
+    const { hasSavedCharacters } = useSavedCharacters();
 
     const [showImageModal, setShowImageModal] = useState(false);
     const [revealedCode, setRevealedCode] = useState<string | null>(null);
     const [isRevealing, setIsRevealing] = useState(false);
     const [revealError, setRevealError] = useState<string | null>(null);
+    const [showSubRulesModal, setShowSubRulesModal] = useState(false);
     const [botStatus, setBotStatus] = useState<BotStatusResponse | null>(null);
     const [botLoading, setBotLoading] = useState(false);
     const [isRefreshingRoles, setIsRefreshingRoles] = useState(false);
@@ -284,6 +289,20 @@ const IslandDetail = () => {
             navigate("/membership");
             return;
         }
+        if (!hasSavedCharacters) {
+            setRevealError(
+                "You must save your In-Game Character (IGN & Island Name) first before you can reveal Dodo codes. Please add your character in your <a href=\"/profile\">Profile Settings</a>."
+            );
+            return;
+        }
+
+        // Sub Member Rules prerequisite - only for Sub members (one time only)
+        const isSubMember = Boolean(user?.is_subscriber || user?.sub_tier || user?.is_mod || user?.is_admin);
+        if (isSubIsland && isSubMember && !isSubRulesAccepted(user?.user_id)) {
+            setShowSubRulesModal(true);
+            return;
+        }
+
         if (revealInFlightRef.current) return;
 
         revealInFlightRef.current = true;
@@ -442,6 +461,26 @@ const IslandDetail = () => {
                                 <span className="d-sm-none">Radar</span>
                             </button>
                         )}
+                        {isOrderIsland && (
+                            <Link
+                                to="/order"
+                                className="btn btn-sm btn-nook rounded-pill px-3 py-2 fw-bold text-white d-flex align-items-center gap-1.5 shadow-sm transition-all hover-scale"
+                                title="Open 40-Slot Order Bot"
+                            >
+                                <i className="fa-solid fa-paper-plane"></i>
+                                <span>Order Bot</span>
+                            </Link>
+                        )}
+                        {isSubIsland && hasMemberAccess && (
+                            <Link
+                                to={`/drop?island=${encodeURIComponent(island.name)}`}
+                                className="btn btn-sm btn-warning text-dark rounded-pill px-3 py-2 fw-bold d-flex align-items-center gap-1.5 shadow-sm transition-all hover-scale"
+                                title={`Launch Drop Bot for ${island.name}`}
+                            >
+                                <i className="fa-solid fa-parachute-box"></i>
+                                <span className="d-none d-sm-inline">Drop Bot</span>
+                            </Link>
+                        )}
                         <button
                             type="button"
                             onClick={(e) => toggleFavoriteIsland(island.id, e)}
@@ -581,6 +620,36 @@ const IslandDetail = () => {
                                                     <span>Scan Ground Items</span>
                                                 </button>
                                             )}
+                                            {isOrderIsland && (
+                                                <Link
+                                                    to="/order"
+                                                    className="btn btn-xs rounded-pill px-2.5 py-1 fw-bold text-white border border-white border-opacity-40 d-inline-flex align-items-center gap-1 hover-scale"
+                                                    style={{
+                                                        background: 'rgba(16, 185, 129, 0.4)',
+                                                        fontSize: '0.74rem',
+                                                        backdropFilter: 'blur(4px)',
+                                                    }}
+                                                    title="Open Order Bot"
+                                                >
+                                                    <i className="fa-solid fa-paper-plane text-warning"></i>
+                                                    <span>Order Bot</span>
+                                                </Link>
+                                            )}
+                                            {isSubIsland && hasMemberAccess && (
+                                                <Link
+                                                    to={`/drop?island=${encodeURIComponent(island.name)}`}
+                                                    className="btn btn-xs rounded-pill px-2.5 py-1 fw-bold text-white border border-white border-opacity-40 d-inline-flex align-items-center gap-1 hover-scale"
+                                                    style={{
+                                                        background: 'rgba(245, 158, 11, 0.45)',
+                                                        fontSize: '0.74rem',
+                                                        backdropFilter: 'blur(4px)',
+                                                    }}
+                                                    title={`Drop items & inject villagers on ${island.name}`}
+                                                >
+                                                    <i className="fa-solid fa-parachute-box text-warning"></i>
+                                                    <span>Drop &amp; Inject</span>
+                                                </Link>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="d-flex align-items-center gap-2">
@@ -649,10 +718,23 @@ const IslandDetail = () => {
 
                                 {!isOrderIsland && (
                                 <div className="mb-4">
-                                    <h5 className="notebook-heading">
-                                        <i className="fa-solid fa-house-user me-2 text-nook"></i>
-                                        Current Residents
-                                    </h5>
+                                    <div className="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                                        <h5 className="notebook-heading mb-0">
+                                            <i className="fa-solid fa-house-user me-2 text-nook"></i>
+                                            Current Residents
+                                        </h5>
+                                        {isSubIsland && hasMemberAccess && (
+                                            <Link
+                                                to={`/drop?island=${encodeURIComponent(island.name)}&tab=villagers`}
+                                                className="btn btn-xs btn-outline-warning rounded-pill px-3 py-1 fw-bold d-inline-flex align-items-center gap-1.5 shadow-2xs hover-scale"
+                                                style={{ fontSize: '0.75rem' }}
+                                                title={`Inject a villager into plots 0–9 on ${island.name}`}
+                                            >
+                                                <i className="fa-solid fa-wand-magic-sparkles text-warning"></i>
+                                                <span>Inject Villager (Plots 0–9)</span>
+                                            </Link>
+                                        )}
+                                    </div>
                                     {loading ? (
                                         <div className="notebook-lines p-2 text-muted fst-italic">
                                             <i className="fa-solid fa-circle-notch fa-spin me-2"></i> Scanning resident list...
@@ -671,8 +753,117 @@ const IslandDetail = () => {
                                 </div>
                                 )}
 
-                                {/* Subtle Order Bot banner for regular treasure islands */}
-                                {!isOrderIsland && (
+                                {/* Contextual Bot Suggestions based on Island Type & Access */}
+                                {isOrderIsland && (
+                                    <div className="card rounded-4 p-3 order-bot-suggestion-banner shadow-2xs mb-4">
+                                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                            <div className="d-flex align-items-center gap-2">
+                                                <span
+                                                    className="rounded-circle d-flex align-items-center justify-content-center order-bot-suggestion-icon flex-shrink-0"
+                                                    style={{ width: 36, height: 36 }}
+                                                >
+                                                    <i className="fa-solid fa-paper-plane"></i>
+                                                </span>
+                                                <div>
+                                                    <strong className="d-block small fw-bold">Ready to Place an Order?</strong>
+                                                    <span className="tiny-text text-muted">Use our 40-slot Order Bot to have custom items, DIYs, materials, or villagers delivered to your town.</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="d-flex gap-2 align-items-center flex-wrap">
+                                                <Link
+                                                    to="/command-builder"
+                                                    className="btn btn-xs btn-outline-success rounded-pill fw-bold px-3 py-1 shadow-2xs hover-scale"
+                                                >
+                                                    <i className="fa-solid fa-cubes-stacked me-1"></i>Command Builder
+                                                </Link>
+                                                <Link
+                                                    to="/order"
+                                                    className="btn btn-xs btn-nook text-white rounded-pill fw-bold px-3 py-1 shadow-2xs hover-scale"
+                                                >
+                                                    <i className="fa-solid fa-paper-plane me-1"></i>Order Bot (40 Slots)
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {isSubIsland && hasMemberAccess && (
+                                    <div className="card rounded-4 p-3 drop-bot-suggestion-banner shadow-2xs mb-4">
+                                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                            <div className="d-flex align-items-center gap-2">
+                                                <span
+                                                    className="rounded-circle d-flex align-items-center justify-content-center drop-bot-suggestion-icon flex-shrink-0"
+                                                    style={{ width: 36, height: 36 }}
+                                                >
+                                                    <i className="fa-solid fa-parachute-box"></i>
+                                                </span>
+                                                <div>
+                                                    <div className="d-flex align-items-center gap-2">
+                                                        <strong className="d-block small fw-bold text-dark">VIP Drop &amp; Villager Injector Available</strong>
+                                                        <span className="badge bg-warning text-dark px-2 py-0.5 rounded-pill fw-bold" style={{ fontSize: '0.65rem' }}>Sub Access</span>
+                                                    </div>
+                                                    <span className="tiny-text text-dark text-opacity-75">
+                                                        Drop up to 9 custom items in real-time or inject any villager directly into {island.name}'s plots 0–9.
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="d-flex gap-2 align-items-center flex-wrap">
+                                                <Link
+                                                    to={`/drop?island=${encodeURIComponent(island.name)}`}
+                                                    className="btn btn-xs btn-warning text-dark rounded-pill fw-bold px-3 py-1 shadow-2xs hover-scale"
+                                                >
+                                                    <i className="fa-solid fa-parachute-box me-1"></i>Drop Bot (9 Slots)
+                                                </Link>
+                                                <Link
+                                                    to={`/drop?island=${encodeURIComponent(island.name)}&tab=villagers`}
+                                                    className="btn btn-xs btn-outline-dark rounded-pill fw-bold px-3 py-1 shadow-2xs hover-scale"
+                                                >
+                                                    <i className="fa-solid fa-wand-magic-sparkles me-1 text-warning"></i>Inject Villager
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {isSubIsland && !hasMemberAccess && (
+                                    <div className="card rounded-4 p-3 island-no-access-card shadow-2xs mb-4">
+                                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                            <div className="d-flex align-items-center gap-2">
+                                                <span
+                                                    className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                                    style={{ width: 36, height: 36, background: 'rgba(245, 158, 11, 0.2)', color: '#d97706' }}
+                                                >
+                                                    <i className="fa-solid fa-crown"></i>
+                                                </span>
+                                                <div>
+                                                    <strong className="d-block small fw-bold">Subscriber-Only Island Perks</strong>
+                                                    <span className="tiny-text text-muted">
+                                                        Subscribers get live Dodo codes, 9-slot real-time item drops, and instant villager injections on {island.name}.
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="d-flex gap-2 align-items-center flex-wrap">
+                                                <Link
+                                                    to="/membership"
+                                                    className="btn btn-xs btn-outline-warning rounded-pill fw-bold px-3 py-1 shadow-2xs hover-scale"
+                                                >
+                                                    <i className="fa-solid fa-crown me-1"></i>Membership Info
+                                                </Link>
+                                                <Link
+                                                    to="/membership/tiers"
+                                                    className="btn btn-xs btn-warning text-dark rounded-pill fw-bold px-3 py-1 shadow-2xs hover-scale"
+                                                >
+                                                    <i className="fa-solid fa-key me-1"></i>Unlock Access
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {isFreeIsland && (
                                     <div className="card rounded-4 p-3 order-bot-suggestion-banner shadow-2xs mb-4">
                                         <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
                                             <div className="d-flex align-items-center gap-2">
@@ -684,20 +875,20 @@ const IslandDetail = () => {
                                                 </span>
                                                 <div>
                                                     <strong className="d-block small fw-bold">Need Specific Items Delivered?</strong>
-                                                    <span className="tiny-text text-muted">Use our 40-slot Order Bot for custom item & villager delivery.</span>
+                                                    <span className="tiny-text text-muted">Use our 40-slot Order Bot for custom item &amp; villager delivery to your own island.</span>
                                                 </div>
                                             </div>
 
-                                            <div className="d-flex gap-2 align-items-center">
+                                            <div className="d-flex gap-2 align-items-center flex-wrap">
                                                 <Link
                                                     to="/command-builder"
-                                                    className="btn btn-xs btn-outline-success rounded-pill fw-bold px-3 py-1 shadow-2xs"
+                                                    className="btn btn-xs btn-outline-success rounded-pill fw-bold px-3 py-1 shadow-2xs hover-scale"
                                                 >
                                                     <i className="fa-solid fa-cubes-stacked me-1"></i>Build
                                                 </Link>
                                                 <Link
                                                     to="/order"
-                                                    className="btn btn-xs btn-nook text-white rounded-pill fw-bold px-3 py-1 shadow-2xs"
+                                                    className="btn btn-xs btn-nook text-white rounded-pill fw-bold px-3 py-1 shadow-2xs hover-scale"
                                                 >
                                                     <i className="fa-solid fa-paper-plane me-1"></i>Order Bot
                                                 </Link>
@@ -710,6 +901,8 @@ const IslandDetail = () => {
                                     <IslandActionArea 
                                         islandName={island.name}
                                         isOrderIsland={isOrderIsland}
+                                        isSubIsland={isSubIsland}
+                                        hasMemberAccess={hasMemberAccess}
                                         canShowDodo={canShowDodo}
                                         needsAuth={needsAuth}
                                         onRevealCode={onRevealCode}
@@ -739,6 +932,16 @@ const IslandDetail = () => {
             />
 
             {revealError && <RevealErrorPopup message={revealError} onClose={() => setRevealError(null)} />}
+
+            <SubRulesModal
+                isOpen={showSubRulesModal}
+                onClose={() => setShowSubRulesModal(false)}
+                onAccept={() => {
+                    setShowSubRulesModal(false);
+                    onRevealCode();
+                }}
+                userId={user?.user_id}
+            />
 
             {/* VISIBLE UNOFFICIAL FAN-SITE DISCLAIMER */}
             <DisclaimerBanner variant="footer" style={{ maxWidth: "1050px" }} />

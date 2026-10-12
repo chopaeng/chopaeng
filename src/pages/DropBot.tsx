@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { useIslandData } from '../context/useIslandData';
 import { type IslandData } from '../data/islands';
@@ -19,6 +19,10 @@ import {
     revealIslandDodoCode,
 } from '../utils/dropBotApi';
 import type { CatalogEntity } from '../data/commandBuilderData';
+import { useSavedCharacters } from '../hooks/useSavedCharacters';
+import SubRulesModal from '../components/sub/SubRulesModal';
+import { isSubRulesAccepted } from '../utils/subRulesStorage';
+import RevealErrorPopup from '../components/RevealErrorPopup';
 import './OrderBot.css';
 
 const FALLBACK_IMG =
@@ -52,8 +56,16 @@ const DROP_PRESETS = [
 ];
 
 export const DropBot: React.FC = () => {
+    const [searchParams] = useSearchParams();
+    const urlIsland = searchParams.get('island');
+    const urlTab = searchParams.get('tab');
+
     const { user, loading: authLoading, login } = useAuth();
     const { islands, loading: islandsLoading } = useIslandData();
+    const { hasSavedCharacters } = useSavedCharacters();
+    const [showSubRulesModal, setShowSubRulesModal] = useState(false);
+    const [pendingDodoIsland, setPendingDodoIsland] = useState<IslandData | null>(null);
+    const [revealPopupError, setRevealPopupError] = useState<string | null>(null);
     const { data: catalogData, isLoading: catalogLoading } = useCatalogData();
     const { favorites, isFavorite, toggleFavorite } = useFavorites();
 
@@ -171,6 +183,34 @@ export const DropBot: React.FC = () => {
         return islands;
     }, [islands, subMemberIslands, freeTreasureIslands, unlockedIslands, dropFilter]);
 
+    // Handle URL query parameters (?island=...&tab=...)
+    useEffect(() => {
+        if (urlTab === 'villagers' || urlTab === 'items' || urlTab === 'favorites') {
+            setActiveTab(urlTab);
+        }
+    }, [urlTab]);
+
+    useEffect(() => {
+        if (urlIsland && islands.length > 0) {
+            const clean = urlIsland.trim().toLowerCase();
+            const matched = islands.find(
+                (i) =>
+                    i.name.toLowerCase() === clean ||
+                    i.id.toLowerCase() === clean ||
+                    (i.canonicalName && i.canonicalName.toLowerCase() === clean)
+            );
+            if (matched) {
+                setSelectedDropIsland(matched);
+                if (matched.cat === 'member' || matched.type?.toLowerCase().includes('sub') || matched.type === 'VIP') {
+                    setDropFilter('sub');
+                }
+                if (matched.dodoCode && matched.dodoCode !== 'SUB ONLY' && matched.dodoCode !== '.....') {
+                    setDropDodoCode(matched.dodoCode);
+                }
+            }
+        }
+    }, [urlIsland, islands]);
+
     // Auto-select first accessible island
     useEffect(() => {
         if (!selectedDropIsland && islands.length > 0) {
@@ -263,6 +303,21 @@ export const DropBot: React.FC = () => {
     // ── Handlers ──
     const handleGetDodo = async (island: IslandData | null) => {
         if (!island) return;
+
+        // Require saved in-game character before revealing Dodo codes
+        if (!hasSavedCharacters) {
+            setRevealPopupError('You must save your In-Game Character (IGN & Island Name) first before you can reveal Dodo codes. Please add your character in Profile Settings.');
+            return;
+        }
+
+        // Require one-time Sub Rules acknowledgment for Sub members / Sub islands
+        const isSubMember = Boolean(user?.is_subscriber || user?.sub_tier || island.cat === 'member');
+        if (isSubMember && !isSubRulesAccepted(user?.user_id)) {
+            setPendingDodoIsland(island);
+            setShowSubRulesModal(true);
+            return;
+        }
+
         setDropDodoLoading(true);
         setDropDodoError(null);
         playSound();
@@ -277,13 +332,26 @@ export const DropBot: React.FC = () => {
                     message: `Dodo code revealed for ${island.name}: ${res.dodoCode}! Head to the airport to fly.`,
                 });
             } else {
-                setDropDodoError(res.error || 'Unable to retrieve Dodo code.');
+                const errMsg = res.error || 'Unable to retrieve Dodo code.';
+                setDropDodoError(errMsg);
+                if ((res as any).requires_character || /character|ign|island name/i.test(errMsg)) {
+                    setRevealPopupError(errMsg);
+                }
             }
         } catch (e: any) {
             console.error(e);
             setDropDodoError('Network error while retrieving Dodo code. Please try again.');
         } finally {
             setDropDodoLoading(false);
+        }
+    };
+
+    const handleSubRulesAccepted = () => {
+        setShowSubRulesModal(false);
+        if (pendingDodoIsland) {
+            const target = pendingDodoIsland;
+            setPendingDodoIsland(null);
+            handleGetDodo(target);
         }
     };
 
@@ -1626,6 +1694,26 @@ export const DropBot: React.FC = () => {
                     getDropPocketQuantity={getDropPocketQuantity}
                     isFavorite={isFavorite(variantModalItem.id)}
                     onToggleFavorite={(id) => toggleFavorite(id)}
+                />
+            )}
+
+            {/* Sub Rules Modal (One-time only for Sub members) */}
+            {showSubRulesModal && (
+                <SubRulesModal
+                    isOpen={showSubRulesModal}
+                    onClose={() => {
+                        setShowSubRulesModal(false);
+                        setPendingDodoIsland(null);
+                    }}
+                    onAccept={handleSubRulesAccepted}
+                />
+            )}
+
+            {/* Error Popup with direct Profile link if character is missing */}
+            {revealPopupError && (
+                <RevealErrorPopup
+                    message={revealPopupError}
+                    onClose={() => setRevealPopupError(null)}
                 />
             )}
         </div>

@@ -91,8 +91,16 @@ export function getUserSubTiers(user: AuthUser | null | undefined): string[] {
     if (!user) return [];
     const tiers = new Set<string>();
 
-    if (user.sub_tier && typeof user.sub_tier === "string") {
-        tiers.add(user.sub_tier);
+    if (user.sub_tier && typeof user.sub_tier === "string" && user.sub_tier.trim()) {
+        tiers.add(user.sub_tier.trim());
+    }
+
+    if (user.connected_accounts && typeof user.connected_accounts === "object") {
+        for (const acc of Object.values(user.connected_accounts)) {
+            if (acc && typeof acc === "object" && (acc as any).sub_tier) {
+                tiers.add(String((acc as any).sub_tier).trim());
+            }
+        }
     }
 
     if (Array.isArray(user.roles)) {

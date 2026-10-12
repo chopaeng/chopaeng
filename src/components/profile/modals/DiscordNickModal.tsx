@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 
 interface DiscordNickModalProps {
     isOpen: boolean;
@@ -29,32 +29,93 @@ export const DiscordNickModal: React.FC<DiscordNickModalProps> = ({
     nickModalMessage,
     onSave,
 }) => {
+    const modalRef = useRef<HTMLDivElement | null>(null);
+    const previousActiveElementRef = useRef<HTMLElement | null>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        previousActiveElementRef.current = document.activeElement as HTMLElement | null;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+
+        const timer = setTimeout(() => {
+            const input = modalRef.current?.querySelector<HTMLInputElement>("input#discordNickInput");
+            input?.focus();
+        }, 50);
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                e.preventDefault();
+                onClose();
+                return;
+            }
+
+            if (e.key === "Tab" && modalRef.current) {
+                const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                );
+                if (focusable.length === 0) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+
+                if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault();
+                    last.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+
+        return () => {
+            clearTimeout(timer);
+            document.body.style.overflow = previousOverflow;
+            window.removeEventListener("keydown", handleKeyDown);
+            if (previousActiveElementRef.current && typeof previousActiveElementRef.current.focus === "function") {
+                previousActiveElementRef.current.focus();
+            }
+        };
+    }, [isOpen, onClose]);
+
     if (!isOpen) return null;
 
     return (
         <div
             className="modal show d-block"
             style={{
-                backgroundColor: "rgba(0, 0, 0, 0.65)",
+                backgroundColor: "rgba(29, 51, 40, 0.65)",
                 zIndex: 1060,
                 backdropFilter: "blur(4px)",
             }}
             tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="discord-nick-modal-title"
             onClick={onClose}
         >
             <div
+                ref={modalRef}
                 className="modal-dialog modal-dialog-centered"
                 style={{ maxWidth: "520px" }}
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="modal-content rounded-4 border-0 shadow-lg overflow-hidden animate-fade">
+                <div
+                    className="modal-content border-0 overflow-hidden"
+                    style={{
+                        borderRadius: "26px",
+                        boxShadow: "0 20px 45px -12px rgba(29, 51, 40, 0.35)",
+                    }}
+                >
                     <div
                         className="modal-header text-white p-3 px-4"
-                        style={{ background: "linear-gradient(135deg, #5865F2 0%, #4752C4 100%)" }}
+                        style={{ background: "#5865F2" }}
                     >
                         <div className="d-flex align-items-center gap-2">
                             <div
-                                className="icon-bubble bg-white bg-opacity-20 text-white"
                                 style={{
                                     width: 36,
                                     height: 36,
@@ -62,15 +123,17 @@ export const DiscordNickModal: React.FC<DiscordNickModalProps> = ({
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
+                                    background: "rgba(255, 255, 255, 0.2)",
                                 }}
+                                aria-hidden="true"
                             >
-                                <i className="fa-brands fa-discord"></i>
+                                <i className="fa-brands fa-discord" />
                             </div>
                             <div>
-                                <h5 className="modal-title ac-font fw-bold mb-0 text-white">
-                                    Update Discord Server Nickname
-                                </h5>
-                                <span className="tiny-text text-white text-opacity-75">
+                                <h2 id="discord-nick-modal-title" className="h6 ac-font fw-bold mb-0 text-white">
+                                    Update Discord server nickname
+                                </h2>
+                                <span style={{ fontSize: "0.78rem", color: "rgba(255, 255, 255, 0.85)" }}>
                                     Syncs directly to ChoPaeng Discord server
                                 </span>
                             </div>
@@ -79,15 +142,16 @@ export const DiscordNickModal: React.FC<DiscordNickModalProps> = ({
                             type="button"
                             className="btn-close btn-close-white"
                             onClick={onClose}
-                            aria-label="Close"
+                            aria-label="Close dialog"
                         />
                     </div>
 
                     <form onSubmit={onSave}>
-                        <div className="modal-body p-4">
+                        <div className="p-4" style={{ background: "#fff" }}>
                             {nickModalMessage && (
                                 <div
-                                    className={`alert alert-${nickModalMessage.type} p-3 rounded-3 small mb-3 animate-fade d-flex align-items-center gap-2`}
+                                    className={`alert alert-${nickModalMessage.type} p-3 rounded-3 small mb-3 d-flex align-items-center gap-2`}
+                                    role="alert"
                                 >
                                     <i
                                         className={`fa-solid ${
@@ -95,16 +159,20 @@ export const DiscordNickModal: React.FC<DiscordNickModalProps> = ({
                                                 ? "fa-circle-check text-success"
                                                 : "fa-circle-exclamation text-danger"
                                         } flex-shrink-0`}
-                                    ></i>
+                                        aria-hidden="true"
+                                    />
                                     <span>{nickModalMessage.text}</span>
                                 </div>
                             )}
 
-                            {/* Discord Visual Preview Box */}
-                            <label className="text-uppercase tiny-text fw-bold text-muted d-block mb-1">
-                                Discord Member Preview
+                            {/* Discord Member Preview */}
+                            <label className="small fw-bold d-block mb-1" style={{ color: "#1d3328" }}>
+                                Discord member preview
                             </label>
-                            <div className="discord-chat-preview-box mb-3 d-flex align-items-center gap-3">
+                            <div
+                                className="mb-3 d-flex align-items-center gap-3 p-3 rounded-3 border"
+                                style={{ background: "#f8f9fa", borderColor: "#cfdcd3" }}
+                            >
                                 <img
                                     src={
                                         profileUser?.avatar ||
@@ -112,24 +180,24 @@ export const DiscordNickModal: React.FC<DiscordNickModalProps> = ({
                                         "https://cdn.discordapp.com/embed/avatars/0.png"
                                     }
                                     alt="Avatar"
-                                    className="discord-avatar-circle shadow-2xs"
+                                    style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover" }}
                                 />
                                 <div className="overflow-hidden">
                                     <div className="d-flex align-items-center gap-2">
-                                        <span className="discord-member-name text-truncate">
+                                        <span className="text-truncate fw-bold" style={{ color: "#1d3328" }}>
                                             {newDiscordNick.trim() ||
                                                 profileUser?.discord_name ||
                                                 authUser?.username ||
                                                 "Resident"}
                                         </span>
                                         <span
-                                            className="badge bg-secondary text-white tiny-text py-0 px-1"
+                                            className="badge bg-secondary text-white py-0 px-1"
                                             style={{ fontSize: "0.65rem" }}
                                         >
-                                            MEMBER
+                                            Member
                                         </span>
                                     </div>
-                                    <span className="tiny-text text-secondary d-block">
+                                    <span style={{ fontSize: "0.78rem", color: "#5b6e63" }}>
                                         @{profileUser?.discord_name || authUser?.username}
                                     </span>
                                 </div>
@@ -139,41 +207,56 @@ export const DiscordNickModal: React.FC<DiscordNickModalProps> = ({
                             <div className="mb-3">
                                 <div className="d-flex align-items-center justify-content-between mb-1">
                                     <label
-                                        className="text-uppercase tiny-text fw-bold text-dark"
+                                        className="small fw-bold mb-0"
                                         htmlFor="discordNickInput"
+                                        style={{ color: "#1d3328" }}
                                     >
-                                        Server Nickname
+                                        Server nickname
                                     </label>
                                     <span
-                                        className={`tiny-text font-monospace ${
+                                        className={`font-monospace ${
                                             newDiscordNick.length > 32 ? "text-danger fw-bold" : "text-muted"
                                         }`}
+                                        style={{ fontSize: "0.78rem" }}
                                     >
-                                        {newDiscordNick.length} / 32 chars
+                                        {newDiscordNick.length} / 32 characters
                                     </span>
                                 </div>
                                 <input
                                     id="discordNickInput"
                                     type="text"
                                     maxLength={32}
-                                    className="form-control rounded-3 font-monospace fw-bold"
+                                    className="form-control"
+                                    style={{
+                                        borderRadius: "14px",
+                                        border: "1.5px solid #cfdcd3",
+                                    }}
                                     placeholder="e.g. Character Name | Island Name"
                                     value={newDiscordNick}
                                     onChange={(e) => setNewDiscordNick(e.target.value)}
                                     required
                                     autoFocus
                                 />
-                                <span className="tiny-text text-muted d-block mt-1">
-                                    <i className="fa-solid fa-circle-info me-1 text-primary"></i>
-                                    Server standard format: <code>Character Name | Island Name</code>. Max 32 characters.
+                                <span className="d-block mt-1" style={{ fontSize: "0.78rem", color: "#5b6e63" }}>
+                                    <i className="fa-solid fa-circle-info me-1 text-primary" aria-hidden="true" />
+                                    Server standard format: <code>Character Name | Island Name</code> (max 32 characters).
                                 </span>
                             </div>
                         </div>
 
-                        <div className="modal-footer border-top bg-light p-3 px-4 d-flex justify-content-between align-items-center">
+                        <div
+                            className="p-3 px-4 d-flex justify-content-end align-items-center gap-2 border-top"
+                            style={{ background: "#f6faf7", borderColor: "#cfdcd3" }}
+                        >
                             <button
                                 type="button"
-                                className="btn btn-outline-secondary rounded-pill fw-bold px-4"
+                                className="btn fw-bold px-3 py-2 small"
+                                style={{
+                                    borderRadius: "14px",
+                                    border: "1.5px solid #cfdcd3",
+                                    background: "#fff",
+                                    color: "#1d3328",
+                                }}
                                 onClick={onClose}
                                 disabled={updatingNick}
                             >
@@ -182,11 +265,16 @@ export const DiscordNickModal: React.FC<DiscordNickModalProps> = ({
                             <button
                                 type="submit"
                                 disabled={updatingNick || !newDiscordNick.trim() || newDiscordNick.length > 32}
-                                className="btn btn-primary fw-bold rounded-pill px-4 shadow-sm d-flex align-items-center gap-2"
-                                style={{ backgroundColor: "#5865F2", borderColor: "#5865F2" }}
+                                className="btn fw-bold px-4 py-2 small text-white d-flex align-items-center gap-2"
+                                style={{
+                                    borderRadius: "14px",
+                                    backgroundColor: "#5865F2",
+                                    borderColor: "#5865F2",
+                                    boxShadow: "0 4px 0 #4752C4",
+                                }}
                             >
-                                <i className={updatingNick ? "fa-solid fa-spinner fa-spin" : "fa-brands fa-discord"}></i>
-                                <span>{updatingNick ? "Updating Discord..." : "Update on Discord"}</span>
+                                <i className={updatingNick ? "fa-solid fa-spinner fa-spin" : "fa-brands fa-discord"} aria-hidden="true" />
+                                <span>{updatingNick ? "Updating Discord…" : "Update on Discord"}</span>
                             </button>
                         </div>
                     </form>

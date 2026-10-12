@@ -5,7 +5,7 @@ import { playChimeClick } from "../utils/kkAudioSynthesizer";
 import DisclaimerBanner from "../components/DisclaimerBanner";
 import { AccountLinkingHub } from "../components/auth/AccountLinkingHub";
 
-type SignInProvider = "youtube" | "twitch" | "patreon";
+type SignInProvider = "youtube" | "twitch" | "patreon" | "discord";
 
 interface MembershipPlatform {
     id: string;
@@ -26,6 +26,27 @@ interface MembershipPlatform {
 }
 
 const platforms: MembershipPlatform[] = [
+    {
+        id: "discord",
+        name: "Discord",
+        badge: "Server Member",
+        tagline: "Sync Discord server perks",
+        description:
+            "Connect your Discord account to sync server roles, subscriber channel access, and chat privileges.",
+        icon: "fa-brands fa-discord",
+        url: "https://discord.gg/chopaeng",
+        cta: "Sign in with Discord",
+        brandColor: "#5865f2",
+        ctaColor: "#4752c4",
+        signInId: "discord",
+        perks: [
+            "Sync server sub & booster roles",
+            "Access member-exclusive treasure islands",
+            "Order bot & private island commands",
+            "Community events & giveaways",
+            "Direct moderator & community support",
+        ],
+    },
     {
         id: "youtube",
         name: "YouTube",

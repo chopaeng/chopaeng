@@ -109,7 +109,7 @@ export const fetchCharactersFromDb = async (token?: string | null): Promise<Save
         if (res.ok) {
             const data = await res.json();
             const list = Array.isArray(data.characters) ? data.characters : (Array.isArray(data) ? data : null);
-            if (list && list.length > 0) {
+            if (Array.isArray(list)) {
                 return list;
             }
         }
@@ -145,33 +145,14 @@ export const useSavedCharacters = (rawDiscordName?: string | null) => {
         setIsSyncingDb(true);
         fetchCharactersFromDb(token).then((dbChars) => {
             const uid = getActiveUserId();
-            if (dbChars && dbChars.length > 0) {
+            if (Array.isArray(dbChars)) {
                 saveStoredCharacters(dbChars, uid);
                 setCharacters(dbChars);
-            } else {
-                const current = getStoredCharacters(uid);
-                if (current.length === 0 && rawDiscordName) {
-                    const parsed = parseDiscordNicknameToCharacters(rawDiscordName);
-                    if (parsed.length > 0) {
-                        const initialChars: SavedCharacter[] = parsed.slice(0, maxSlots).map((p, idx) => ({
-                            id: `char_dc_${Date.now()}_${idx}`,
-                            ign: p.ign,
-                            islandName: p.islandName,
-                            icon: idx === 0 ? 'fa-crown' : 'fa-leaf',
-                            isDefault: idx === 0,
-                            createdAt: new Date().toISOString(),
-                            source: 'discord',
-                        }));
-                        saveStoredCharacters(initialChars, uid);
-                        setCharacters(initialChars);
-                        saveCharactersToDb(initialChars, token).catch(() => {});
-                    }
-                }
             }
         }).finally(() => {
             setIsSyncingDb(false);
         });
-    }, [rawDiscordName, maxSlots]);
+    }, []);
 
     // Initial load and sync
     useEffect(() => {
@@ -203,15 +184,20 @@ export const useSavedCharacters = (rawDiscordName?: string | null) => {
 
 
 
-    // Active character fallback
+    // Active character fallback - never auto-fill fake names or discord handles
     const activeCharacter: SavedCharacter = characters.find((c) => c.isDefault) ||
         characters[0] || {
-            id: 'char_default',
-            ign: rawDiscordName ? parseDiscordNicknameToCharacters(rawDiscordName)[0]?.ign || rawDiscordName : 'Resident',
-            islandName: rawDiscordName ? parseDiscordNicknameToCharacters(rawDiscordName)[0]?.islandName || 'Island' : 'Island',
+            id: '',
+            ign: '',
+            islandName: '',
             icon: 'fa-leaf',
-            isDefault: true,
+            isDefault: false,
         };
+
+    const hasSavedCharacters = Boolean(
+        characters.length > 0 &&
+        characters.some((c) => Boolean(c.ign && c.ign.trim() && c.islandName && c.islandName.trim()))
+    );
 
     const addCharacter = useCallback(
         (ign: string, islandName: string, icon = 'fa-leaf'): boolean => {
@@ -330,6 +316,7 @@ export const useSavedCharacters = (rawDiscordName?: string | null) => {
     return {
         characters,
         activeCharacter,
+        hasSavedCharacters,
         maxSlots,
         remainingSlots: Math.max(0, maxSlots - characters.length),
         isSyncingDb,

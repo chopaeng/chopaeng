@@ -5,6 +5,9 @@ import { useIslandData } from '../context/useIslandData';
 import { useAuth } from '../context/useAuth';
 import { useCatalogData } from '../hooks/useCatalogData';
 import { useFavorites } from '../hooks/useFavorites';
+import { useSavedCharacters } from '../hooks/useSavedCharacters';
+import SubRulesModal from '../components/sub/SubRulesModal';
+import { isSubRulesAccepted } from '../utils/subRulesStorage';
 import { type IslandData } from '../data/islands';
 import { playChimeClick } from '../utils/kkAudioSynthesizer';
 import { DODO_API_BASE } from '../config/api';
@@ -51,6 +54,9 @@ export const TripPlanner: React.FC = () => {
     const { user, canAccessIsland } = useAuth();
     const { data: catalogData, isLoading: catalogLoading } = useCatalogData();
     const { favorites } = useFavorites();
+    const { hasSavedCharacters } = useSavedCharacters();
+    const [showSubRulesModal, setShowSubRulesModal] = useState(false);
+    const [pendingSubIsland, setPendingSubIsland] = useState<IslandData | null>(null);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedItems, setSelectedItems] = useState<SelectedPlanItem[]>([]);
@@ -399,10 +405,40 @@ export const TripPlanner: React.FC = () => {
         return stops;
     }, [selectedItems, islands, filterAccess, user, canAccessIsland, villagersMap, calculateItemIslandScore]);
 
+    const handleSubRulesAccepted = () => {
+        setShowSubRulesModal(false);
+        if (pendingSubIsland) {
+            const target = pendingSubIsland;
+            setPendingSubIsland(null);
+            handleRevealDodo(target);
+        }
+    };
+
     // Handle Reveal Dodo for an Island
     const handleRevealDodo = async (island: IslandData) => {
         playChimeClick();
         if (island.dodoCode) {
+            return;
+        }
+
+        if (!hasSavedCharacters) {
+            setDodoReveals((prev) => ({
+                ...prev,
+                [island.id]: {
+                    code: '',
+                    loading: false,
+                    error: 'You must save your In-Game Character (IGN & Island Name) first before you can reveal Dodo codes. Please add your character in Profile Settings.',
+                },
+            }));
+            return;
+        }
+
+        // Require Sub Rules acknowledgment for Sub members / Sub islands
+        const isSubIsland = island.cat === 'member';
+        const isSubUser = Boolean(user?.is_subscriber || user?.sub_tier || isSubIsland);
+        if (isSubUser && !isSubRulesAccepted(user?.user_id)) {
+            setPendingSubIsland(island);
+            setShowSubRulesModal(true);
             return;
         }
 
@@ -1126,6 +1162,17 @@ export const TripPlanner: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
+            {/* Sub Rules Modal (One-time only for Sub members) */}
+            {showSubRulesModal && (
+                <SubRulesModal
+                    isOpen={showSubRulesModal}
+                    onClose={() => {
+                        setShowSubRulesModal(false);
+                        setPendingSubIsland(null);
+                    }}
+                    onAccept={handleSubRulesAccepted}
+                />
             )}
         </div>
     );

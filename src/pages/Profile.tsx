@@ -18,6 +18,7 @@ import { CritterpediaSummaryCard } from "../components/profile/CritterpediaSumma
 import { AccountInformationTab } from "../components/profile/AccountInformationTab";
 import { AddEditCharacterModal } from "../components/profile/modals/AddEditCharacterModal";
 import { setUserScopedItem } from "../utils/accountStorage";
+import { canUserAccessSubIsland, getUserSubTiers } from "../utils/subIslandAccess";
 import "./Profile.css";
 
 const CHARACTER_ICONS = [
@@ -144,6 +145,411 @@ const formatDateTime = (value?: string | number | null) => {
 
 const formatNumber = (value?: number) => new Intl.NumberFormat().format(value ?? 0);
 
+const CPP_STYLES = `
+/* ── Scoped ChoPaeng Profile styles ── */
+.cpp-page {
+    --ink: #1d3328;
+    --ink-soft: #5b6e63;
+    --leaf: #1f8a4c;
+    --leaf-dark: #166b3a;
+    --line: #cfdcd3;
+    --sky: #e3f4f1;
+    --error: #b3261e;
+    --gold: #f6d56b;
+    --gold-dark: #8a6508;
+    color: var(--ink);
+    background: radial-gradient(ellipse 120% 60% at 50% 0%, #ffffff 0%, var(--sky) 70%);
+    min-height: 100vh;
+}
+
+/* ── Passport Cards ── */
+.cpp-card {
+    background: #fff;
+    border-radius: 26px;
+    border: 1px solid rgba(207, 220, 211, 0.65);
+    box-shadow: 0 1px 0 rgba(29, 51, 40, 0.04), 0 14px 30px -18px rgba(29, 51, 40, 0.22);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cpp-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(29, 51, 40, 0.06), 0 18px 36px -18px rgba(29, 51, 40, 0.28);
+}
+
+.cpp-card__cover {
+    background: var(--leaf);
+    color: #fff;
+    padding: 1.15rem 1.45rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.cpp-card__cover-left {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    min-width: 0;
+}
+
+.cpp-card__crest {
+    width: 48px;
+    height: 48px;
+    flex: none;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: rgba(255, 255, 255, 0.18);
+    border: 2px dashed rgba(255, 255, 255, 0.65);
+    font-size: 1.25rem;
+    color: #fff;
+}
+
+.cpp-card__title {
+    margin: 0;
+    font-size: 1.18rem;
+    font-weight: 800;
+    line-height: 1.2;
+    color: #fff;
+}
+
+.cpp-card__subtitle {
+    margin: 0.15rem 0 0;
+    font-size: 0.82rem;
+    opacity: 0.92;
+    font-weight: 600;
+}
+
+.cpp-card__seam {
+    border-top: 3px dashed #fff;
+    margin: 0 14px;
+    position: relative;
+    top: -2px;
+    opacity: 0.85;
+}
+
+.cpp-card__body {
+    padding: 1.35rem 1.5rem;
+    flex: 1;
+}
+
+/* ── Hero Passport Card ── */
+.cpp-hero {
+    background: #fff;
+    border-radius: 28px;
+    border: 1px solid rgba(207, 220, 211, 0.7);
+    box-shadow: 0 1px 0 rgba(29, 51, 40, 0.04), 0 16px 36px -18px rgba(29, 51, 40, 0.24);
+    overflow: hidden;
+}
+
+.cpp-hero__cover {
+    background: var(--leaf);
+    color: #fff;
+    padding: 1.25rem 1.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.cpp-hero__body {
+    padding: 1.5rem 1.65rem;
+}
+
+.cpp-avatar {
+    width: 82px;
+    height: 82px;
+    border-radius: 50%;
+    border: 3.5px solid #fff;
+    box-shadow: 0 6px 16px rgba(29, 51, 40, 0.18);
+    object-fit: cover;
+    background: #e6f4ec;
+}
+
+.cpp-avatar-placeholder {
+    width: 82px;
+    height: 82px;
+    border-radius: 50%;
+    border: 3.5px solid #fff;
+    box-shadow: 0 6px 16px rgba(29, 51, 40, 0.18);
+    background: #e6f4ec;
+    color: var(--leaf);
+    display: grid;
+    place-items: center;
+    font-size: 2rem;
+}
+
+/* ── Stats Ribbon ── */
+.cpp-ribbon {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    background: #f6faf7;
+    border: 1.5px solid var(--line);
+    border-radius: 16px;
+    padding: 0.75rem 0.6rem;
+    text-align: center;
+}
+
+@media (max-width: 576px) {
+    .cpp-ribbon {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem 0.5rem;
+    }
+}
+
+.cpp-ribbon__item {
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;
+    border-radius: 10px;
+    transition: background 0.15s ease;
+}
+
+.cpp-ribbon__item:hover {
+    background: #eef5f0;
+    color: inherit;
+}
+
+.cpp-ribbon__val {
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.cpp-ribbon__label {
+    font-size: 0.76rem;
+    color: var(--ink-soft);
+    font-weight: 700;
+    margin-top: 0.15rem;
+}
+
+/* ── Segmented Pill Mode Switch (Tabs) ── */
+.cpp-tablist {
+    display: flex;
+    gap: 0.4rem;
+    background: #fff;
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    padding: 5px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    box-shadow: 0 4px 14px -6px rgba(29, 51, 40, 0.1);
+}
+
+.cpp-tab {
+    flex: none;
+    border: none;
+    background: transparent;
+    color: var(--ink-soft);
+    border-radius: 999px;
+    padding: 0.55rem 1rem;
+    font-size: 0.88rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+}
+
+.cpp-tab:hover:not(.cpp-tab--active) {
+    background: #f6faf7;
+    color: var(--ink);
+}
+
+.cpp-tab--active {
+    background: var(--leaf);
+    color: #fff;
+    font-weight: 800;
+    box-shadow: 0 2px 6px rgba(31, 138, 76, 0.35);
+}
+
+.cpp-tab__count {
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.cpp-tab--active .cpp-tab__count {
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+}
+
+/* ── Primary & Secondary Buttons ── */
+.cpp-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border-radius: 14px;
+    padding: 0.6rem 1.15rem;
+    font-size: 0.88rem;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.cpp-btn--primary {
+    background: var(--leaf);
+    border: 1.5px solid var(--leaf);
+    color: #fff;
+    box-shadow: 0 4px 0 var(--leaf-dark);
+}
+
+.cpp-btn--primary:hover:not(:disabled) {
+    background: #22984f;
+    border-color: #22984f;
+    color: #fff;
+}
+
+.cpp-btn--primary:active:not(:disabled) {
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 var(--leaf-dark);
+}
+
+.cpp-btn--secondary {
+    background: #fff;
+    border: 1.5px solid var(--line);
+    color: var(--ink);
+}
+
+.cpp-btn--secondary:hover:not(:disabled) {
+    border-color: var(--leaf);
+    background: #f6faf7;
+    color: var(--ink);
+}
+
+.cpp-btn--sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.82rem;
+    border-radius: 12px;
+}
+
+.cpp-btn--oncover {
+    background: rgba(255, 255, 255, 0.18);
+    border: 1.5px solid rgba(255, 255, 255, 0.45);
+    color: #fff;
+}
+
+.cpp-btn--oncover:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: #fff;
+    color: #fff;
+}
+
+/* ── Badges & Chips ── */
+.cpp-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.cpp-badge--gold {
+    background: #fef3c7;
+    color: #78350f;
+    border: 1px solid #fde68a;
+}
+
+.cpp-badge--gold-outline {
+    background: #fff;
+    color: #78350f;
+    border: 1.5px solid #fde68a;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.cpp-badge--leaf {
+    background: #e6f4ec;
+    color: var(--leaf-dark);
+    border: 1px solid #b7dfc8;
+}
+
+.cpp-badge--muted {
+    background: #f1f5f3;
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+}
+
+.cpp-badge--danger {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+/* ── Stitched Seams & Dividers ── */
+.cpp-stitch {
+    border-top: 1.5px dashed var(--line);
+    margin: 1.25rem 0;
+}
+
+/* ── Island Cards ── */
+.cpp-island {
+    background: #fff;
+    border: 1.5px solid var(--line);
+    border-radius: 18px;
+    padding: 1.15rem;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.cpp-island:hover {
+    transform: translateY(-2px);
+    border-color: var(--leaf);
+    box-shadow: 0 8px 22px -6px rgba(29, 51, 40, 0.18);
+}
+
+/* ── Order Cards ── */
+.cpp-order-card {
+    background: #fff;
+    border: 1.5px solid var(--line);
+    border-radius: 18px;
+    padding: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* ── Accessibility Focus ── */
+.cpp-page :is(button, a, input, select):focus-visible {
+    outline: 3px solid #0f5132;
+    outline-offset: 2px;
+}
+
+.cpp-card__cover :is(button, a):focus-visible {
+    outline-color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cpp-page * {
+        transition: none !important;
+        animation: none !important;
+        transform: none !important;
+    }
+}
+`;
+
 const Profile = () => {
     const navigate = useNavigate();
     const { user: authUser, loading: authLoading, login, canAccessIsland } = useAuth();
@@ -164,7 +570,7 @@ const Profile = () => {
 
     // Public Passport Customizer State
     const [passportData, setPassportData] = useState<PublicPassportData>(() => {
-        const authHandle = cleanPassportUsername(authUser?.username, '');
+        const authHandle = cleanPassportUsername(authUser?.username, "");
         const base = getStoredPassport(authHandle);
         return {
             ...base,
@@ -172,8 +578,6 @@ const Profile = () => {
         };
     });
     const [passportLinkCopied, setPassportLinkCopied] = useState(false);
-
-
 
     // Orders History & Reorder State
     const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
@@ -220,7 +624,7 @@ const Profile = () => {
             }));
             setUserScopedItem("command_builder_order_items", JSON.stringify(mappedEntries), authUser?.user_id);
             playChimeClick();
-            setPrefNotice(`Loaded ${bundle.items.length} item types (${bundle.totalSlots} slots) from order #${order.id}! Opening...`);
+            setPrefNotice(`Loaded ${bundle.items.length} item types (${bundle.totalSlots} slots) from order #${order.id}. Opening ${targetRoute === "/order" ? "order bot" : "command builder"}...`);
             setTimeout(() => setPrefNotice(null), 4000);
             navigate(targetRoute);
         } else {
@@ -231,12 +635,14 @@ const Profile = () => {
 
     const handleCopyOrderCommand = (order: OrderHistoryItem) => {
         const cmd = order.command.startsWith("!") ? order.command : `!order ${order.command}`;
-        navigator.clipboard.writeText(cmd).catch(() => { });
+        navigator.clipboard.writeText(cmd).catch(() => {});
         setCopiedOrderId(order.id);
         playChimeClick();
         setTimeout(() => setCopiedOrderId(null), 2500);
     };
 
+    // ── MULTI-PLATFORM UNIFIED SUBSCRIPTION DETECTION ──
+    const userSubTiers = useMemo(() => getUserSubTiers(authUser), [authUser]);
 
     const subscriptionRoleNames = useMemo(() => {
         const subscriptions = profile?.subscriptions;
@@ -259,6 +665,27 @@ const Profile = () => {
         ]);
     }, [profile]);
 
+    // Consolidate tiers from Discord, Twitch, Patreon, and YouTube
+    const allSubscriptionTierNames = useMemo(() => {
+        const combined = new Set<string>();
+        if (authUser?.sub_tier && typeof authUser.sub_tier === "string" && authUser.sub_tier.trim()) {
+            combined.add(authUser.sub_tier.trim());
+        }
+        for (const t of userSubTiers) {
+            if (t && typeof t === "string" && t.trim()) combined.add(t.trim());
+        }
+        for (const r of subscriptionRoleNames) {
+            if (r && typeof r === "string" && r.trim()) combined.add(r.trim());
+        }
+        return Array.from(combined);
+    }, [authUser?.sub_tier, userSubTiers, subscriptionRoleNames]);
+
+    const hasActiveSubscription =
+        allSubscriptionTierNames.length > 0 ||
+        Boolean(authUser?.is_subscriber) ||
+        Boolean(authUser?.is_admin) ||
+        Boolean(authUser?.is_mod);
+
     const rawDiscordName =
         profile?.user.nickname ||
         profile?.user.display_name ||
@@ -266,7 +693,7 @@ const Profile = () => {
         authUser?.username ||
         "";
 
-    // Multi-slot saved characters (auto-synced from Discord nickname e.g. "bitress/cheurnice | bitress")
+    // Multi-slot saved characters
     const {
         characters,
         activeCharacter,
@@ -276,7 +703,7 @@ const Profile = () => {
         updateCharacter,
         deleteCharacter,
         setDefaultCharacter,
-        } = useSavedCharacters(rawDiscordName);
+    } = useSavedCharacters(rawDiscordName);
 
     // Sync and hydrate Public Passport state from ChoBot database & local storage
     useEffect(() => {
@@ -303,8 +730,8 @@ const Profile = () => {
                         : cleanPassportUsername(prev.username, resolvedUsername);
                     return {
                         ...base,
-                        passportSkin: prev.passportSkin || base.passportSkin || 'nook',
-                        passportPattern: prev.passportPattern || base.passportPattern || 'dots',
+                        passportSkin: prev.passportSkin || base.passportSkin || "nook",
+                        passportPattern: prev.passportPattern || base.passportPattern || "dots",
                         featuredItems: (prev.featuredItems && prev.featuredItems.length > 0) ? prev.featuredItems : (base.featuredItems || []),
                         username: chosenUsername,
                         avatarUrl: userAvatar || base.avatarUrl || "",
@@ -328,18 +755,12 @@ const Profile = () => {
 
     // Saved in-game character creation / editing state
     const [characterModalOpen, setCharacterModalOpen] = useState(false);
-    
     const [editingCharId, setEditingCharId] = useState<string | null>(null);
     const [charIgn, setCharIgn] = useState("");
     const [charIsland, setCharIsland] = useState("");
     const [charIcon, setCharIcon] = useState("fa-leaf");
     const [charError, setCharError] = useState("");
-    
-    
-    
     const [isSavingChar, setIsSavingChar] = useState(false);
-
-    
 
     const handleOpenAddCharacter = () => {
         setEditingCharId(null);
@@ -347,7 +768,6 @@ const Profile = () => {
         setCharIsland("");
         setCharIcon("fa-leaf");
         setCharError("");
-        
         setCharacterModalOpen(true);
         playChimeClick();
     };
@@ -358,7 +778,6 @@ const Profile = () => {
         setCharIsland(char.islandName);
         setCharIcon(char.icon || "fa-leaf");
         setCharError("");
-        
         setCharacterModalOpen(true);
         playChimeClick();
     };
@@ -397,12 +816,10 @@ const Profile = () => {
                 playChimeClick();
             }
 
-let discordMsg = "";
-
             setPrefNotice(
                 editingCharId
-                    ? `Character "${cleanIgn}" updated${discordMsg}!`
-                    : `New character "${cleanIgn}" created${discordMsg}!`
+                    ? `Character "${cleanIgn}" updated.`
+                    : `New character "${cleanIgn}" created.`
             );
 
             setTimeout(() => setPrefNotice(null), 4000);
@@ -427,8 +844,6 @@ let discordMsg = "";
             setTimeout(() => setPrefNotice(null), 3500);
         }
     };
-
-
 
     useEffect(() => {
         document.title = "Resident Passport & Dashboard • Chopaeng";
@@ -503,7 +918,7 @@ let discordMsg = "";
         );
     }, [allIslands, favoriteIslands]);
 
-    // Compute total unlocked islands based on public tier + subscription/role matches
+    // Compute total unlocked islands based on public tier + subscription/role matches + sub island matrix
     const userUnlockedIslands = useMemo(() => {
         return allIslands.filter((island) => {
             const isFree = island.cat === "public" && (island.requiredRoles?.length ?? 0) === 0;
@@ -512,13 +927,16 @@ let discordMsg = "";
             if (island.requiredRoles && island.requiredRoles.length > 0 && canAccessIsland(island.requiredRoles)) {
                 return true;
             }
+            if (canUserAccessSubIsland(island.name, authUser)) {
+                return true;
+            }
             return accessibleIslands.some(
                 (acc) =>
                     (acc.id && acc.id.toLowerCase() === island.id.toLowerCase()) ||
                     (acc.name && acc.name.toLowerCase() === island.name.toLowerCase())
             );
         });
-    }, [allIslands, accessibleIslands, canAccessIsland]);
+    }, [allIslands, accessibleIslands, canAccessIsland, authUser]);
 
     const lockedIslands = useMemo(() => {
         return allIslands.filter(
@@ -533,10 +951,12 @@ let discordMsg = "";
 
     if (authLoading || loading) {
         return (
-            <div className="nook-bg min-vh-100 d-flex align-items-center justify-content-center p-4">
-                <div className="text-center bg-white rounded-4 shadow-sm border p-5">
-                    <div className="spinner-border text-success mb-3" role="status" />
-                    <p className="fw-bold text-muted mb-0">Loading Resident Passport...</p>
+            <div className="cpp-page d-flex align-items-center justify-content-center p-4">
+                <style>{CPP_STYLES}</style>
+                <div className="cpp-card p-4 p-md-5 text-center" style={{ maxWidth: 420 }}>
+                    <div className="spinner-border text-success mb-3 mx-auto" role="status" aria-hidden="true" />
+                    <h2 className="ac-font h5 text-dark mb-1">Loading resident passport</h2>
+                    <p className="small text-muted mb-0">Connecting to ChoPaeng resident records…</p>
                 </div>
             </div>
         );
@@ -544,23 +964,35 @@ let discordMsg = "";
 
     if (!authUser && !profile) {
         return (
-            <div className="nook-bg min-vh-100 py-5 px-3">
-                <div className="container" style={{ maxWidth: 680 }}>
-                    <div className="bg-white rounded-4 shadow-sm border p-4 p-md-5 text-center mb-4">
-                        <div
-                            className="d-inline-flex align-items-center justify-content-center rounded-circle text-white mb-4 shadow-sm"
-                            style={{ width: 76, height: 76, background: "linear-gradient(135deg, #10b981 0%, #059669 100%)" }}
-                        >
-                            <i className="fa-solid fa-passport fa-2x"></i>
+            <div className="cpp-page py-5 px-3">
+                <style>{CPP_STYLES}</style>
+                <div className="container" style={{ maxWidth: 640 }}>
+                    <div className="cpp-card">
+                        <header className="cpp-card__cover">
+                            <div className="cpp-card__cover-left">
+                                <div className="cpp-card__crest" aria-hidden="true">
+                                    <i className="fa-solid fa-passport" />
+                                </div>
+                                <div>
+                                    <h1 className="ac-font cpp-card__title">Resident passport &amp; profile</h1>
+                                    <p className="cpp-card__subtitle">ChoPaeng community verification</p>
+                                </div>
+                            </div>
+                        </header>
+                        <div className="cpp-card__seam" aria-hidden="true" />
+                        <div className="cpp-card__body text-center py-4 px-3 px-sm-4">
+                            <p className="text-muted mb-4" style={{ lineHeight: 1.6 }}>
+                                Sign in with your Twitch, Patreon, YouTube, or Discord account to view your verified island passport, track your order bot requests, manage in-game characters, and check unlocked treasure islands.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => login()}
+                                className="cpp-btn cpp-btn--primary px-4 py-2.5 mx-auto"
+                            >
+                                <i className="fa-solid fa-right-to-bracket" aria-hidden="true" />
+                                <span>Sign in to passport</span>
+                            </button>
                         </div>
-                        <h1 className="ac-font h2 text-dark mb-3">Resident Passport & Profile</h1>
-                        <p className="text-muted fw-bold mb-4">
-                            Sign in with your Twitch, Patreon, or YouTube membership account to view your verified Island Passport, track your Order Bot & Drop orders, manage multi-character slots, and check accessible treasure islands.
-                        </p>
-                        <button type="button" onClick={login} className="btn btn-success rounded-pill fw-black px-4 py-3 shadow-sm">
-                            <i className="fa-solid fa-right-to-bracket me-2"></i>
-                            Resident Sign In
-                        </button>
                     </div>
                 </div>
             </div>
@@ -569,226 +1001,292 @@ let discordMsg = "";
 
     if (error) {
         return (
-            <div className="nook-bg min-vh-100 d-flex align-items-center justify-content-center p-4">
-                <div className="bg-white rounded-4 shadow-sm border p-4 p-md-5 text-center" style={{ maxWidth: 520 }}>
-                    <i className="fa-solid fa-triangle-exclamation text-warning display-4 mb-3"></i>
-                    <h1 className="ac-font h3 text-dark mb-3">Profile unavailable</h1>
-                    <p className="text-muted fw-bold mb-4">{error}</p>
-                    <button type="button" onClick={login} className="btn btn-success rounded-pill fw-black px-4 py-3">
-                        Refresh Discord Login
-                    </button>
+            <div className="cpp-page d-flex align-items-center justify-content-center p-4">
+                <style>{CPP_STYLES}</style>
+                <div className="cpp-card p-4 text-center" style={{ maxWidth: 480 }}>
+                    <header className="cpp-card__cover" style={{ background: "#991b1b" }}>
+                        <div className="cpp-card__cover-left">
+                            <div className="cpp-card__crest" aria-hidden="true" style={{ borderColor: "#fecaca" }}>
+                                <i className="fa-solid fa-triangle-exclamation" />
+                            </div>
+                            <div>
+                                <h1 className="ac-font cpp-card__title">Profile unavailable</h1>
+                                <p className="cpp-card__subtitle">Please check your connection</p>
+                            </div>
+                        </div>
+                    </header>
+                    <div className="cpp-card__seam" aria-hidden="true" />
+                    <div className="cpp-card__body">
+                        <p className="text-muted mb-4">{error}</p>
+                        <button
+                            type="button"
+                            onClick={() => login()}
+                            className="cpp-btn cpp-btn--primary w-100"
+                        >
+                            <i className="fa-solid fa-rotate" aria-hidden="true" />
+                            <span>Refresh login session</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="profile-page-wrapper font-nunito pb-5">
-            {/* ── 1. PASSPORT HERO HEADER ────────────────────────────────────────── */}
-            <div className="bg-white border-bottom shadow-xs">
-                <div className="container py-4 py-lg-5">
-                    {/* Animal Crossing Passport Card Container */}
-                    <div className="pf-hero-card p-4 p-md-5 mb-4">
-                        {/* Passport Watermark Stamp */}
-                        <div
-                            className="pf-passport-watermark"
-                            aria-hidden="true"
-                        >
-                            <i className="fa-solid fa-passport fs-4 mb-1"></i>
-                            <span className="tiny-text fw-black text-uppercase font-monospace">Verified</span>
-                        </div>
+        <div className="cpp-page font-nunito pb-5">
+            <style>{CPP_STYLES}</style>
 
-                        <div className="row align-items-center gy-4">
-                            {/* Left Zone: Passport Identity */}
-                            <div className="col-lg-7 d-flex flex-column flex-sm-row align-items-center align-items-sm-start gap-4 text-center text-sm-start">
-                                <div className="position-relative">
-                                    <div className="pf-avatar-frame">
+            {/* ── 1. PASSPORT HERO HEADER ── */}
+            <div className="border-bottom pb-4 pt-3 pt-md-4">
+                <div className="container" style={{ maxWidth: 1140 }}>
+                    {/* Animal Crossing Resident Passport Card */}
+                    <div className="cpp-hero mb-4">
+                        <header className="cpp-hero__cover">
+                            <div className="d-flex align-items-center gap-2.5 flex-wrap">
+                                <div className="cpp-card__crest" aria-hidden="true">
+                                    <i className="fa-solid fa-passport" />
+                                </div>
+                                <div>
+                                    <h1 className="ac-font cpp-card__title">Resident passport</h1>
+                                    <p className="cpp-card__subtitle">
+                                        Verified citizen &middot; ID {profileUser?.id || authUser?.user_id || "Resident"}
+                                    </p>
+                                </div>
+                            </div>
+                            <span className="cpp-badge cpp-badge--gold">
+                                <i className="fa-solid fa-stamp" aria-hidden="true" />
+                                <span>Verified passport</span>
+                            </span>
+                        </header>
+                        <div className="cpp-card__seam" aria-hidden="true" />
+
+                        <div className="cpp-hero__body">
+                            <div className="row align-items-center gy-4">
+                                {/* Identity details */}
+                                <div className="col-lg-7 d-flex flex-column flex-sm-row align-items-center align-items-sm-start gap-3.5 text-center text-sm-start">
+                                    <div className="position-relative flex-shrink-0">
                                         {profileUser?.avatar ? (
                                             <img
                                                 src={profileUser.avatar}
                                                 alt={`${displayName}'s avatar`}
-                                                className="pf-avatar-img"
+                                                className="cpp-avatar"
                                             />
                                         ) : (
-                                            <div className="w-100 h-100 d-flex align-items-center justify-content-center bg-success bg-opacity-10 text-success">
-                                                <i className="fa-solid fa-user-astronaut fa-3x"></i>
+                                            <div className="cpp-avatar-placeholder" aria-hidden="true">
+                                                <i className="fa-solid fa-user-astronaut" />
                                             </div>
                                         )}
                                     </div>
-                                    <span
-                                        className="position-absolute bottom-0 end-0 p-1 bg-success border border-white rounded-circle shadow-xs"
-                                        title="Discord Connected & Verified"
-                                        aria-label="Discord Connected & Verified"
-                                        style={{ width: "18px", height: "18px" }}
-                                    ></span>
-                                </div>
 
-                                <div className="flex-grow-1">
-                                    <div className="d-flex align-items-center justify-content-center justify-content-sm-start gap-2 mb-1">
-                                        <span className="badge bg-success text-white rounded-pill px-3 py-1 tiny-text fw-black text-uppercase letter-spacing-1">
-                                            Island Passport
-                                        </span>
-                                        <span className="tiny-text text-muted font-monospace">
-                                            ID: {profileUser?.id || "Resident"}
-                                        </span>
-                                    </div>
+                                    <div className="flex-grow-1 min-w-0">
+                                        <h2 className="ac-font h3 text-dark mb-1">
+                                            {activeCharacter.ign || displayName}
+                                        </h2>
 
-                                    <h1 className="ac-font display-6 text-dark mb-1 fw-black">
-                                        {activeCharacter.ign || displayName}
-                                    </h1>
+                                        <p className="text-muted fw-bold small mb-2.5">
+                                            <i className="fa-solid fa-tree text-success me-1.5" aria-hidden="true" />
+                                            <span>Island: </span>
+                                            <strong className="text-dark">{activeCharacter.islandName || "ChoPaeng Island"}</strong>
+                                        </p>
 
-                                    <div className="d-flex flex-wrap align-items-center justify-content-center justify-content-sm-start gap-2 text-muted fw-bold small mb-2">
-                                        <span>
-                                            <i className="fa-solid fa-tree text-success me-1"></i>
-                                            Island: <strong className="text-dark">{activeCharacter.islandName || "Island"}</strong>
-                                        </span>
-                                    </div>
+                                        {/* Status & Sub Tier Badges */}
+                                        <div className="d-flex flex-wrap align-items-center justify-content-center justify-content-sm-start gap-1.5">
+                                            {profileUser?.is_admin && (
+                                                <span className="cpp-badge cpp-badge--danger">Administrator</span>
+                                            )}
+                                            {profileUser?.is_mod && (
+                                                <span className="cpp-badge cpp-badge--leaf">Moderator</span>
+                                            )}
 
-                                    {/* Unified Role Badges & Member Since */}
-                                    <div className="d-flex flex-wrap align-items-center justify-content-center justify-content-sm-start gap-2">
-                                        {profileUser?.is_admin && <span className="badge rounded-pill bg-danger px-3 py-1">Admin</span>}
-                                        {profileUser?.is_mod && <span className="badge rounded-pill bg-success px-3 py-1">Moderator</span>}
-                                        {authUser?.sub_tier && (
-                                            <span className="badge rounded-pill bg-warning text-dark px-3 py-1 fw-black shadow-2xs border border-warning">
-                                                <i className="fa-solid fa-crown me-1.5 text-dark"></i>
-                                                {authUser.sub_tier}
-                                            </span>
-                                        )}
-                                        {subscriptionRoleNames.length > 0 ? (
-                                            subscriptionRoleNames.map((role) => (
-                                                <span key={role} className="badge rounded-pill bg-warning text-dark px-3 py-1 fw-bold">
-                                                    <i className="fa-solid fa-crown me-1"></i>
-                                                    {role}
+                                            {allSubscriptionTierNames.length > 0 ? (
+                                                allSubscriptionTierNames.map((tier) => (
+                                                    <span key={tier} className="cpp-badge cpp-badge--gold">
+                                                        <i className="fa-solid fa-crown" aria-hidden="true" />
+                                                        <span>{tier}</span>
+                                                    </span>
+                                                ))
+                                            ) : hasActiveSubscription ? (
+                                                <span className="cpp-badge cpp-badge--gold">
+                                                    <i className="fa-solid fa-crown" aria-hidden="true" />
+                                                    <span>Active subscriber</span>
                                                 </span>
-                                            ))
-                                        ) : (
-                                            <span className="badge rounded-pill bg-light text-muted border px-3 py-1 fw-bold">
-                                                Free Member
+                                            ) : (
+                                                <span className="cpp-badge cpp-badge--muted">
+                                                    <span>Standard resident pass</span>
+                                                </span>
+                                            )}
+
+                                            <span className="cpp-badge cpp-badge--muted font-monospace">
+                                                <i className="fa-regular fa-calendar-check text-muted" aria-hidden="true" />
+                                                <span>Joined {formatDate(profileUser?.joined_at ?? profileUser?.joined_timestamp)}</span>
                                             </span>
-                                        )}
-                                        <span className="badge rounded-pill bg-white text-muted border px-3 py-1 shadow-2xs font-monospace small">
-                                            <i className="fa-solid fa-calendar-check text-primary me-1"></i>
-                                            Joined {formatDate(profileUser?.joined_at ?? profileUser?.joined_timestamp)}
-                                        </span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Right Zone: Key Stats Ribbon */}
-                            <div className="col-lg-5">
-                                <div className="pf-stats-ribbon">
-                                    <div className="pf-stat-item">
-                                        <div className="pf-stat-value">{formatNumber(orders.length)}</div>
-                                        <div className="pf-stat-label">Orders</div>
-                                    </div>
-                                    <Link to="/my-collection" className="pf-stat-item" title="View Caught Critters in My Collection">
-                                        <div className="pf-stat-value text-success">{formatNumber(caughtCritters.caughtCount)}</div>
-                                        <div className="pf-stat-label">Critters</div>
-                                    </Link>
-                                    <div className="pf-stat-item">
-                                        <div className="pf-stat-value">{formatNumber(profile?.visits.total)}</div>
-                                        <div className="pf-stat-label">Visits</div>
-                                    </div>
-                                    <div className="pf-stat-item">
-                                        <div className="pf-stat-value">{formatNumber(userUnlockedIslands.length)}</div>
-                                        <div className="pf-stat-label">Unlocked</div>
+                                {/* Key stats ribbon */}
+                                <div className="col-lg-5">
+                                    <div className="cpp-ribbon">
+                                        <div className="cpp-ribbon__item">
+                                            <span className="cpp-ribbon__val">{formatNumber(orders.length)}</span>
+                                            <span className="cpp-ribbon__label">Orders</span>
+                                        </div>
+                                        <Link
+                                            to="/my-collection"
+                                            className="cpp-ribbon__item"
+                                            title="View caught critters in my collection"
+                                        >
+                                            <span className="cpp-ribbon__val text-success">{formatNumber(caughtCritters.caughtCount)}</span>
+                                            <span className="cpp-ribbon__label">Critters</span>
+                                        </Link>
+                                        <div className="cpp-ribbon__item">
+                                            <span className="cpp-ribbon__val">{formatNumber(profile?.visits.total)}</span>
+                                            <span className="cpp-ribbon__label">Visits</span>
+                                        </div>
+                                        <div className="cpp-ribbon__item">
+                                            <span className="cpp-ribbon__val text-success">{formatNumber(userUnlockedIslands.length)}</span>
+                                            <span className="cpp-ribbon__label">Unlocked</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Modern Tab Navigation with Attached Counts */}
-                    <div className="pf-tab-scroller" role="tablist" aria-label="Profile navigation tabs">
+                    {/* Mode switch navigation (Segmented pill tablist) */}
+                    <div className="cpp-tablist" role="tablist" aria-label="Passport dashboard sections">
                         <button
                             type="button"
                             role="tab"
+                            id="tab-btn-profile"
+                            aria-controls="tab-panel-profile"
                             aria-selected={activeTab === "profile"}
-                            className={`pf-tab-btn ${activeTab === "profile" ? "active" : ""}`}
-                            onClick={() => setActiveTab("profile")}
+                            className={`cpp-tab ${activeTab === "profile" ? "cpp-tab--active" : ""}`}
+                            onClick={() => {
+                                playChimeClick();
+                                setActiveTab("profile");
+                            }}
                         >
-                            <i className="fa-solid fa-user"></i>
-                            <span>Profile Hub</span>
-                            <span className="pf-tab-count">{characters.length}/3</span>
+                            <i className="fa-solid fa-user" aria-hidden="true" />
+                            <span>Profile hub</span>
+                            <span className="cpp-tab__count">{characters.length}/3</span>
                         </button>
 
                         <button
                             type="button"
                             role="tab"
+                            id="tab-btn-account"
+                            aria-controls="tab-panel-account"
                             aria-selected={activeTab === "account"}
-                            className={`pf-tab-btn ${activeTab === "account" ? "active" : ""}`}
-                            onClick={() => setActiveTab("account")}
+                            className={`cpp-tab ${activeTab === "account" ? "cpp-tab--active" : ""}`}
+                            onClick={() => {
+                                playChimeClick();
+                                setActiveTab("account");
+                            }}
                         >
-                            <i className="fa-solid fa-user-shield text-success"></i>
-                            <span>Account Information</span>
-                            <span className="pf-tab-count">{authUser?.connected_providers?.length || (authUser?.email ? 1 : 0)}</span>
+                            <i className="fa-solid fa-user-shield" aria-hidden="true" />
+                            <span>Account information</span>
+                            <span className="cpp-tab__count">
+                                {authUser?.connected_providers?.length || (authUser?.email ? 1 : 0)}
+                            </span>
                         </button>
 
                         <button
                             type="button"
                             role="tab"
+                            id="tab-btn-access"
+                            aria-controls="tab-panel-access"
                             aria-selected={activeTab === "access"}
-                            className={`pf-tab-btn ${activeTab === "access" ? "active" : ""}`}
-                            onClick={() => setActiveTab("access")}
+                            className={`cpp-tab ${activeTab === "access" ? "cpp-tab--active" : ""}`}
+                            onClick={() => {
+                                playChimeClick();
+                                setActiveTab("access");
+                            }}
                         >
-                            <i className="fa-solid fa-key"></i>
-                            <span>Your Access &amp; Islands</span>
-                            <span className="pf-tab-count">{userUnlockedIslands.length}</span>
+                            <i className="fa-solid fa-key" aria-hidden="true" />
+                            <span>Your access &amp; islands</span>
+                            <span className="cpp-tab__count">{userUnlockedIslands.length}</span>
                         </button>
 
                         <button
                             type="button"
                             role="tab"
+                            id="tab-btn-favorites"
+                            aria-controls="tab-panel-favorites"
                             aria-selected={activeTab === "favorites"}
-                            className={`pf-tab-btn ${activeTab === "favorites" ? "active" : ""}`}
-                            onClick={() => setActiveTab("favorites")}
+                            className={`cpp-tab ${activeTab === "favorites" ? "cpp-tab--active" : ""}`}
+                            onClick={() => {
+                                playChimeClick();
+                                setActiveTab("favorites");
+                            }}
                         >
-                            <i className="fa-solid fa-star text-warning"></i>
-                            <span>Favorite Islands</span>
-                            <span className="pf-tab-count">{favoriteIslands.length}</span>
+                            <i className="fa-solid fa-star" aria-hidden="true" />
+                            <span>Favorite islands</span>
+                            <span className="cpp-tab__count">{favoriteIslands.length}</span>
                         </button>
 
                         <button
                             type="button"
                             role="tab"
+                            id="tab-btn-orders"
+                            aria-controls="tab-panel-orders"
                             aria-selected={activeTab === "orders"}
-                            className={`pf-tab-btn ${activeTab === "orders" ? "active" : ""}`}
-                            onClick={() => setActiveTab("orders")}
+                            className={`cpp-tab ${activeTab === "orders" ? "cpp-tab--active" : ""}`}
+                            onClick={() => {
+                                playChimeClick();
+                                setActiveTab("orders");
+                            }}
                         >
-                            <i className="fa-solid fa-box-open"></i>
-                            <span>Order History</span>
-                            {orders.length > 0 && <span className="pf-tab-count">{orders.length}</span>}
+                            <i className="fa-solid fa-box-open" aria-hidden="true" />
+                            <span>Order history</span>
+                            {orders.length > 0 && <span className="cpp-tab__count">{orders.length}</span>}
                         </button>
 
                         <button
                             type="button"
                             role="tab"
+                            id="tab-btn-history"
+                            aria-controls="tab-panel-history"
                             aria-selected={activeTab === "history"}
-                            className={`pf-tab-btn ${activeTab === "history" ? "active" : ""}`}
-                            onClick={() => setActiveTab("history")}
+                            className={`cpp-tab ${activeTab === "history" ? "cpp-tab--active" : ""}`}
+                            onClick={() => {
+                                playChimeClick();
+                                setActiveTab("history");
+                            }}
                         >
-                            <i className="fa-solid fa-clock-rotate-left"></i>
-                            <span>Flight History &amp; Logs</span>
+                            <i className="fa-solid fa-clock-rotate-left" aria-hidden="true" />
+                            <span>Flight history &amp; logs</span>
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* ── 2. TAB CONTENT ─────────────────────────────────────────────────── */}
-            <div className="container py-4">
+            {/* ── 2. TAB CONTENT ── */}
+            <div className="container py-4" style={{ maxWidth: 1140 }}>
                 {prefNotice && (
-                    <div className="alert alert-success rounded-4 py-2.5 px-3 small fw-bold mb-4 animate-fade d-flex align-items-center gap-2 shadow-2xs">
-                        <i className="fa-solid fa-circle-check text-success fs-6" />
+                    <div
+                        role="alert"
+                        aria-live="polite"
+                        className="alert alert-success rounded-4 py-2.5 px-3 small fw-bold mb-4 d-flex align-items-center gap-2 border-0 shadow-sm"
+                        style={{ background: "#e6f4ec", color: "#166b3a" }}
+                    >
+                        <i className="fa-solid fa-circle-check fs-6" aria-hidden="true" />
                         <span>{prefNotice}</span>
                     </div>
                 )}
-                {/* ── REUSABLE HOW IT WORKS EXPLAINER ── */}
+
+                {/* Explainer banner */}
                 <HowItWorksExplainer {...PROFILE_EXPLAINER_CONFIG} className="mb-4" defaultExpanded={false} />
 
-                {/* ── TAB 1: PROFILE & PUBLIC PASSPORT HUB ──────────────── */}
+                {/* ── TAB 1: PROFILE HUB ── */}
                 {activeTab === "profile" && (
-                    <div className="row g-4 animate-fade" role="tabpanel" aria-label="Profile Hub">
-                        <div className="col-lg-8">
+                    <div
+                        id="tab-panel-profile"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-profile"
+                        className="row g-4"
+                    >
+                        <div className="col-lg-7 d-flex flex-column gap-4">
                             <SavedCharactersCard
                                 characters={characters}
                                 isSyncingDb={isSyncingDb}
@@ -797,249 +1295,271 @@ let discordMsg = "";
                                 onDeleteCharacter={handleDeleteCharacter}
                                 onSetActiveCharacter={handleSetActiveCharacter}
                             />
+
+                            {/* Critterpedia summary card */}
+                            <CritterpediaSummaryCard caughtCritters={caughtCritters} />
                         </div>
 
-                        {/* Account & Passport Sidebar Column */}
-                        <div className="col-lg-4 d-flex flex-column gap-4">
-                            {/* 1. Public Profile Link & Quick Share Card */}
-                            <div className="pf-card">
-                                <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                                    <span className={`badge rounded-pill px-3 py-1 fw-bold ${passportData.isPublic ? "bg-success text-white" : "bg-secondary text-white"}`}>
-                                        <i className={`fa-solid ${passportData.isPublic ? "fa-globe" : "fa-lock"} me-1`}></i>
-                                        {passportData.isPublic ? "Public Profile Active" : "Private Profile"}
-                                    </span>
+                        {/* Sidebar Column */}
+                        <div className="col-lg-5 d-flex flex-column gap-4">
+                            {/* Public link card */}
+                            <div className="cpp-card">
+                                <header className="cpp-card__cover">
+                                    <div className="cpp-card__cover-left">
+                                        <div className="cpp-card__crest" aria-hidden="true">
+                                            <i className="fa-solid fa-globe" />
+                                        </div>
+                                        <div>
+                                            <h3 className="ac-font cpp-card__title">Public profile</h3>
+                                            <p className="cpp-card__subtitle">Shareable resident card</p>
+                                        </div>
+                                    </div>
                                     <Link
                                         to={`/u/${encodeURIComponent(cleanPassportUsername(passportData.username, authUser?.username || "resident"))}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="btn btn-xs btn-outline-success rounded-pill fw-bold px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-2xs"
+                                        className="cpp-btn cpp-btn--sm cpp-btn--oncover"
                                     >
                                         <span>View</span>
-                                        <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                                        <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
+                                        <span className="visually-hidden"> (opens in a new tab)</span>
                                     </Link>
-                                </div>
-
-                                <div className="bg-light rounded-3 p-3 border mb-0">
-                                    <span className="tiny-text fw-bold text-muted text-uppercase d-block mb-1">Your Public Link:</span>
-                                    <strong className="text-dark font-monospace small text-truncate d-block mb-2">
+                                </header>
+                                <div className="cpp-card__seam" aria-hidden="true" />
+                                <div className="cpp-card__body">
+                                    <p className="small text-muted mb-2 font-weight-bold">Your public link:</p>
+                                    <div className="p-2.5 rounded-3 bg-light border font-monospace small text-truncate mb-3 text-dark">
                                         {window.location.origin}/u/{cleanPassportUsername(passportData.username, authUser?.username || "resident")}
-                                    </strong>
+                                    </div>
                                     <button
                                         type="button"
-                                        className={`btn btn-xs w-100 rounded-pill fw-bold py-1.5 shadow-2xs d-inline-flex align-items-center justify-content-center gap-1 ${
-                                            passportLinkCopied ? "btn-success text-white" : "btn-dark text-white"
-                                        }`}
+                                        className={`cpp-btn w-100 ${passportLinkCopied ? "cpp-btn--primary" : "cpp-btn--secondary"}`}
                                         onClick={() => {
                                             const uname = cleanPassportUsername(passportData.username, authUser?.username || "resident");
                                             const url = `${window.location.origin}/u/${encodeURIComponent(uname)}`;
-                                            navigator.clipboard.writeText(url).catch(() => { });
+                                            navigator.clipboard.writeText(url).catch(() => {});
                                             setPassportLinkCopied(true);
                                             playChimeClick();
                                             setTimeout(() => setPassportLinkCopied(false), 2500);
                                         }}
                                     >
-                                        <i className={`fa-solid ${passportLinkCopied ? "fa-check" : "fa-copy"}`}></i>
-                                        <span>{passportLinkCopied ? "Link Copied!" : "Copy Link"}</span>
+                                        <i className={`fa-solid ${passportLinkCopied ? "fa-check" : "fa-copy"}`} aria-hidden="true" />
+                                        <span>{passportLinkCopied ? "Link copied" : "Copy profile link"}</span>
                                     </button>
                                 </div>
                             </div>
 
-                            {/* 2. Account Information Quick Card */}
-                            <div className="pf-card">
-                                <div className="d-flex align-items-center justify-content-between mb-3">
-                                    <div className="d-flex align-items-center gap-2">
-                                        <div className="icon-bubble bg-success bg-opacity-10 text-success" style={{ width: 36, height: 36, fontSize: "1rem" }}>
+                            {/* Account standing quick card */}
+                            <div className="cpp-card">
+                                <header className="cpp-card__cover">
+                                    <div className="cpp-card__cover-left">
+                                        <div className="cpp-card__crest" aria-hidden="true">
                                             <i className="fa-solid fa-user-shield" />
                                         </div>
                                         <div>
-                                            <h3 className="h6 ac-font text-dark mb-0">Account Standing</h3>
-                                            <span className="tiny-text text-muted">ID &amp; Entitlements</span>
+                                            <h3 className="ac-font cpp-card__title">Account standing</h3>
+                                            <p className="cpp-card__subtitle">ID &amp; entitlements</p>
                                         </div>
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={() => setActiveTab("account")}
-                                        className="btn btn-xs btn-outline-success rounded-pill px-2.5 py-1 fw-bold"
+                                        onClick={() => {
+                                            playChimeClick();
+                                            setActiveTab("account");
+                                        }}
+                                        className="cpp-btn cpp-btn--sm cpp-btn--oncover"
                                     >
-                                        Manage
+                                        <span>Manage</span>
+                                    </button>
+                                </header>
+                                <div className="cpp-card__seam" aria-hidden="true" />
+                                <div className="cpp-card__body">
+                                    <div className="p-2.5 rounded-3 bg-light border mb-2 small d-flex align-items-center justify-content-between">
+                                        <span className="text-muted fw-bold">Primary citizen:</span>
+                                        <span className="fw-bold text-dark font-monospace text-truncate ms-2">
+                                            {authUser?.username || profile?.user?.discord_name || "Resident"}
+                                        </span>
+                                    </div>
+                                    <div className="p-2.5 rounded-3 bg-light border mb-3 small d-flex align-items-center justify-content-between">
+                                        <span className="text-muted fw-bold">Pass status:</span>
+                                        <span className={`cpp-badge ${hasActiveSubscription ? "cpp-badge--gold" : "cpp-badge--muted"}`}>
+                                            {allSubscriptionTierNames[0] || (hasActiveSubscription ? "Active subscriber" : "Standard resident pass")}
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            playChimeClick();
+                                            setActiveTab("account");
+                                        }}
+                                        className="cpp-btn cpp-btn--secondary w-100"
+                                    >
+                                        <i className="fa-solid fa-link" aria-hidden="true" />
+                                        <span>Open account information</span>
                                     </button>
                                 </div>
-                                <div className="p-2.5 rounded-3 bg-light border mb-2 small d-flex align-items-center justify-content-between">
-                                    <span className="text-muted fw-bold">Primary ID:</span>
-                                    <span className="fw-bold text-dark font-monospace text-truncate ms-2">
-                                        {authUser?.username || profile?.user?.discord_name || "Resident"}
-                                    </span>
-                                </div>
-                                <div className="p-2.5 rounded-3 bg-light border mb-3 small d-flex align-items-center justify-content-between">
-                                    <span className="text-muted fw-bold">Entitlement:</span>
-                                    <span className={`badge rounded-pill fw-bold ${authUser?.sub_tier ? "bg-warning text-dark" : "bg-light text-muted border"}`}>
-                                        {authUser?.sub_tier || "Standard Resident"}
-                                    </span>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveTab("account")}
-                                    className="btn btn-sm btn-nook text-white w-100 rounded-pill fw-bold py-1.5 d-flex align-items-center justify-content-center gap-1.5"
-                                >
-                                    <i className="fa-solid fa-link" />
-                                    <span>Open Account Information Tab</span>
-                                </button>
                             </div>
-
-                            {/* 3. Museum & Critterpedia Progress Card */}
-                            <CritterpediaSummaryCard caughtCritters={caughtCritters} />
                         </div>
-
                     </div>
                 )}
 
-                {/* Account Information Tab */}
+                {/* ── TAB 2: ACCOUNT INFORMATION ── */}
                 {activeTab === "account" && (
-                    <AccountInformationTab
-                        profileUser={profile?.user}
-                        passportData={passportData}
-                    />
+                    <div
+                        id="tab-panel-account"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-account"
+                    >
+                        <AccountInformationTab
+                            profileUser={profile?.user}
+                            passportData={passportData}
+                        />
+                    </div>
                 )}
 
-                {/* ── TAB 2: YOUR ACCESS & SUBSCRIPTION ISLANDS ────────────────────── */}
+                {/* ── TAB 3: YOUR ACCESS & SUBSCRIPTION ISLANDS ── */}
                 {activeTab === "access" && (
-                    <div className="row g-4 animate-fade" role="tabpanel" aria-label="Your Access & Islands">
-                        <div className="col-lg-12">
-                            <div className="pf-card">
-                                {/* Header Row */}
-                                <div className="pf-section-header flex-column flex-sm-row align-items-start align-items-sm-center">
+                    <div
+                        id="tab-panel-access"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-access"
+                    >
+                        <div className="cpp-card mb-4">
+                            <header className="cpp-card__cover">
+                                <div className="cpp-card__cover-left">
+                                    <div className="cpp-card__crest" aria-hidden="true">
+                                        <i className="fa-solid fa-key" />
+                                    </div>
                                     <div>
-                                        <div className="d-flex align-items-center gap-2 mb-1">
-                                            <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 fw-bold">
-                                                <i className="fa-solid fa-passport me-1"></i>Tier Passport
-                                            </span>
-                                            <h2 className="h5 ac-font text-dark mb-0">Your Subscription &amp; Island Access</h2>
-                                        </div>
-                                        <p className="tiny-text text-muted mb-0">
-                                            Real-time overview of your membership status, Discord tier roles, and unlocked Animal Crossing treasure islands.
+                                        <h2 className="ac-font cpp-card__title">Your subscription &amp; island access</h2>
+                                        <p className="cpp-card__subtitle">
+                                            Real-time overview of unlocked Animal Crossing treasure destinations
                                         </p>
                                     </div>
-
-                                    <div className="d-flex align-items-center gap-2">
-                                        <Link to="/islands" className="btn btn-sm btn-nook rounded-pill px-3 fw-bold shadow-xs">
-                                            <i className="fa-solid fa-plane-departure me-1"></i>Live Flight Board
-                                        </Link>
-                                        <Link to="/membership" className="btn btn-sm btn-outline-warning text-dark border-warning rounded-pill px-3 fw-bold">
-                                            <i className="fa-solid fa-crown text-warning me-1"></i>Perks &amp; Tiers
-                                        </Link>
-                                    </div>
                                 </div>
+                                <div className="d-flex align-items-center gap-2">
+                                    <Link to="/islands" className="cpp-btn cpp-btn--sm cpp-btn--oncover">
+                                        <i className="fa-solid fa-plane-departure" aria-hidden="true" />
+                                        <span>Flight board</span>
+                                    </Link>
+                                    <Link to="/membership" className="cpp-btn cpp-btn--sm cpp-btn--oncover">
+                                        <i className="fa-solid fa-crown" aria-hidden="true" />
+                                        <span>Perks &amp; tiers</span>
+                                    </Link>
+                                </div>
+                            </header>
+                            <div className="cpp-card__seam" aria-hidden="true" />
 
+                            <div className="cpp-card__body">
                                 {/* Subscription Tier Status Overview Banner */}
-                                <div className="bg-light rounded-4 p-4 border mb-4">
-                                    <div className="row g-3 align-items-center">
-                                        <div className="col-lg-6">
-                                            <div className="d-flex align-items-center gap-3">
-                                                <div
-                                                    className="rounded-circle d-flex align-items-center justify-content-center shadow-xs"
-                                                    style={{
-                                                        width: 52,
-                                                        height: 52,
-                                                        background: subscriptionRoleNames.length > 0 ? "#fef3c7" : "#d8f3dc",
-                                                        color: subscriptionRoleNames.length > 0 ? "#92400e" : "#1b4332",
-                                                    }}
-                                                >
-                                                    <i className={`fa-solid ${subscriptionRoleNames.length > 0 ? "fa-crown fa-lg" : "fa-leaf fa-lg"}`}></i>
-                                                </div>
-                                                <div>
-                                                    <div className="d-flex align-items-center gap-2 mb-1">
-                                                        <h3 className="h6 fw-black text-dark mb-0">
-                                                            {subscriptionRoleNames.length > 0 ? "Active Subscription Tier" : "Free Resident Access"}
-                                                        </h3>
-                                                        <span className={`badge rounded-pill px-2 py-1 x-small fw-bold ${subscriptionRoleNames.length > 0 ? "bg-warning text-dark" : "bg-secondary text-white"
-                                                            }`}>
-                                                            {subscriptionRoleNames.length > 0 ? "VIP PASS" : "STANDARD PASS"}
+                                <div
+                                    className="p-3.5 rounded-4 border mb-4 d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3"
+                                    style={{ background: hasActiveSubscription ? "#fffbeb" : "#f6faf7", borderColor: hasActiveSubscription ? "#fde68a" : "var(--line)" }}
+                                >
+                                    <div className="d-flex align-items-center gap-3">
+                                        <div
+                                            className="rounded-circle d-flex align-items-center justify-content-center shadow-xs flex-shrink-0"
+                                            style={{
+                                                width: 52,
+                                                height: 52,
+                                                background: hasActiveSubscription ? "#fef3c7" : "#d8f3dc",
+                                                color: hasActiveSubscription ? "#92400e" : "#1b4332",
+                                                fontSize: "1.25rem",
+                                            }}
+                                            aria-hidden="true"
+                                        >
+                                            <i className={`fa-solid ${hasActiveSubscription ? "fa-crown" : "fa-leaf"}`} />
+                                        </div>
+                                        <div>
+                                            <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                                <h3 className="h6 fw-black text-dark mb-0">
+                                                    {hasActiveSubscription ? "Active subscription tier" : "Standard resident pass"}
+                                                </h3>
+                                                <span className={`cpp-badge ${hasActiveSubscription ? "cpp-badge--gold" : "cpp-badge--muted"}`}>
+                                                    {hasActiveSubscription ? "Subscriber access" : "Free access"}
+                                                </span>
+                                            </div>
+                                            <div className="d-flex flex-wrap gap-1.5 align-items-center">
+                                                {allSubscriptionTierNames.length > 0 ? (
+                                                    allSubscriptionTierNames.map((tier) => (
+                                                        <span key={tier} className="cpp-badge cpp-badge--gold-outline">
+                                                            <i className="fa-solid fa-check text-success" aria-hidden="true" />
+                                                            <span>{tier}</span>
                                                         </span>
-                                                    </div>
-                                                    <div className="d-flex flex-wrap gap-1 align-items-center">
-                                                        {subscriptionRoleNames.length > 0 ? (
-                                                            subscriptionRoleNames.map((role) => (
-                                                                <span key={role} className="badge bg-white text-dark border rounded-pill px-2 py-1 x-small fw-bold shadow-2xs">
-                                                                    <i className="fa-solid fa-check text-success me-1"></i>{role}
-                                                                </span>
-                                                            ))
-                                                        ) : (
-                                                            <span className="tiny-text text-muted fw-bold">
-                                                                Access to all public islands ({allIslands.filter(i => i.cat === "public").length} free islands)
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
+                                                    ))
+                                                ) : hasActiveSubscription ? (
+                                                    <span className="small text-muted fw-bold">
+                                                        Connected subscriber account (all eligible sub islands unlocked)
+                                                    </span>
+                                                ) : (
+                                                    <span className="small text-muted">
+                                                        Access to all public islands ({allIslands.filter(i => i.cat === "public").length} free islands)
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
+                                    </div>
 
-                                        <div className="col-lg-6">
-                                            <div className="row g-2 text-center">
-                                                <div className="col-4">
-                                                    <div className="bg-white rounded-3 p-2 border shadow-2xs">
-                                                        <div className="x-small text-muted fw-bold text-uppercase">Unlocked</div>
-                                                        <div className="h5 fw-black text-success mb-0 font-monospace">{userUnlockedIslands.length}</div>
-                                                    </div>
-                                                </div>
-                                                <div className="col-4">
-                                                    <div className="bg-white rounded-3 p-2 border shadow-2xs">
-                                                        <div className="x-small text-muted fw-bold text-uppercase">Public Free</div>
-                                                        <div className="h5 fw-black text-dark mb-0 font-monospace">
-                                                            {userUnlockedIslands.filter(i => i.cat === "public").length}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div className="col-4">
-                                                    <div className="bg-white rounded-3 p-2 border shadow-2xs">
-                                                        <div className="x-small text-muted fw-bold text-uppercase">VIP / Premium</div>
-                                                        <div className="h5 fw-black text-warning mb-0 font-monospace">
-                                                            {userUnlockedIslands.filter(i => i.cat === "member").length}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                    {/* Unlocked stats */}
+                                    <div className="d-flex align-items-center gap-2">
+                                        <div className="bg-white rounded-3 p-2.5 border text-center" style={{ minWidth: 95 }}>
+                                            <span className="tiny-text text-muted d-block fw-bold">Unlocked</span>
+                                            <strong className="h5 fw-black text-success mb-0 font-monospace">
+                                                {userUnlockedIslands.length}
+                                            </strong>
+                                        </div>
+                                        <div className="bg-white rounded-3 p-2.5 border text-center" style={{ minWidth: 95 }}>
+                                            <span className="tiny-text text-muted d-block fw-bold">Free public</span>
+                                            <strong className="h5 fw-black text-dark mb-0 font-monospace">
+                                                {userUnlockedIslands.filter(i => i.cat === "public").length}
+                                            </strong>
+                                        </div>
+                                        <div className="bg-white rounded-3 p-2.5 border text-center" style={{ minWidth: 95 }}>
+                                            <span className="tiny-text text-muted d-block fw-bold">Subscriber</span>
+                                            <strong className="h5 fw-black text-warning mb-0 font-monospace">
+                                                {userUnlockedIslands.filter(i => i.cat === "member").length}
+                                            </strong>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Filter Pills for Unlocked Islands */}
+                                {/* Filter pills */}
                                 <div className="d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-2 mb-3">
-                                    <div className="d-flex flex-wrap gap-2">
+                                    <div className="d-flex flex-wrap gap-1.5">
                                         <button
                                             type="button"
                                             onClick={() => setAccessFilter("all")}
-                                            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${accessFilter === "all" ? "btn-dark shadow-xs" : "btn-light border text-muted"
-                                                }`}
+                                            className={`cpp-btn cpp-btn--sm ${accessFilter === "all" ? "cpp-btn--primary" : "cpp-btn--secondary"}`}
                                         >
-                                            All Unlocked ({userUnlockedIslands.length})
+                                            <span>All unlocked ({userUnlockedIslands.length})</span>
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setAccessFilter("public")}
-                                            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${accessFilter === "public" ? "btn-success text-white shadow-xs" : "btn-light border text-muted"
-                                                }`}
+                                            className={`cpp-btn cpp-btn--sm ${accessFilter === "public" ? "cpp-btn--primary" : "cpp-btn--secondary"}`}
                                         >
-                                            <i className="fa-solid fa-lock-open me-1"></i>Free Public ({userUnlockedIslands.filter(i => i.cat === "public").length})
+                                            <i className="fa-solid fa-lock-open" aria-hidden="true" />
+                                            <span>Free public ({userUnlockedIslands.filter(i => i.cat === "public").length})</span>
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setAccessFilter("member")}
-                                            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${accessFilter === "member" ? "btn-warning text-dark shadow-xs" : "btn-light border text-muted"
-                                                }`}
+                                            className={`cpp-btn cpp-btn--sm ${accessFilter === "member" ? "cpp-btn--primary" : "cpp-btn--secondary"}`}
                                         >
-                                            <i className="fa-solid fa-crown me-1"></i>VIP / Sub ({userUnlockedIslands.filter(i => i.cat === "member").length})
+                                            <i className="fa-solid fa-crown" aria-hidden="true" />
+                                            <span>Subscriber only ({userUnlockedIslands.filter(i => i.cat === "member").length})</span>
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setAccessFilter("order")}
-                                            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${accessFilter === "order" ? "btn-info text-dark shadow-xs" : "btn-light border text-muted"
-                                                }`}
+                                            className={`cpp-btn cpp-btn--sm ${accessFilter === "order" ? "cpp-btn--primary" : "cpp-btn--secondary"}`}
                                         >
-                                            <i className="fa-solid fa-box-open me-1"></i>Order Bot ({userUnlockedIslands.filter(i => i.cat === "order").length})
+                                            <i className="fa-solid fa-box-open" aria-hidden="true" />
+                                            <span>Order bot ({userUnlockedIslands.filter(i => i.cat === "order").length})</span>
                                         </button>
                                     </div>
 
-                                    <span className="tiny-text text-muted fw-bold">
+                                    <span className="small text-muted font-weight-bold">
                                         Showing {filteredAccessIslands.length} accessible destinations
                                     </span>
                                 </div>
@@ -1053,56 +1573,55 @@ let discordMsg = "";
 
                                             return (
                                                 <div key={island.id} className="col-12 col-md-6 col-lg-4">
-                                                    <div className="pf-island-card">
+                                                    <div className="cpp-island">
                                                         <div className="d-flex align-items-center justify-content-between mb-2">
                                                             <div className="d-flex align-items-center gap-2">
-                                                                <span className={`badge rounded-pill x-small fw-bold ${island.cat === "member"
-                                                                        ? "bg-warning-subtle text-warning-emphasis border border-warning-subtle"
-                                                                        : island.cat === "order"
-                                                                            ? "bg-info-subtle text-info-emphasis border border-info-subtle"
-                                                                            : "bg-success-subtle text-success border border-success-subtle"
-                                                                    }`}>
+                                                                <span className={`cpp-badge ${island.cat === "member" ? "cpp-badge--gold" : island.cat === "order" ? "cpp-badge--muted" : "cpp-badge--leaf"}`}>
                                                                     {island.cat === "member" ? (
-                                                                        <><i className="fa-solid fa-crown me-1"></i>VIP Unlocked</>
+                                                                        <><i className="fa-solid fa-crown me-1" aria-hidden="true" />VIP unlocked</>
                                                                     ) : island.cat === "order" ? (
-                                                                        <><i className="fa-solid fa-box me-1"></i>Order Bot</>
+                                                                        <><i className="fa-solid fa-box me-1" aria-hidden="true" />Order bot</>
                                                                     ) : (
-                                                                        <><i className="fa-solid fa-lock-open me-1"></i>Public Free</>
+                                                                        <><i className="fa-solid fa-lock-open me-1" aria-hidden="true" />Free public</>
                                                                     )}
                                                                 </span>
 
-                                                                <div className="d-flex align-items-center gap-1 x-small fw-bold">
-                                                                    <span className={`status-dot ${isOnline ? "bg-success pulse-ring" : "bg-danger"}`} style={{ width: 8, height: 8 }}></span>
+                                                                <span className="small fw-bold d-inline-flex align-items-center gap-1">
+                                                                    <span
+                                                                        className={`rounded-circle ${isOnline ? "bg-success" : "bg-secondary"}`}
+                                                                        style={{ width: 7, height: 7 }}
+                                                                        aria-hidden="true"
+                                                                    />
                                                                     <span className={isOnline ? "text-success" : "text-muted"}>
-                                                                        {isOnline ? "ONLINE" : "OFFLINE"}
+                                                                        {isOnline ? "Online" : "Offline"}
                                                                     </span>
-                                                                </div>
+                                                                </span>
                                                             </div>
 
                                                             <button
                                                                 type="button"
                                                                 onClick={(e) => toggleFavoriteIsland(island.id, e)}
-                                                                className={`btn btn-sm border rounded-circle shadow-2xs d-flex align-items-center justify-content-center transition-all ${isFav ? "btn-warning text-dark border-warning" : "btn-light text-muted"
-                                                                    }`}
+                                                                className={`btn btn-sm border rounded-circle shadow-2xs d-flex align-items-center justify-content-center ${isFav ? "btn-warning text-dark border-warning" : "btn-light text-muted"}`}
                                                                 style={{ width: 30, height: 30 }}
-                                                                title={isFav ? "Remove from Favorites" : "Add to Favorites"}
-                                                                aria-label={isFav ? `Remove ${island.name} from Favorites` : `Add ${island.name} to Favorites`}
+                                                                title={isFav ? "Remove from favorites" : "Add to favorites"}
+                                                                aria-label={isFav ? `Remove ${island.name} from favorites` : `Add ${island.name} to favorites`}
                                                             >
-                                                                <i className={`${isFav ? "fa-solid text-dark" : "fa-regular text-muted"} fa-star x-small`}></i>
+                                                                <i className={`${isFav ? "fa-solid text-dark" : "fa-regular text-muted"} fa-star x-small`} aria-hidden="true" />
                                                             </button>
                                                         </div>
 
                                                         <div className="d-flex align-items-center justify-content-between mb-2">
                                                             <div>
                                                                 <h4 className="ac-font h5 text-dark mb-0">{island.name}</h4>
-                                                                <span className="tiny-text text-muted fw-bold text-uppercase">{island.type}</span>
+                                                                <span className="tiny-text text-muted fw-bold">{island.type}</span>
                                                             </div>
                                                             <div
-                                                                className={`theme-badge rounded-circle d-flex align-items-center justify-content-center theme-${island.theme} border shadow-2xs`}
-                                                                style={{ width: 30, height: 30, fontSize: "0.75rem" }}
-                                                                title={`${island.seasonal} Season`}
+                                                                className="rounded-circle d-flex align-items-center justify-content-center border"
+                                                                style={{ width: 30, height: 30, background: "#f6faf7", color: "var(--leaf)" }}
+                                                                title={`${island.seasonal || "Standard"} season`}
+                                                                aria-hidden="true"
                                                             >
-                                                                <i className="fa-solid fa-leaf"></i>
+                                                                <i className="fa-solid fa-leaf text-success" />
                                                             </div>
                                                         </div>
 
@@ -1123,15 +1642,15 @@ let discordMsg = "";
 
                                                         <div className="mt-auto pt-2 border-top d-flex align-items-center justify-content-between">
                                                             <span className="tiny-text text-muted font-monospace fw-bold">
-                                                                <i className="fa-solid fa-users me-1"></i>
-                                                                {island.visitors ?? 0}/7 Visitors
+                                                                <i className="fa-solid fa-users me-1" aria-hidden="true" />
+                                                                {island.visitors ?? 0}/7 visitors
                                                             </span>
                                                             <Link
                                                                 to={`/island/${encodeURIComponent(island.id)}`}
-                                                                className="btn btn-sm btn-nook rounded-pill px-3 py-1 fw-bold d-flex align-items-center gap-1 shadow-xs"
+                                                                className="cpp-btn cpp-btn--sm cpp-btn--primary"
                                                             >
-                                                                <span>Fly to Island</span>
-                                                                <i className="fa-solid fa-plane-departure x-small"></i>
+                                                                <span>Fly to island</span>
+                                                                <i className="fa-solid fa-plane-departure" aria-hidden="true" />
                                                             </Link>
                                                         </div>
                                                     </div>
@@ -1140,45 +1659,47 @@ let discordMsg = "";
                                         })}
                                     </div>
                                 ) : (
-                                    <div className="pf-empty-state mb-4">
-                                        <div className="pf-empty-icon text-muted"><i className="fa-solid fa-map-location-dot"></i></div>
-                                        <div className="pf-empty-title">No Islands Found</div>
-                                        <p className="pf-empty-desc">Try selecting "All Unlocked" to view all available destinations.</p>
+                                    <div className="text-center py-5 text-muted">
+                                        <p className="mb-0">No islands matched this filter. Select "All unlocked" to view all available destinations.</p>
                                     </div>
                                 )}
 
-                                {/* Locked Islands Preview Card (for subscribers & free members) */}
+                                {/* Locked islands preview */}
                                 {lockedIslands.length > 0 && (
-                                    <div className="bg-light border rounded-4 p-4">
+                                    <div className="p-3.5 rounded-4 border bg-light">
                                         <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 mb-3">
                                             <div>
                                                 <div className="d-flex align-items-center gap-2 mb-1">
-                                                    <span className="badge bg-secondary text-white rounded-pill px-2 py-1 x-small fw-bold">
-                                                        <i className="fa-solid fa-lock me-1"></i>VIP EXCLUSIVE
+                                                    <span className="cpp-badge cpp-badge--muted">
+                                                        <i className="fa-solid fa-lock" aria-hidden="true" />
+                                                        <span>Subscriber only</span>
                                                     </span>
-                                                    <h3 className="h6 fw-black text-dark mb-0">Locked Treasure Islands ({lockedIslands.length})</h3>
+                                                    <h3 className="h6 fw-black text-dark mb-0">
+                                                        Locked treasure islands ({lockedIslands.length})
+                                                    </h3>
                                                 </div>
                                                 <p className="tiny-text text-muted mb-0">
-                                                    Upgrade your subscription tier on Discord to unlock priority 24/7 Dodo codes, 2.0 DIYs, custom order bots, and all private islands.
+                                                    Upgrade your membership tier on Twitch, Patreon, YouTube, or Discord to unlock priority 24/7 Dodo codes, 2.0 DIYs, and custom order bots.
                                                 </p>
                                             </div>
 
-                                            <Link to="/membership" className="btn btn-sm btn-warning text-dark border-warning rounded-pill px-4 fw-bold shadow-xs text-nowrap">
-                                                <i className="fa-solid fa-crown me-1"></i>Unlock All Islands
+                                            <Link to="/membership" className="cpp-btn cpp-btn--primary text-nowrap">
+                                                <i className="fa-solid fa-crown" aria-hidden="true" />
+                                                <span>Unlock all islands</span>
                                             </Link>
                                         </div>
 
-                                        <div className="d-flex flex-wrap gap-2">
+                                        <div className="d-flex flex-wrap gap-1.5">
                                             {lockedIslands.map((locked) => (
-                                                <div
+                                                <span
                                                     key={locked.id}
-                                                    className="badge bg-white text-muted border rounded-pill px-3 py-2 fw-bold d-flex align-items-center gap-2 shadow-2xs"
+                                                    className="badge bg-white text-muted border rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1.5 shadow-2xs"
                                                     title="Subscribe to unlock this island"
                                                 >
-                                                    <i className="fa-solid fa-lock text-warning x-small"></i>
+                                                    <i className="fa-solid fa-lock text-warning" aria-hidden="true" />
                                                     <span className="text-dark">{locked.name}</span>
-                                                    <span className="x-small text-muted">({locked.type})</span>
-                                                </div>
+                                                    <span className="text-muted">({locked.type})</span>
+                                                </span>
                                             ))}
                                         </div>
                                     </div>
@@ -1188,29 +1709,34 @@ let discordMsg = "";
                     </div>
                 )}
 
-                {/* ── TAB 3: FAVOURITE TREASURE ISLANDS ────────────────────────────── */}
+                {/* ── TAB 4: FAVORITE ISLANDS ── */}
                 {activeTab === "favorites" && (
-                    <div className="row g-4 animate-fade" role="tabpanel" aria-label="Favorite Islands">
-                        <div className="col-lg-12">
-                            <div className="pf-card">
-                                <div className="pf-section-header">
+                    <div
+                        id="tab-panel-favorites"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-favorites"
+                    >
+                        <div className="cpp-card">
+                            <header className="cpp-card__cover">
+                                <div className="cpp-card__cover-left">
+                                    <div className="cpp-card__crest" aria-hidden="true">
+                                        <i className="fa-solid fa-star" />
+                                    </div>
                                     <div>
-                                        <div className="d-flex align-items-center gap-2 mb-1">
-                                            <h2 className="h5 ac-font text-dark mb-0">Favorite Treasure Islands</h2>
-                                            <span className="badge bg-warning bg-opacity-25 text-dark rounded-pill x-small fw-black">
-                                                {favoriteIslands.length} Starred
-                                            </span>
-                                        </div>
-                                        <p className="tiny-text text-muted mb-0">
-                                            Your starred treasure islands for quick access and live status monitoring.
+                                        <h2 className="ac-font cpp-card__title">Favorite treasure islands</h2>
+                                        <p className="cpp-card__subtitle">
+                                            Your starred destinations for quick access and live dodo monitoring
                                         </p>
                                     </div>
-
-                                    <Link to="/islands" className="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold">
-                                        <i className="fa-solid fa-plus me-1"></i>Find More Islands
-                                    </Link>
                                 </div>
+                                <Link to="/islands" className="cpp-btn cpp-btn--sm cpp-btn--oncover">
+                                    <i className="fa-solid fa-plus" aria-hidden="true" />
+                                    <span>Find more islands</span>
+                                </Link>
+                            </header>
+                            <div className="cpp-card__seam" aria-hidden="true" />
 
+                            <div className="cpp-card__body">
                                 {favoritedIslandObjects.length > 0 ? (
                                     <div className="row g-3">
                                         {favoritedIslandObjects.map((island) => {
@@ -1218,47 +1744,48 @@ let discordMsg = "";
 
                                             return (
                                                 <div key={island.id} className="col-md-6 col-lg-4">
-                                                    <div className="pf-island-card">
+                                                    <div className="cpp-island">
                                                         <div className="d-flex align-items-center justify-content-between mb-2">
-                                                            <div className="d-flex align-items-center gap-1">
+                                                            <span className="small fw-bold d-inline-flex align-items-center gap-1">
                                                                 <span
-                                                                    className={`status-dot ${isOnline ? "bg-success pulse-ring" : "bg-secondary"}`}
-                                                                    style={{ width: "8px", height: "8px" }}
-                                                                ></span>
-                                                                <span className={`tiny-text fw-black ${isOnline ? "text-success" : "text-muted"}`}>
-                                                                    {island.status}
+                                                                    className={`rounded-circle ${isOnline ? "bg-success" : "bg-secondary"}`}
+                                                                    style={{ width: 8, height: 8 }}
+                                                                    aria-hidden="true"
+                                                                />
+                                                                <span className={isOnline ? "text-success" : "text-muted"}>
+                                                                    {isOnline ? "Online" : "Offline"}
                                                                 </span>
-                                                            </div>
+                                                            </span>
 
                                                             <button
                                                                 type="button"
                                                                 className="btn btn-sm p-1 text-warning border-0"
                                                                 onClick={(e) => toggleFavoriteIsland(island.id, e)}
-                                                                title="Remove from Favorites"
-                                                                aria-label={`Remove ${island.name} from Favorites`}
+                                                                title="Remove from favorites"
+                                                                aria-label={`Remove ${island.name} from favorites`}
                                                             >
-                                                                <i className="fa-solid fa-star fs-5"></i>
+                                                                <i className="fa-solid fa-star fs-5" aria-hidden="true" />
                                                             </button>
                                                         </div>
 
                                                         <div className="fw-black text-dark h5 mb-1 ac-font d-flex align-items-center gap-2">
-                                                            <i className="fa-solid fa-tree text-success"></i>
+                                                            <i className="fa-solid fa-tree text-success" aria-hidden="true" />
                                                             <span>{island.name}</span>
                                                         </div>
 
-                                                        <p className="tiny-text text-muted mb-3 flex-grow-1 line-clamp-2">
+                                                        <p className="tiny-text text-muted mb-3 flex-grow-1" style={{ lineHeight: 1.5 }}>
                                                             {island.description || "Treasure island with loaded DIYs, materials, and catalog items."}
                                                         </p>
 
                                                         <div className="d-flex align-items-center justify-content-between pt-2 border-top mt-auto">
                                                             <span className="badge bg-white text-muted border rounded-pill x-small fw-bold">
-                                                                {island.cat || island.type || "Treasure Island"}
+                                                                {island.cat || island.type || "Treasure island"}
                                                             </span>
                                                             <Link
                                                                 to={`/island/${encodeURIComponent(island.id)}`}
-                                                                className="btn btn-xs btn-success text-white rounded-pill px-3 fw-bold shadow-xs"
+                                                                className="cpp-btn cpp-btn--sm cpp-btn--primary"
                                                             >
-                                                                Travel Now
+                                                                <span>Fly now</span>
                                                             </Link>
                                                         </div>
                                                     </div>
@@ -1267,17 +1794,16 @@ let discordMsg = "";
                                         })}
                                     </div>
                                 ) : (
-                                    <div className="pf-empty-state">
-                                        <div className="pf-empty-icon">⭐</div>
-                                        <h3 className="pf-empty-title">No Favorite Islands Starred Yet</h3>
-                                        <p className="pf-empty-desc">
-                                            Star your favorite free or subscriber treasure islands to keep track of their live dodo status and fast travel anytime!
+                                    <div className="text-center py-5 px-3">
+                                        <div className="fs-1 text-warning mb-2" aria-hidden="true">⭐</div>
+                                        <h3 className="h5 ac-font text-dark mb-1">No favorite islands starred yet</h3>
+                                        <p className="small text-muted mb-4" style={{ maxWidth: 440, margin: "0 auto" }}>
+                                            Star your favorite free or subscriber treasure islands on the flight board to keep track of their live dodo status here!
                                         </p>
-                                        <div className="d-flex justify-content-center">
-                                            <Link to="/islands" className="btn btn-sm btn-success text-white rounded-pill px-4 py-2 fw-bold shadow-xs">
-                                                <i className="fa-solid fa-compass me-1"></i>Browse Treasure Islands
-                                            </Link>
-                                        </div>
+                                        <Link to="/islands" className="cpp-btn cpp-btn--primary">
+                                            <i className="fa-solid fa-compass" aria-hidden="true" />
+                                            <span>Browse treasure islands</span>
+                                        </Link>
                                     </div>
                                 )}
                             </div>
@@ -1285,46 +1811,46 @@ let discordMsg = "";
                     </div>
                 )}
 
-                {/* ── TAB: ORDER HISTORY & REORDER ─────────────────────────────────────── */}
+                {/* ── TAB 5: ORDER HISTORY ── */}
                 {activeTab === "orders" && (
-                    <div className="row g-4 animate-fade" role="tabpanel" aria-label="Order History">
-                        <div className="col-12">
-                            <div className="pf-card">
-                                <div className="pf-section-header flex-column flex-sm-row align-items-start align-items-sm-center">
+                    <div
+                        id="tab-panel-orders"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-orders"
+                    >
+                        <div className="cpp-card">
+                            <header className="cpp-card__cover">
+                                <div className="cpp-card__cover-left">
+                                    <div className="cpp-card__crest" aria-hidden="true">
+                                        <i className="fa-solid fa-box-open" />
+                                    </div>
                                     <div>
-                                        <div className="d-flex align-items-center gap-2 mb-1">
-                                            <h2 className="h5 ac-font text-dark mb-0">Your Order History</h2>
-                                            <span className="badge bg-success bg-opacity-10 text-success rounded-pill x-small fw-black">
-                                                {orders.length} Order{orders.length === 1 ? "" : "s"}
-                                            </span>
-                                        </div>
-                                        <p className="tiny-text text-muted mb-0">
-                                            Saved Order Bot requests. Reorder any previous pocket with 1-click or export items to Command Builder.
+                                        <h2 className="ac-font cpp-card__title">Your order history</h2>
+                                        <p className="cpp-card__subtitle">
+                                            Past order bot requests with 1-click reordering and pocket loading
                                         </p>
                                     </div>
-
-                                    <div className="d-flex gap-2">
-                                        <button
-                                            type="button"
-                                            className="btn btn-sm btn-outline-secondary rounded-pill fw-bold px-3 d-flex align-items-center gap-1 shadow-2xs"
-                                            onClick={loadOrders}
-                                            disabled={ordersLoading}
-                                            title="Refresh order history"
-                                            aria-label="Refresh order history"
-                                        >
-                                            <i className={`fa-solid fa-arrows-rotate ${ordersLoading ? "fa-spin" : ""}`}></i>
-                                            <span>Refresh</span>
-                                        </button>
-                                        <Link
-                                            to="/order"
-                                            className="btn btn-sm btn-success text-white rounded-pill fw-bold px-3 d-flex align-items-center gap-1 shadow-xs"
-                                        >
-                                            <i className="fa-solid fa-paper-plane"></i>
-                                            <span>Order Bot</span>
-                                        </Link>
-                                    </div>
                                 </div>
+                                <div className="d-flex gap-2">
+                                    <button
+                                        type="button"
+                                        className="cpp-btn cpp-btn--sm cpp-btn--oncover"
+                                        onClick={loadOrders}
+                                        disabled={ordersLoading}
+                                        aria-label="Refresh order history"
+                                    >
+                                        <i className={`fa-solid fa-arrows-rotate ${ordersLoading ? "fa-spin" : ""}`} aria-hidden="true" />
+                                        <span>Refresh</span>
+                                    </button>
+                                    <Link to="/order" className="cpp-btn cpp-btn--sm cpp-btn--oncover">
+                                        <i className="fa-solid fa-paper-plane" aria-hidden="true" />
+                                        <span>Order bot</span>
+                                    </Link>
+                                </div>
+                            </header>
+                            <div className="cpp-card__seam" aria-hidden="true" />
 
+                            <div className="cpp-card__body">
                                 {ordersLoading && orders.length === 0 ? (
                                     <div className="text-center py-5 text-muted">
                                         <span className="spinner-border spinner-border-sm text-success me-2" role="status" aria-hidden="true" />
@@ -1335,39 +1861,37 @@ let discordMsg = "";
                                         {orders.map((order) => {
                                             const parsed = parsedOrdersMap.get(order.id) || { items: [], totalSlots: 0, unrecognizedCodes: [] };
                                             const isCopied = copiedOrderId === order.id;
-                                            const statusColor =
+                                            const statusClass =
                                                 order.status === "ready" || order.status === "completed"
-                                                    ? "bg-success text-white"
+                                                    ? "cpp-badge--leaf"
                                                     : order.status === "preparing"
-                                                        ? "bg-warning text-dark"
+                                                        ? "cpp-badge--gold"
                                                         : order.status === "cancelled" || order.status === "error"
-                                                            ? "bg-danger text-white"
-                                                            : "bg-info text-dark";
+                                                            ? "cpp-badge--danger"
+                                                            : "cpp-badge--muted";
 
                                             return (
                                                 <div key={order.id} className="col-12 col-xl-6">
-                                                    <div className="pf-order-card h-100 d-flex flex-column">
-                                                        {/* Card Top: Order ID + Status + Date */}
+                                                    <div className="cpp-order-card">
                                                         <div className="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
                                                             <div className="d-flex align-items-center gap-2">
                                                                 <span className="badge bg-dark text-white rounded-pill font-monospace x-small px-2 py-1">
                                                                     #{order.id.slice(0, 16)}
                                                                 </span>
-                                                                <span className={`badge rounded-pill x-small fw-black text-uppercase ${statusColor}`}>
+                                                                <span className={`cpp-badge ${statusClass}`}>
                                                                     {order.status}
                                                                 </span>
                                                             </div>
-                                                            <span className="tiny-text text-muted">
-                                                                <i className="fa-regular fa-clock me-1"></i>
+                                                            <span className="tiny-text text-muted font-monospace">
+                                                                <i className="fa-regular fa-clock me-1" aria-hidden="true" />
                                                                 {formatDateTime(order.created_at)}
                                                             </span>
                                                         </div>
 
-                                                        {/* Island info & Dodo code if ready */}
                                                         {order.island_name && (
                                                             <div className="d-flex align-items-center gap-2 mb-2 tiny-text">
                                                                 <span className="fw-bold text-dark d-flex align-items-center gap-1">
-                                                                    <i className="fa-solid fa-tree text-success"></i>
+                                                                    <i className="fa-solid fa-tree text-success" aria-hidden="true" />
                                                                     <span>Island: <strong>{order.island_name}</strong></span>
                                                                 </span>
                                                                 {order.dodo_code && (
@@ -1378,22 +1902,20 @@ let discordMsg = "";
                                                             </div>
                                                         )}
 
-                                                        {/* Parsed Items Preview */}
-                                                        <div className="bg-light rounded-3 p-2 border mb-3 flex-grow-1">
-                                                            <div className="d-flex align-items-center justify-content-between mb-2 tiny-text">
-                                                                <span className="text-muted fw-bold">
-                                                                    {parsed.items.length > 0
-                                                                        ? `${parsed.items.length} item types (${parsed.totalSlots} slots)`
-                                                                        : "Order Command"}
-                                                                </span>
-                                                            </div>
+                                                        {/* Parsed items preview */}
+                                                        <div className="bg-light rounded-3 p-2.5 border mb-3 flex-grow-1">
+                                                            <span className="text-muted fw-bold tiny-text d-block mb-1.5">
+                                                                {parsed.items.length > 0
+                                                                    ? `${parsed.items.length} item types (${parsed.totalSlots} slots)`
+                                                                    : "Order command"}
+                                                            </span>
 
                                                             {parsed.items.length > 0 ? (
                                                                 <div className="d-flex flex-wrap gap-1" style={{ maxHeight: "100px", overflowY: "auto" }}>
                                                                     {parsed.items.map((item, idx) => (
                                                                         <span
                                                                             key={`${item.itemId}-${idx}`}
-                                                                            className="pf-order-pill"
+                                                                            className="badge bg-white text-dark border rounded-pill px-2 py-1 d-inline-flex align-items-center gap-1 small"
                                                                         >
                                                                             {item.image && (
                                                                                 <img
@@ -1408,7 +1930,7 @@ let discordMsg = "";
                                                                     ))}
                                                                 </div>
                                                             ) : (
-                                                                <div className="font-monospace text-muted tiny-text text-break select-all" style={{ maxHeight: "60px", overflowY: "auto" }}>
+                                                                <div className="font-monospace text-muted tiny-text text-break" style={{ maxHeight: "60px", overflowY: "auto" }}>
                                                                     {order.command}
                                                                 </div>
                                                             )}
@@ -1418,37 +1940,33 @@ let discordMsg = "";
                                                         <div className="d-flex align-items-center justify-content-between pt-2 border-top mt-auto gap-2 flex-wrap">
                                                             <button
                                                                 type="button"
-                                                                className="btn btn-sm btn-nook text-white rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                                className="cpp-btn cpp-btn--sm cpp-btn--primary"
                                                                 onClick={() => handleReorder(order, "/order")}
-                                                                title="Load this pocket and open Order Bot"
-                                                                aria-label="Reorder this pocket with Order Bot"
+                                                                title="Load this pocket and open order bot"
                                                             >
-                                                                <i className="fa-solid fa-rotate-left"></i>
-                                                                <span>Reorder</span>
+                                                                <i className="fa-solid fa-rotate-left" aria-hidden="true" />
+                                                                <span>Reorder pocket</span>
                                                             </button>
 
-                                                            <div className="d-flex gap-2">
+                                                            <div className="d-flex gap-1.5">
                                                                 <button
                                                                     type="button"
-                                                                    className="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-1 shadow-2xs"
+                                                                    className="cpp-btn cpp-btn--sm cpp-btn--secondary"
                                                                     onClick={() => handleReorder(order, "/command-builder")}
-                                                                    title="Load into Command Builder to edit"
-                                                                    aria-label="Open pocket in Command Builder"
+                                                                    title="Load into command builder to edit"
                                                                 >
-                                                                    <i className="fa-solid fa-pencil"></i>
-                                                                    <span className="d-none d-sm-inline">Builder</span>
+                                                                    <i className="fa-solid fa-pencil" aria-hidden="true" />
+                                                                    <span>Builder</span>
                                                                 </button>
 
                                                                 <button
                                                                     type="button"
-                                                                    className={`btn btn-sm rounded-pill px-3 fw-bold d-inline-flex align-items-center gap-1 ${isCopied ? "btn-success text-white" : "btn-light border text-dark"
-                                                                        }`}
+                                                                    className={`cpp-btn cpp-btn--sm ${isCopied ? "cpp-btn--primary" : "cpp-btn--secondary"}`}
                                                                     onClick={() => handleCopyOrderCommand(order)}
-                                                                    title="Copy !order command to clipboard"
-                                                                    aria-label="Copy order command to clipboard"
+                                                                    title="Copy order command to clipboard"
                                                                 >
-                                                                    <i className={`fa-solid ${isCopied ? "fa-check" : "fa-copy"}`}></i>
-                                                                    <span>{isCopied ? "Copied" : "Copy"}</span>
+                                                                    <i className={`fa-solid ${isCopied ? "fa-check" : "fa-copy"}`} aria-hidden="true" />
+                                                                    <span>{isCopied ? "Copied" : "Copy command"}</span>
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -1458,18 +1976,20 @@ let discordMsg = "";
                                         })}
                                     </div>
                                 ) : (
-                                    <div className="pf-empty-state">
-                                        <div className="pf-empty-icon text-muted"><i className="fa-solid fa-box-open"></i></div>
-                                        <h3 className="pf-empty-title">No Orders Placed Yet</h3>
-                                        <p className="pf-empty-desc">
-                                            Build your 40-slot pocket loadout in the Command Builder and place an order to get automatic tracking and 1-click reordering here.
+                                    <div className="text-center py-5 px-3">
+                                        <div className="fs-1 text-muted mb-2" aria-hidden="true">📦</div>
+                                        <h3 className="h5 ac-font text-dark mb-1">No orders placed yet</h3>
+                                        <p className="small text-muted mb-4" style={{ maxWidth: 460, margin: "0 auto" }}>
+                                            Build your 40-slot pocket loadout in the command builder and summon the order bot to receive delivery right to your island!
                                         </p>
-                                        <div className="d-flex justify-content-center gap-2">
-                                            <Link to="/command-builder" className="btn btn-sm btn-success text-white rounded-pill px-4 py-2 fw-bold shadow-xs">
-                                                <i className="fa-solid fa-cubes-stacked me-1"></i>Build Pocket
+                                        <div className="d-flex justify-content-center gap-2 flex-wrap">
+                                            <Link to="/command-builder" className="cpp-btn cpp-btn--primary">
+                                                <i className="fa-solid fa-cubes-stacked" aria-hidden="true" />
+                                                <span>Build pocket</span>
                                             </Link>
-                                            <Link to="/order" className="btn btn-sm btn-outline-success rounded-pill px-4 py-2 fw-bold shadow-2xs">
-                                                <i className="fa-solid fa-box-open me-1"></i>Order Bot
+                                            <Link to="/order" className="cpp-btn cpp-btn--secondary">
+                                                <i className="fa-solid fa-box-open" aria-hidden="true" />
+                                                <span>Order bot</span>
                                             </Link>
                                         </div>
                                     </div>
@@ -1479,44 +1999,87 @@ let discordMsg = "";
                     </div>
                 )}
 
-                {/* ── TAB 4: FLIGHT HISTORY & VISIT LOGS ────────────────────────────── */}
+                {/* ── TAB 6: FLIGHT HISTORY & LOGS ── */}
                 {activeTab === "history" && (
-                    <div className="row g-4 animate-fade" role="tabpanel" aria-label="Flight History">
-                        <div className="col-lg-12">
-                            <div className="pf-card mb-4">
-                                <h2 className="h5 ac-font text-dark mb-3">Recent Flights &amp; Visits</h2>
+                    <div
+                        id="tab-panel-history"
+                        role="tabpanel"
+                        aria-labelledby="tab-btn-history"
+                        className="d-flex flex-column gap-4"
+                    >
+                        <div className="cpp-card">
+                            <header className="cpp-card__cover">
+                                <div className="cpp-card__cover-left">
+                                    <div className="cpp-card__crest" aria-hidden="true">
+                                        <i className="fa-solid fa-plane-departure" />
+                                    </div>
+                                    <div>
+                                        <h2 className="ac-font cpp-card__title">Recent flights &amp; visits</h2>
+                                        <p className="cpp-card__subtitle">Your past island travel records</p>
+                                    </div>
+                                </div>
+                            </header>
+                            <div className="cpp-card__seam" aria-hidden="true" />
+                            <div className="cpp-card__body">
                                 <IslandVisitTable visits={recentVisits} emptyText="No recent flights recorded." showDate />
                             </div>
+                        </div>
 
-                            <div className="pf-card">
-                                <h2 className="h5 ac-font text-dark mb-3">Top Visited Destinations</h2>
+                        <div className="cpp-card">
+                            <header className="cpp-card__cover">
+                                <div className="cpp-card__cover-left">
+                                    <div className="cpp-card__crest" aria-hidden="true">
+                                        <i className="fa-solid fa-map-location-dot" />
+                                    </div>
+                                    <div>
+                                        <h2 className="ac-font cpp-card__title">Top visited destinations</h2>
+                                        <p className="cpp-card__subtitle">Most frequently visited islands</p>
+                                    </div>
+                                </div>
+                            </header>
+                            <div className="cpp-card__seam" aria-hidden="true" />
+                            <div className="cpp-card__body">
                                 <IslandVisitTable visits={mostVisited} emptyText="No favorite destinations yet." />
                             </div>
+                        </div>
 
-                            {/* Warnings Summary if any */}
-                            {warningSummary && (
-                                <div className="pf-card mt-4">
-                                    <h2 className="h5 ac-font text-dark mb-3">Account Warnings Log</h2>
+                        {/* Warnings Summary if any */}
+                        {warningSummary && (
+                            <div className="cpp-card">
+                                <header className="cpp-card__cover" style={{ background: "#78350f" }}>
+                                    <div className="cpp-card__cover-left">
+                                        <div className="cpp-card__crest" aria-hidden="true">
+                                            <i className="fa-solid fa-shield-halved" />
+                                        </div>
+                                        <div>
+                                            <h2 className="ac-font cpp-card__title">Account standing log</h2>
+                                            <p className="cpp-card__subtitle">Official community record</p>
+                                        </div>
+                                    </div>
+                                </header>
+                                <div className="cpp-card__seam" aria-hidden="true" />
+                                <div className="cpp-card__body">
                                     {Array.isArray(warningSummary) && warningSummary.length > 0 ? (
                                         <PaginatedTable
-                                            columns={["Warning Note"]}
+                                            columns={["Warning note"]}
                                             rows={warningSummary.map((w) => [String(w)])}
                                             searchable={false}
                                         />
                                     ) : !Array.isArray(warningSummary) && Object.keys(warningSummary).length > 0 ? (
                                         <PaginatedTable
-                                            columns={["Warning Type", "Count"]}
+                                            columns={["Warning type", "Count"]}
                                             rows={Object.entries(warningSummary).map(([k, v]) => [k.replaceAll("_", " "), formatNumber(Number(v))])}
                                             searchable={false}
                                         />
                                     ) : (
-                                        <div className="alert alert-success rounded-3 py-2 px-3 small fw-bold mb-0">
-                                            <i className="fa-solid fa-shield-check me-2"></i>Clean record! No active warnings or penalties on this passport.
+                                        <div className="p-3 rounded-3 small fw-bold d-flex align-items-center gap-2" style={{ background: "#e6f4ec", color: "var(--leaf-dark)" }}>
+                                            <i className="fa-solid fa-shield-check" aria-hidden="true" />
+                                            <span>Clean record. No active warnings or penalties on this passport.</span>
                                         </div>
                                     )}
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -1537,9 +2100,6 @@ let discordMsg = "";
                 onSave={handleSaveCharacterModal}
                 characterIcons={CHARACTER_ICONS}
             />
-
-
-
         </div>
     );
 };
@@ -1587,7 +2147,7 @@ const PaginatedTable = ({ columns, rows, searchable = true, perPage = 5 }: Pagin
     }, [tableKey, searchable, perPage, rows.length]);
 
     return (
-        <div className="profile-table-wrap mb-2">
+        <div className="table-responsive mb-2">
             <table ref={tableRef} className="table table-hover align-middle mb-0 profile-table">
                 <thead>
                     <tr>
@@ -1645,7 +2205,7 @@ const IslandVisitTable = ({ visits, emptyText, showDate = false }: IslandVisitTa
     );
 
     if (visits.length === 0) {
-        return <div className="bg-light border rounded-3 p-3 text-muted fw-bold small">{emptyText}</div>;
+        return <div className="p-3 bg-light border rounded-3 text-muted fw-bold small">{emptyText}</div>;
     }
 
     return <PaginatedTable columns={columns} rows={rows} />;

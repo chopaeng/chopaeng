@@ -55,6 +55,7 @@ export const AccountInfoCard: React.FC<AccountInfoCardProps> = ({
                 <div className="fw-bold text-dark font-monospace small d-flex align-items-center justify-content-between p-2.5 bg-light rounded-3 border">
                     <div className="d-flex align-items-center gap-2 text-truncate">
                         <i className={`fa-brands ${
+                            provider === "discord" ? "fa-discord text-primary" :
                             provider === "twitch" ? "fa-twitch text-purple" :
                             provider === "youtube" ? "fa-youtube text-danger" :
                             provider === "patreon" ? "fa-patreon text-warning" : "fa-passport text-success"
@@ -91,6 +92,7 @@ export const AccountInfoCard: React.FC<AccountInfoCardProps> = ({
                 </div>
                 <div className="d-flex flex-column gap-2">
                     {[
+                        { id: "discord", name: "Discord", icon: "fa-brands fa-discord", color: "#5865F2" },
                         { id: "youtube", name: "YouTube Member", icon: "fa-brands fa-youtube", color: "#FF0000" },
                         { id: "patreon", name: "Patreon Tier", icon: "fa-brands fa-patreon", color: "#FF424D" },
                         { id: "twitch", name: "Twitch (ChoTato Club)", icon: "fa-brands fa-twitch", color: "#9146FF" },

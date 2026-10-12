@@ -55,12 +55,10 @@ const PROVIDERS: ProviderOption[] = [
         id: "discord",
         name: "Discord",
         tier: "Community Account",
-        description: "Temporarily unavailable",
+        description: "Server roles and member sub access",
         icon: "fa-brands fa-discord",
         color: "#5865f2",
-        enabled: false,
-        disabledReason:
-            "Discord login is temporarily unavailable. Use YouTube, Patreon or Twitch instead.",
+        enabled: true,
     },
 ];
 

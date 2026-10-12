@@ -24,8 +24,10 @@ interface AccountInformationTabProps {
     passportData: PublicPassportData;
 }
 
+import { type AuthProviderType } from "../../context/authContextShared";
+
 interface ProviderMeta {
-    id: "youtube" | "patreon" | "twitch";
+    id: AuthProviderType;
     name: string;
     icon: string;
     /** Brand color, used for the icon. */
@@ -37,6 +39,15 @@ interface ProviderMeta {
 }
 
 const PROVIDER_CONFIGS: ProviderMeta[] = [
+    {
+        id: "discord",
+        name: "Discord",
+        icon: "fa-brands fa-discord",
+        color: "#5865f2",
+        ctaColor: "#4752c4",
+        tiers: "Server Roles • Member Sub Access",
+        description: "Server roles, community status, and subscriber channel privileges",
+    },
     {
         id: "youtube",
         name: "YouTube",
@@ -301,6 +312,12 @@ export const AccountInformationTab: React.FC<AccountInformationTabProps> = ({
         }
         if (names.some((t) => t.includes("chotato") || t.includes("chofries"))) {
             return { name: "Tier 1 • ChoTato Club / VIP", level: 1, islands: 11, badge: "Tier 1" };
+        }
+        if (activeTiers.length > 0) {
+            return { name: activeTiers[0], level: 1, islands: 11, badge: "VIP" };
+        }
+        if (authUser?.is_subscriber) {
+            return { name: "Subscriber VIP Pass", level: 1, islands: 11, badge: "VIP" };
         }
         return { name: "Standard Resident Pass", level: 0, islands: 0, badge: "Free" };
     }, [activeTiers, authUser]);

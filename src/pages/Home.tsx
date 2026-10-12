@@ -9,6 +9,11 @@ import { getAuthToken } from "../context/authToken";
 import { useIslandData } from "../context/useIslandData";
 import { playChimeClick } from "../utils/kkAudioSynthesizer";
 import TodaySnapshot from "../components/TodaySnapshot";
+import { useAuth } from "../context/useAuth";
+import { useSavedCharacters } from "../hooks/useSavedCharacters";
+import RevealErrorPopup from "../components/RevealErrorPopup";
+import SubRulesModal from "../components/sub/SubRulesModal";
+import { isSubRulesAccepted } from "../utils/subRulesStorage";
 
 interface BlogPost {
     id: string;
@@ -38,10 +43,44 @@ const Home = () => {
 
     // Hero interactive showcase tab state (flights vs stream)
     const [heroTab, setHeroTab] = useState<'flights' | 'stream'>('flights');
+
+    const performHomeReveal = async (isl: any) => {
+        setRevealingId(isl.id);
+        playChimeClick();
+        try {
+            const token = getAuthToken();
+            const resp = await fetch(
+                `${DODO_API_BASE}/api/islands/${encodeURIComponent(isl.name)}/dodo`,
+                {
+                    method: 'POST',
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    credentials: 'include',
+                }
+            );
+            if (resp.ok) {
+                const data = await resp.json();
+                const raw = String(data.dodo_code || '');
+                const code = raw.split(': ').pop() || raw;
+                setRevealedDodos(prev => ({ ...prev, [isl.id]: code }));
+            } else {
+                const err = await resp.json().catch(() => ({}));
+                setRevealError(err.error || "Unable to reveal Dodo code.");
+            }
+        } catch {
+            setRevealError("Network error while revealing Dodo code.");
+        } finally {
+            setRevealingId(null);
+        }
+    };
     const [flightFilter, setFlightFilter] = useState<'all' | 'public' | 'member'>('all');
     // Track revealed dodo codes for member islands (fetched from API)
     const [revealedDodos, setRevealedDodos] = useState<Record<string, string>>({});
     const [revealingId, setRevealingId] = useState<string | null>(null);
+    const [revealError, setRevealError] = useState<string | null>(null);
+    const [showSubRulesModal, setShowSubRulesModal] = useState(false);
+    const [pendingHomeIsland, setPendingHomeIsland] = useState<any | null>(null);
+    const { user, login } = useAuth();
+    const { hasSavedCharacters } = useSavedCharacters();
 
     // Live Discord member count (falls back to static value if API unavailable)
     const [discordCount, setDiscordCount] = useState<string>('29k+');
@@ -414,29 +453,26 @@ const Home = () => {
                                                                             type="button"
                                                                             disabled={revealingId === isl.id}
                                                                             onClick={async () => {
-                                                                                setRevealingId(isl.id);
-                                                                                playChimeClick();
-                                                                                try {
-                                                                                    const token = getAuthToken();
-                                                                                    const resp = await fetch(
-                                                                                        `${DODO_API_BASE}/api/islands/${encodeURIComponent(isl.name)}/dodo`,
-                                                                                        {
-                                                                                            method: 'POST',
-                                                                                            headers: token ? { Authorization: `Bearer ${token}` } : {},
-                                                                                            credentials: 'include',
-                                                                                        }
-                                                                                    );
-                                                                                    if (resp.ok) {
-                                                                                        const data = await resp.json();
-                                                                                        const raw = String(data.dodo_code || '');
-                                                                                        const code = raw.split(': ').pop() || raw;
-                                                                                        setRevealedDodos(prev => ({ ...prev, [isl.id]: code }));
-                                                                                    }
-                                                                                } catch {
-                                                                                    // silently fail on home page
-                                                                                } finally {
-                                                                                    setRevealingId(null);
+                                                                                setRevealError(null);
+                                                                                if (!user) {
+                                                                                    login();
+                                                                                    return;
                                                                                 }
+                                                                                if (!hasSavedCharacters) {
+                                                                                    setRevealError("You must save your In-Game Character (IGN & Island Name) first before you can reveal Dodo codes. Please add your character in your <a href=\"/profile\">Profile Settings</a>.");
+                                                                                    return;
+                                                                                }
+
+                                                                                // Sub Member Rules prerequisite - only for Sub members (one time only)
+                                                                                const isSubIsland = isl.cat === "member";
+                                                                                const isSubMember = Boolean(user?.is_subscriber || user?.sub_tier || user?.is_mod || user?.is_admin);
+                                                                                if (isSubIsland && isSubMember && !isSubRulesAccepted(user?.user_id)) {
+                                                                                    setPendingHomeIsland(isl);
+                                                                                    setShowSubRulesModal(true);
+                                                                                    return;
+                                                                                }
+
+                                                                                await performHomeReveal(isl);
                                                                             }}
                                                                             className="btn btn-sm btn-nook-primary rounded-pill fw-bold px-3"
                                                                             style={{ fontSize: '0.78rem' }}
@@ -814,6 +850,24 @@ const Home = () => {
 
             {/* VISIBLE UNOFFICIAL FAN-SITE DISCLAIMER */}
             <DisclaimerBanner variant="footer" className="mt-0" />
+            {revealError && <RevealErrorPopup message={revealError} onClose={() => setRevealError(null)} />}
+
+            <SubRulesModal
+                isOpen={showSubRulesModal}
+                onClose={() => {
+                    setShowSubRulesModal(false);
+                    setPendingHomeIsland(null);
+                }}
+                onAccept={() => {
+                    setShowSubRulesModal(false);
+                    if (pendingHomeIsland) {
+                        const target = pendingHomeIsland;
+                        setPendingHomeIsland(null);
+                        performHomeReveal(target);
+                    }
+                }}
+                userId={user?.user_id}
+            />
         </>
     );
 };

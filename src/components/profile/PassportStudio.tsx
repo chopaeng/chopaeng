@@ -202,8 +202,8 @@ export const PassportStudio: React.FC<PassportStudioProps> = ({
                             className="btn btn-xs btn-outline-success rounded-pill fw-bold px-3 py-2 d-inline-flex align-items-center gap-1 shadow-2xs"
                             title="Open Public Passport in New Tab"
                         >
-                            <span>View Live</span>
-                            <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                            <span>View live <span className="visually-hidden">(opens in a new tab)</span></span>
+                            <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
                         </Link>
 
                         {/* Quick Save to ChoBot Button */}

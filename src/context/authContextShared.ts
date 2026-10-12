@@ -29,6 +29,7 @@ export interface AuthUser {
     connected_accounts?: Record<string, ConnectedAccountDetail>;
     email?: string;
     has_password?: boolean;
+    sub_rules_accepted?: boolean;
     auth_checked_at?: number;
 }
 

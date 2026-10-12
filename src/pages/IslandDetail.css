@@ -51,6 +51,22 @@
     color: #15803d;
 }
 
+.drop-bot-suggestion-banner {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+    border: 1.5px solid rgba(245, 158, 11, 0.45) !important;
+}
+
+.drop-bot-suggestion-icon {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #ffffff;
+}
+
+.drop-bot-badge {
+    background: rgba(245, 158, 11, 0.2);
+    color: #b45309;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
 .direct-order-box {
     background: #f5f3ff !important;
     border: 1.5px solid rgba(139, 92, 246, 0.35) !important;
@@ -95,6 +111,16 @@
 [data-theme="celeste"] .order-bot-pocket-card {
     background: #1e293b !important;
     border: 1px solid rgba(167, 139, 250, 0.25) !important;
+    color: #f8fafc !important;
+}
+
+[data-theme="celeste"] .drop-bot-suggestion-banner {
+    background: #181938 !important;
+    border: 1.5px solid rgba(245, 158, 11, 0.45) !important;
+    color: #f8fafc !important;
+}
+
+[data-theme="celeste"] .drop-bot-suggestion-banner .text-dark {
     color: #f8fafc !important;
 }
 
@@ -149,6 +175,16 @@
 [data-theme="roost"] .order-bot-pocket-card {
     background: #292524 !important;
     border: 1px solid rgba(217, 119, 6, 0.25) !important;
+    color: #fafaf9 !important;
+}
+
+[data-theme="roost"] .drop-bot-suggestion-banner {
+    background: #231e1c !important;
+    border: 1.5px solid rgba(245, 158, 11, 0.45) !important;
+    color: #fafaf9 !important;
+}
+
+[data-theme="roost"] .drop-bot-suggestion-banner .text-dark {
     color: #fafaf9 !important;
 }
 
@@ -237,6 +273,16 @@
 [data-theme="nooklink"] .island-no-access-card {
     background: #111827 !important;
     border: 1.5px solid rgba(16, 185, 129, 0.35) !important;
+    color: #f8fafc !important;
+}
+
+[data-theme="nooklink"] .drop-bot-suggestion-banner {
+    background: #111827 !important;
+    border: 1.5px solid rgba(245, 158, 11, 0.45) !important;
+    color: #f8fafc !important;
+}
+
+[data-theme="nooklink"] .drop-bot-suggestion-banner .text-dark {
     color: #f8fafc !important;
 }
 

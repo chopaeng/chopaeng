@@ -82,11 +82,11 @@ const THEME_STYLES: Record<ThemeMode, {
  * Safely parses string messages that might contain HTML links (e.g. <a href="...">#sub-rules</a>)
  * or markdown links [text](url) and transforms them into interactive React components.
  */
-function renderParsedMessage(rawMessage: string): React.ReactNode {
+function renderParsedMessage(rawMessage: string, onClose: () => void): React.ReactNode {
     if (!rawMessage) return null;
 
     // Convert any Markdown links to standard HTML tags for consistent tokenization
-    const mdLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+    const mdLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+|\/[^\s)]*)\)/g;
     const normalized = rawMessage.replace(mdLinkRegex, '<a href="$2">$1</a>');
 
     // Tokenize on <a ... href="..." ...>...</a>
@@ -105,14 +105,15 @@ function renderParsedMessage(rawMessage: string): React.ReactNode {
 
         const href = match[1];
         const label = match[2] ? match[2].replace(/<\/?[^>]+(>|$)/g, '') : href;
-        const isDiscord = href.includes('discord.com') || href.includes('discord.gg');
+        const isInternal = href.startsWith('/') || href.startsWith('#');
+        const isDiscord = !isInternal && (href.includes('discord.com') || href.includes('discord.gg'));
 
         parts.push(
             <a
                 key={`err-link-${match.index}`}
                 href={href}
-                target="_blank"
-                rel="noopener noreferrer"
+                target={isInternal ? undefined : '_blank'}
+                rel={isInternal ? undefined : 'noopener noreferrer'}
                 className="d-inline-flex align-items-center gap-1 px-2.5 py-1 mx-1 rounded-pill text-decoration-none fw-bold shadow-sm transition-all"
                 style={{
                     backgroundColor: isDiscord ? '#5865F2' : 'var(--ac-primary, #16a34a)',
@@ -121,9 +122,12 @@ function renderParsedMessage(rawMessage: string): React.ReactNode {
                     verticalAlign: 'middle',
                     lineHeight: 1.2,
                 }}
+                onClick={isInternal ? () => onClose() : undefined}
             >
                 {isDiscord ? (
                     <i className="fa-brands fa-discord"></i>
+                ) : isInternal ? (
+                    <i className="fa-solid fa-address-card fa-xs"></i>
                 ) : (
                     <i className="fa-solid fa-arrow-up-right-from-square fa-xs"></i>
                 )}
@@ -163,6 +167,7 @@ const RevealErrorPopup: React.FC<RevealErrorPopupProps> = ({ message, onClose })
     }, [onClose]);
 
     const activeStyle = THEME_STYLES[theme] || THEME_STYLES.nook;
+    const isCharReq = /character|ign|island name/i.test(message);
 
     return (
         <div
@@ -180,10 +185,10 @@ const RevealErrorPopup: React.FC<RevealErrorPopupProps> = ({ message, onClose })
                 aria-modal="true"
                 aria-labelledby="reveal-error-title"
                 style={{
-                    maxWidth: 440,
+                    maxWidth: 460,
                     width: '100%',
                     backgroundColor: activeStyle.cardBg,
-                    borderColor: activeStyle.border,
+                    borderColor: isCharReq ? 'rgba(55, 176, 109, 0.4)' : activeStyle.border,
                     boxShadow: '0 20px 40px rgba(0,0,0,0.35)',
                 }}
                 onClick={(e) => e.stopPropagation()}
@@ -194,12 +199,12 @@ const RevealErrorPopup: React.FC<RevealErrorPopupProps> = ({ message, onClose })
                         style={{
                             width: 64,
                             height: 64,
-                            backgroundColor: activeStyle.iconBg,
-                            color: activeStyle.iconColor,
+                            backgroundColor: isCharReq ? 'rgba(16, 185, 129, 0.15)' : activeStyle.iconBg,
+                            color: isCharReq ? '#10b981' : activeStyle.iconColor,
                             fontSize: '1.5rem',
                         }}
                     >
-                        <i className="fa-solid fa-triangle-exclamation"></i>
+                        <i className={`fa-solid ${isCharReq ? 'fa-id-card-clip' : 'fa-triangle-exclamation'}`}></i>
                     </div>
 
                     <h2
@@ -207,7 +212,7 @@ const RevealErrorPopup: React.FC<RevealErrorPopupProps> = ({ message, onClose })
                         className="h5 fw-black mb-2"
                         style={{ color: activeStyle.textPrimary, letterSpacing: '-0.02em' }}
                     >
-                        Dodo code unavailable
+                        {isCharReq ? 'In-Game Character Required' : 'Dodo code unavailable'}
                     </h2>
 
                     <div
@@ -218,22 +223,34 @@ const RevealErrorPopup: React.FC<RevealErrorPopupProps> = ({ message, onClose })
                             wordBreak: 'break-word',
                         }}
                     >
-                        {renderParsedMessage(message)}
+                        {renderParsedMessage(message, onClose)}
                     </div>
 
-                    <button
-                        type="button"
-                        className="btn rounded-pill fw-black px-5 py-2 shadow-sm transition-all"
-                        style={{
-                            backgroundColor: activeStyle.btnBg,
-                            borderColor: activeStyle.btnBg,
-                            color: activeStyle.btnText,
-                        }}
-                        onClick={onClose}
-                        autoFocus
-                    >
-                        OK
-                    </button>
+                    <div className="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+                        {isCharReq && (
+                            <a
+                                href="/profile"
+                                className="btn btn-success text-white rounded-pill fw-black px-4 py-2 shadow-sm transition-all text-decoration-none d-inline-flex align-items-center gap-1.5"
+                                onClick={() => onClose()}
+                            >
+                                <i className="fa-solid fa-user-pen"></i>
+                                <span>Go to Profile</span>
+                            </a>
+                        )}
+                        <button
+                            type="button"
+                            className="btn rounded-pill fw-black px-4 py-2 shadow-sm transition-all"
+                            style={{
+                                backgroundColor: isCharReq ? '#f1f5f9' : activeStyle.btnBg,
+                                borderColor: isCharReq ? '#cbd5e1' : activeStyle.btnBg,
+                                color: isCharReq ? '#475569' : activeStyle.btnText,
+                            }}
+                            onClick={onClose}
+                            autoFocus={!isCharReq}
+                        >
+                            {isCharReq ? 'Cancel' : 'OK'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

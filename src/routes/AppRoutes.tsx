@@ -65,13 +65,26 @@ const DashboardAuditLog      = lazy(() => import("../pages/dashboard/DashboardAu
 const DashboardScheduled     = lazy(() => import("../pages/dashboard/DashboardScheduled.tsx"));
 const DashboardMaintenance   = lazy(() => import("../pages/dashboard/DashboardMaintenance.tsx"));
 const DashboardDevices       = lazy(() => import("../pages/dashboard/DashboardDevices.tsx"));
-
+const UnderConstruction      = lazy(() => import("../pages/UnderConstruction.tsx"));
+import { IS_UNDER_CONSTRUCTION } from "../config/config";
 
 const AppRoutes = () => {
+    if (IS_UNDER_CONSTRUCTION) {
+        return (
+            <Suspense fallback={<PageSkeleton />}>
+                <Routes>
+                    <Route path="/" element={<UnderConstruction />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+            </Suspense>
+        );
+    }
+
     return (
         <Suspense fallback={<PageSkeleton />}>
             <Routes>
                 <Route element={<IndexLayout />}>
+                    <Route path="/under-construction" element={<UnderConstruction />} />
                     <Route path="/" element={<Home />} />
                     <Route path="/about" element={<About />} />
                     <Route path="/guides" element={<Guides />} />

@@ -3,8 +3,8 @@
  * Provides offline caching, fast asset loading, and catalog persistence.
  */
 
-const CACHE_NAME = 'chopaeng-v2.0.94';
-const CATALOG_CACHE = 'chopaeng-catalog-v2.0.94';
+const CACHE_NAME = 'chopaeng-v2.0.95';
+const CATALOG_CACHE = 'chopaeng-catalog-v2.0.95';
 
 // Core shell assets to pre-cache on install
 const PRECACHE_ASSETS = [

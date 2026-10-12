@@ -31,6 +31,11 @@ export const DiscordNickModal: React.FC<DiscordNickModalProps> = ({
 }) => {
     const modalRef = useRef<HTMLDivElement | null>(null);
     const previousActiveElementRef = useRef<HTMLElement | null>(null);
+    const onCloseRef = useRef(onClose);
+
+    useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -47,7 +52,7 @@ export const DiscordNickModal: React.FC<DiscordNickModalProps> = ({
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
                 e.preventDefault();
-                onClose();
+                onCloseRef.current();
                 return;
             }
 
@@ -79,7 +84,7 @@ export const DiscordNickModal: React.FC<DiscordNickModalProps> = ({
                 previousActiveElementRef.current.focus();
             }
         };
-    }, [isOpen, onClose]);
+    }, [isOpen]);
 
     if (!isOpen) return null;
 

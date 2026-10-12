@@ -33,11 +33,16 @@ export const AddEditCharacterModal: React.FC<AddEditCharacterModalProps> = ({
 }) => {
     const modalRef = useRef<HTMLDivElement | null>(null);
     const previousActiveElementRef = useRef<HTMLElement | null>(null);
+    const onCloseRef = useRef(onClose);
+
+    useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
 
     const [touchedIgn, setTouchedIgn] = useState(false);
     const [touchedIsland, setTouchedIsland] = useState(false);
 
-    // Body scroll lock and focus restore
+    // Body scroll lock, focus restore, and initial auto-focus strictly when modal opens
     useEffect(() => {
         if (!isOpen) {
             setTouchedIgn(false);
@@ -49,7 +54,7 @@ export const AddEditCharacterModal: React.FC<AddEditCharacterModalProps> = ({
         const previousOverflow = document.body.style.overflow;
         document.body.style.overflow = "hidden";
 
-        // Auto focus first input after opening
+        // Auto focus first input ONLY once upon opening the modal
         const timer = setTimeout(() => {
             const input = modalRef.current?.querySelector<HTMLInputElement>("input#profileCharIgn");
             input?.focus();
@@ -58,7 +63,7 @@ export const AddEditCharacterModal: React.FC<AddEditCharacterModalProps> = ({
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
                 e.preventDefault();
-                onClose();
+                onCloseRef.current();
                 return;
             }
 
@@ -90,7 +95,7 @@ export const AddEditCharacterModal: React.FC<AddEditCharacterModalProps> = ({
                 previousActiveElementRef.current.focus();
             }
         };
-    }, [isOpen, onClose]);
+    }, [isOpen]);
 
     if (!isOpen) return null;
 

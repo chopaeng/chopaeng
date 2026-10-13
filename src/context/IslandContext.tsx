@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { type IslandData, type IslandStatus } from "../data/islands";
+import { type IslandData, type IslandStatus, type GameTimeData } from "../data/islands";
 import { ACNH_FINDER_API_BASE, DODO_API_BASE } from "../config/api";
 import { IslandContext } from "./islandContextShared";
 import { getAuthToken } from "./authToken";
@@ -25,6 +25,12 @@ interface ApiIsland {
     viewer_has_access?: boolean;
     channel_id?: string;
     channelId?: string;
+    game_time?: string;
+    is_nooks_open?: boolean;
+    nooks_status?: string;
+    nooks_message?: string;
+    mode?: string;
+    gametime?: GameTimeData;
 }
 
 interface ApiIslandsResponse {

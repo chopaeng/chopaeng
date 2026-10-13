@@ -55,6 +55,270 @@ const DROP_PRESETS = [
     },
 ];
 
+/* ─────────────────────────────────────────────────────────────
+   UI-only helpers (no business logic)
+───────────────────────────────────────────────────────────── */
+
+const TABS = [
+    { key: 'items', label: 'Items', icon: 'fa-boxes-stacked' },
+    { key: 'favorites', label: 'Favorites', icon: 'fa-star' },
+    { key: 'villagers', label: 'Villagers', icon: 'fa-house-chimney' },
+] as const;
+
+const EMPTY_HOUSES: Record<number, CatalogEntity | null> = {
+    0: null, 1: null, 2: null, 3: null, 4: null,
+    5: null, 6: null, 7: null, 8: null, 9: null,
+};
+
+/** Swap a broken image for the placeholder once (avoids an error loop). */
+const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.src !== FALLBACK_IMG) img.src = FALLBACK_IMG;
+};
+
+/**
+ * Clipboard write that never throws. navigator.clipboard is undefined on
+ * insecure origins and some in-app browsers, which used to crash the copy
+ * handlers before their .catch() could run.
+ */
+const copyText = async (text: string): Promise<boolean> => {
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch {
+        // fall through to the legacy path
+    }
+    try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+    } catch {
+        return false;
+    }
+};
+
+interface PassportCardProps {
+    id: string;
+    icon: string;
+    title: React.ReactNode;
+    subtitle?: React.ReactNode;
+    action?: React.ReactNode;
+    headingLevel?: 1 | 2;
+    children: React.ReactNode;
+}
+
+/** Resident-passport card: green cover band + crest, stitched seam, white body. */
+const PassportCard: React.FC<PassportCardProps> = ({
+    id,
+    icon,
+    title,
+    subtitle,
+    action,
+    headingLevel = 2,
+    children,
+}) => {
+    const Heading = headingLevel === 1 ? 'h1' : 'h2';
+    return (
+        <section className="cpdb-card" aria-labelledby={`${id}-title`}>
+            <div className="cpdb-cover">
+                <span className="cpdb-crest" aria-hidden="true">
+                    <i className={`fa-solid ${icon}`} />
+                </span>
+                <div className="cpdb-cover-text">
+                    <Heading id={`${id}-title`} className="ac-font">
+                        {title}
+                    </Heading>
+                    {subtitle && <p>{subtitle}</p>}
+                </div>
+                {action && <div className="cpdb-cover-action">{action}</div>}
+            </div>
+            <div className="cpdb-seam" aria-hidden="true" />
+            <div className="cpdb-body">{children}</div>
+        </section>
+    );
+};
+
+const STYLES = `
+.cpdb{
+  --ink:#1d3328;--ink-soft:#5b6e63;--leaf:#1f8a4c;--leaf-dark:#166b3a;--leaf-deep:#0f4f2a;
+  --line:#cfdcd3;--sky:#e3f4f1;--tint:#f3f9f6;--danger:#b42318;--danger-bg:#fdeceb;--danger-ink:#8a1c12;
+  --warn-bg:#fff5dc;--warn-ink:#6e4500;--star:#a86f00;
+  --shadow:0 14px 34px -16px rgba(22,107,58,.34);
+  --r-card:26px;--r-ctl:14px;
+  color:var(--ink);min-height:100vh;padding-bottom:48px;
+  background:radial-gradient(120% 55% at 50% -12%,#fbfffd 0%,rgba(251,255,253,0) 62%),var(--sky);
+}
+.cpdb *,.cpdb *::before,.cpdb *::after{box-sizing:border-box}
+.cpdb .ac-font{color:var(--ink)}
+.cpdb--center{display:flex;align-items:center;justify-content:center;padding:32px 0}
+
+/* focus */
+.cpdb :is(button,a,input,select,textarea,[tabindex]):focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.cpdb .cpdb-cover :focus-visible{outline-color:#fff}
+
+/* hero */
+.cpdb-hero{padding:32px 0 12px}
+.cpdb-hero h1{font-size:clamp(1.6rem,4.2vw,2.25rem);line-height:1.15;margin:0 0 6px}
+.cpdb-lede{color:var(--ink-soft);max-width:62ch;margin:0 0 10px;font-size:.98rem;line-height:1.55}
+.cpdb-meta{display:flex;flex-wrap:wrap;gap:6px 16px;list-style:none;padding:0;margin:0;color:var(--ink-soft);font-size:.86rem;font-weight:600}
+.cpdb-meta i{color:var(--leaf-dark);margin-right:6px}
+
+/* passport card */
+.cpdb-card{background:#fff;border-radius:var(--r-card);box-shadow:var(--shadow);overflow:hidden;margin-bottom:24px}
+.cpdb-cover{background:var(--leaf-dark);color:#fff;display:flex;flex-wrap:wrap;align-items:center;gap:12px 14px;padding:16px 20px}
+.cpdb-crest{flex:0 0 auto;width:46px;height:46px;border-radius:50%;border:2px dashed rgba(255,255,255,.9);display:grid;place-items:center;font-size:1.05rem;background:rgba(255,255,255,.08)}
+.cpdb-cover-text{flex:1 1 160px;min-width:0}
+.cpdb .cpdb-cover h1,.cpdb .cpdb-cover h2{color:#fff;font-size:1.15rem;line-height:1.25;margin:0}
+.cpdb .cpdb-cover h1{font-size:1.4rem}
+.cpdb-cover p{margin:2px 0 0;font-size:.86rem;color:#e2f2e8}
+.cpdb-cover-action{margin-left:auto}
+.cpdb-seam{border-top:1.5px dashed var(--line);margin:12px 20px 0}
+.cpdb-body{padding:16px 20px 20px}
+.cpdb-stitch{border:0;border-top:1.5px dashed var(--line);opacity:1;margin:20px 0}
+
+/* buttons */
+.cpdb-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 18px;border-radius:var(--r-ctl);border:1.5px solid transparent;font-weight:800;font-size:.95rem;line-height:1.2;cursor:pointer;text-decoration:none;text-align:center;transition:transform .12s ease,box-shadow .12s ease,background-color .15s ease,border-color .15s ease}
+.cpdb-btn:disabled{opacity:.55;cursor:not-allowed}
+.cpdb-btn-primary{background:var(--leaf-dark);color:#fff;box-shadow:0 4px 0 var(--leaf-deep);margin-bottom:4px}
+.cpdb-btn-primary:hover:not(:disabled){background:#135c32;color:#fff}
+.cpdb-btn-primary:active:not(:disabled){transform:translateY(4px);box-shadow:0 0 0 var(--leaf-deep)}
+.cpdb-btn-secondary{background:#fff;color:var(--leaf-dark);border-color:var(--line)}
+.cpdb-btn-secondary:hover:not(:disabled){border-color:var(--leaf);background:var(--tint);color:var(--leaf-dark)}
+.cpdb-btn-on-cover{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.6)}
+.cpdb-btn-on-cover:hover:not(:disabled){background:rgba(255,255,255,.22);color:#fff}
+.cpdb-btn-sm{min-height:38px;padding:6px 12px;font-size:.86rem}
+.cpdb-btn-lg{min-height:54px;font-size:1.02rem}
+.cpdb-btn-block{width:100%}
+.cpdb-link{color:var(--leaf-dark);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.cpdb-link:hover{color:var(--leaf-deep)}
+.cpdb-icon-btn{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;border:0;background:transparent;color:var(--ink-soft);cursor:pointer}
+.cpdb-icon-btn:hover{background:var(--tint);color:var(--ink)}
+
+/* fields */
+.cpdb-label{display:block;font-weight:700;font-size:.88rem;margin-bottom:6px;color:var(--ink)}
+.cpdb-control{position:relative}
+.cpdb-control > i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--ink-soft);pointer-events:none;font-size:.92rem}
+.cpdb-input{width:100%;min-height:46px;padding:10px 14px 10px 40px;border:1.5px solid var(--line);border-radius:var(--r-ctl);background:#fff;color:var(--ink);font-size:1rem;font-weight:600;appearance:none;-webkit-appearance:none;transition:border-color .15s,box-shadow .15s}
+.cpdb-input::placeholder{color:#7d8f85;font-weight:500}
+.cpdb .cpdb-input:focus,.cpdb .cpdb-input:focus-visible{outline:none;border-color:var(--leaf);box-shadow:0 0 0 4px rgba(31,138,76,.28)}
+.cpdb-input[aria-invalid="true"]{border-color:var(--danger)}
+.cpdb-input:disabled{background:var(--tint);color:var(--ink-soft)}
+.cpdb-select{padding-right:40px;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%235b6e63' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;background-size:12px}
+.cpdb-hint{font-size:.82rem;color:var(--ink-soft);margin:6px 0 0;line-height:1.45}
+.cpdb-section-label{font-weight:800;font-size:.92rem;margin:0 0 6px;color:var(--ink)}
+
+/* segmented control */
+.cpdb-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;background:var(--tint);border:1.5px solid var(--line);border-radius:999px}
+.cpdb-seg button{display:flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:6px 12px;border:0;border-radius:999px;background:transparent;color:var(--ink-soft);font-weight:700;font-size:.88rem;cursor:pointer;white-space:nowrap;transition:background-color .15s,color .15s}
+.cpdb-seg button:hover{color:var(--ink)}
+.cpdb-seg button[aria-selected="true"],.cpdb-seg button[aria-pressed="true"]{background:var(--leaf-dark);color:#fff;box-shadow:0 2px 0 var(--leaf-deep)}
+.cpdb-seg-count{font-size:.75rem;font-weight:800;opacity:.85}
+.cpdb-seg--sm button{min-height:34px;font-size:.8rem;padding:4px 10px}
+
+/* notices */
+.cpdb-notice{display:flex;align-items:flex-start;gap:10px;padding:12px 12px 12px 16px;border-radius:16px;border:1.5px solid;margin-bottom:20px;font-weight:600;font-size:.93rem;line-height:1.45}
+.cpdb-notice > i{margin-top:3px}
+.cpdb-notice p{margin:0;flex:1;min-width:0;overflow-wrap:anywhere}
+.cpdb-notice--success{background:#eaf7ef;border-color:#a9d9bb;color:#134d2c}
+.cpdb-notice--danger{background:var(--danger-bg);border-color:#f2b8b5;color:var(--danger-ink)}
+.cpdb-notice--info{background:#e9f2fb;border-color:#b6d3ef;color:#123f66}
+.cpdb-notice .cpdb-icon-btn{color:inherit;margin:-4px 0}
+.cpdb-error{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--danger-bg);color:var(--danger-ink);border-radius:12px;padding:10px 12px;margin-top:12px;font-size:.88rem;font-weight:600}
+.cpdb-error .cpdb-link{color:var(--danger-ink)}
+
+/* tiles */
+.cpdb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px;list-style:none;padding:0;margin:0}
+.cpdb-tile{position:relative;border:1.5px solid var(--line);border-radius:18px;background:#fff;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
+.cpdb-tile:hover{transform:translateY(-2px);box-shadow:var(--shadow);border-color:#b2cbbb}
+.cpdb-tile.is-active{border-color:var(--leaf-dark);background:#edf7f1;box-shadow:inset 0 0 0 1.5px var(--leaf-dark)}
+.cpdb-tile-main{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;height:100%;padding:16px 8px 12px;border:0;background:transparent;border-radius:inherit;color:var(--ink);cursor:pointer;text-align:center}
+.cpdb-tile-img{width:48px;height:48px;object-fit:contain}
+.cpdb-tile-img--round{border-radius:50%;border:1.5px solid var(--line);background:#fff}
+.cpdb-tile-name{display:block;max-width:100%;font-weight:700;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cpdb-tile-sub{font-size:.76rem;color:var(--ink-soft)}
+.cpdb-count{font-size:.72rem;font-weight:800;background:var(--leaf-dark);color:#fff;border-radius:999px;padding:2px 8px}
+.cpdb-fav{position:absolute;top:4px;right:4px}
+.cpdb-fav[aria-pressed="true"]{color:var(--star)}
+.cpdb-empty{text-align:center;padding:36px 12px;color:var(--ink-soft)}
+.cpdb-empty > i{display:block;font-size:1.8rem;color:#9db3a6;margin-bottom:10px}
+.cpdb-empty strong{display:block;color:var(--ink);margin-bottom:4px;font-size:1rem}
+.cpdb-empty p{margin:0 auto;max-width:40ch;font-size:.9rem}
+.cpdb-pager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:16px;padding-top:14px;border-top:1.5px dashed var(--line)}
+.cpdb-pager > span{font-size:.86rem;color:var(--ink-soft);font-weight:700}
+
+/* boarding pass */
+.cpdb-pass{border:1.5px dashed var(--line);border-radius:20px;padding:14px 16px;background:#fbfdfc}
+.cpdb-pass-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.cpdb-pass-label{font-size:.82rem;color:var(--ink-soft);font-weight:700;margin:0}
+.cpdb-island-name{font-size:1.2rem;margin:0;line-height:1.2;overflow-wrap:anywhere}
+.cpdb-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-weight:800;font-size:1.6rem;letter-spacing:.12em;color:var(--leaf-dark)}
+.cpdb-pass-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding-top:12px;border-top:1.5px dashed var(--line);font-size:.86rem;color:var(--ink-soft)}
+.cpdb-chip{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:700;border-radius:999px;padding:4px 10px;border:1.5px solid}
+.cpdb-chip--ok{background:#eaf7ef;color:#134d2c;border-color:#a9d9bb}
+.cpdb-chip--warn{background:var(--warn-bg);color:var(--warn-ink);border-color:#efcf86}
+.cpdb-check{display:inline-flex;align-items:center;gap:8px;font-weight:700;color:var(--ink);cursor:pointer;margin:0}
+.cpdb-check input{width:20px;height:20px;accent-color:var(--leaf-dark);cursor:pointer}
+
+/* presets & pocket */
+.cpdb-presets{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cpdb-preset{display:flex;align-items:center;justify-content:center;gap:6px;min-height:42px;padding:6px 8px;border:1.5px solid var(--line);border-radius:var(--r-ctl);background:#fff;color:var(--ink);font-weight:700;font-size:.84rem;cursor:pointer;transition:transform .15s ease,border-color .15s ease}
+.cpdb-preset:hover{transform:translateY(-1px);border-color:var(--leaf)}
+.cpdb-preset img{width:20px;height:20px;object-fit:contain}
+.cpdb-slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;list-style:none;padding:0;margin:0}
+.cpdb-slot{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:116px;padding:12px 6px 8px;border:1.5px solid var(--line);border-radius:16px;background:#fff;text-align:center;min-width:0}
+.cpdb-slot img{width:40px;height:40px;object-fit:contain}
+.cpdb-slot--empty{border-style:dashed;background:var(--tint);color:#a9bdb1;font-size:1.1rem}
+.cpdb-slot .cpdb-icon-btn{position:absolute;top:2px;right:2px;width:30px;height:30px}
+.cpdb-stepper{display:flex;align-items:center;gap:6px}
+.cpdb-stepper button{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;border:1.5px solid var(--line);background:#fff;color:var(--ink);font-weight:800;line-height:1;cursor:pointer}
+.cpdb-stepper button:hover:not(:disabled){border-color:var(--leaf)}
+.cpdb-stepper button:disabled{opacity:.45;cursor:not-allowed}
+.cpdb-qty{font-weight:800;font-size:.84rem;color:var(--leaf-dark);min-width:2.2ch}
+.cpdb-command{background:var(--tint);border:1.5px solid var(--line);border-radius:var(--r-ctl);padding:12px 14px}
+.cpdb-command code{display:block;font-size:.85rem;color:var(--ink);white-space:pre-wrap;word-break:break-word}
+.cpdb-meter{height:8px;border-radius:999px;background:#e2ece6;overflow:hidden;margin:8px 0 10px}
+.cpdb-meter > span{display:block;height:100%;background:var(--leaf);transition:width .3s ease}
+.cpdb-meter.is-full > span{background:var(--leaf-dark)}
+.cpdb-meter.is-over > span{background:var(--danger)}
+
+/* sign-in */
+.cpdb-features{list-style:none;padding:0;margin:0 0 24px;display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.cpdb-features li{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--line);border-radius:var(--r-ctl);font-weight:700;font-size:.88rem}
+.cpdb-features i{color:var(--leaf-dark);width:18px;text-align:center}
+.cpdb-alt-links{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 20px;font-size:.9rem}
+
+/* responsive */
+@media (max-width:480px){
+  .cpdb-presets{grid-template-columns:repeat(2,1fr)}
+  .cpdb-features{grid-template-columns:1fr}
+}
+@media (max-width:420px){
+  .cpdb-seg--stack{border-radius:20px}
+  .cpdb-seg--stack button{flex-direction:column;gap:2px;border-radius:16px;font-size:.78rem;padding:6px 4px}
+  .cpdb-cover{padding:14px 16px}
+  .cpdb-seam{margin:10px 16px 0}
+  .cpdb-body{padding:14px 16px 16px}
+  .cpdb-crest{width:40px;height:40px;font-size:.95rem}
+  .cpdb-grid{grid-template-columns:repeat(2,1fr)}
+  .cpdb-code{font-size:1.35rem}
+}
+
+/* motion */
+@media (prefers-reduced-motion: reduce){
+  .cpdb *,.cpdb *::before,.cpdb *::after{transition:none!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
+  .cpdb-tile:hover,.cpdb-preset:hover,.cpdb-btn-primary:active:not(:disabled){transform:none}
+}
+`;
+
 export const DropBot: React.FC = () => {
     const [searchParams] = useSearchParams();
     const urlIsland = searchParams.get('island');
@@ -99,16 +363,7 @@ export const DropBot: React.FC = () => {
     const [selectedVillager, setSelectedVillager] = useState<CatalogEntity | null>(null);
     const [activePlot, setActivePlot] = useState<number>(0);
     const [injectedHouses, setInjectedHouses] = useState<Record<number, CatalogEntity | null>>({
-        0: null,
-        1: null,
-        2: null,
-        3: null,
-        4: null,
-        5: null,
-        6: null,
-        7: null,
-        8: null,
-        9: null,
+        ...EMPTY_HOUSES,
     });
     const [injectingPlot, setInjectingPlot] = useState<number | null>(null);
     const [isBatchInjecting, setIsBatchInjecting] = useState(false);
@@ -167,6 +422,18 @@ export const DropBot: React.FC = () => {
         return subMemberIslands;
     }, [subMemberIslands, unlockedIslands, dropFilter]);
 
+    // FIX: keep the selected island in the dropdown even when the
+    // "My pass" filter hides it, so the <select> never shows a blank value.
+    const islandOptions = useMemo(() => {
+        if (
+            selectedDropIsland &&
+            !availableDropIslands.some((i) => i.id === selectedDropIsland.id)
+        ) {
+            return [selectedDropIsland, ...availableDropIslands];
+        }
+        return availableDropIslands;
+    }, [availableDropIslands, selectedDropIsland]);
+
     // Handle URL query parameters (?island=...&tab=...)
     useEffect(() => {
         if (urlTab === 'villagers' || urlTab === 'items' || urlTab === 'favorites') {
@@ -174,27 +441,36 @@ export const DropBot: React.FC = () => {
         }
     }, [urlTab]);
 
-    useEffect(() => {
-        if (urlIsland && subMemberIslands.length > 0) {
-            const clean = urlIsland.trim().toLowerCase();
-            const matched = subMemberIslands.find(
+    // FIX: resolve the ?island= match once so the auto-select effect below
+    // can stand down instead of overwriting it in the same commit.
+    const urlMatchedIsland = useMemo(() => {
+        if (!urlIsland || subMemberIslands.length === 0) return null;
+        const clean = urlIsland.trim().toLowerCase();
+        return (
+            subMemberIslands.find(
                 (i) =>
                     i.name.toLowerCase() === clean ||
                     i.id.toLowerCase() === clean ||
                     (i.canonicalName && i.canonicalName.toLowerCase() === clean)
-            );
-            if (matched) {
-                setSelectedDropIsland(matched);
-                if (matched.dodoCode && matched.dodoCode !== 'SUB ONLY' && matched.dodoCode !== '.....') {
-                    setDropDodoCode(matched.dodoCode);
-                }
+            ) || null
+        );
+    }, [urlIsland, subMemberIslands]);
+    const urlMatchedIslandId = urlMatchedIsland?.id;
+
+    useEffect(() => {
+        if (urlMatchedIsland) {
+            setSelectedDropIsland(urlMatchedIsland);
+            if (urlMatchedIsland.dodoCode && urlMatchedIsland.dodoCode !== 'SUB ONLY' && urlMatchedIsland.dodoCode !== '.....') {
+                setDropDodoCode(urlMatchedIsland.dodoCode);
             }
         }
-    }, [urlIsland, subMemberIslands]);
+        // Keyed on id so an island-list refresh doesn't undo the user's own choice.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [urlMatchedIslandId]);
 
-    // Auto-select first accessible island
+    // Auto-select first accessible island (only when the URL didn't pick one)
     useEffect(() => {
-        if (!selectedDropIsland && subMemberIslands.length > 0) {
+        if (!selectedDropIsland && !urlMatchedIsland && subMemberIslands.length > 0) {
             const firstAccessible =
                 subMemberIslands.find((i) => canAccessIsland(i)) ||
                 subMemberIslands[0];
@@ -203,7 +479,7 @@ export const DropBot: React.FC = () => {
                 setDropDodoCode(firstAccessible.dodoCode);
             }
         }
-    }, [subMemberIslands, selectedDropIsland]);
+    }, [subMemberIslands, selectedDropIsland, urlMatchedIsland]);
 
     // Update Dodo if island has explicit public dodo
     useEffect(() => {
@@ -217,6 +493,13 @@ export const DropBot: React.FC = () => {
         }
     }, [selectedDropIsland]);
 
+    // FIX: the "Copied" timer is now cleared on unmount / re-copy.
+    useEffect(() => {
+        if (!dodoCopied) return;
+        const t = window.setTimeout(() => setDodoCopied(false), 2000);
+        return () => window.clearTimeout(t);
+    }, [dodoCopied]);
+
     // ── Catalog Data Extraction ──
     const allItems = useMemo(
         () => (catalogData?.items || []).filter((it) => !it.unorderable),
@@ -226,6 +509,7 @@ export const DropBot: React.FC = () => {
         () => (catalogData?.villagers || []).filter((v) => !v.unorderable),
         [catalogData?.villagers]
     );
+    const villagerIdSet = useMemo(() => new Set(allVillagers.map((v) => v.id)), [allVillagers]);
 
     // Item Categories
     const itemCategories = useMemo(() => {
@@ -261,10 +545,11 @@ export const DropBot: React.FC = () => {
     }, [allVillagers, villagerSearch]);
 
     // Filtered Favorites
+    // FIX: unorderable entries are excluded here too, matching the catalog tabs.
     const favoriteItems = useMemo(() => {
         if (!favorites || favorites.length === 0) return [];
         const favSet = new Set(favorites);
-        return (catalogData?.all || []).filter((it) => favSet.has(it.id));
+        return (catalogData?.all || []).filter((it) => favSet.has(it.id) && !it.unorderable);
     }, [favorites, catalogData?.all]);
 
     // Paginated Items
@@ -281,13 +566,22 @@ export const DropBot: React.FC = () => {
         return filteredVillagers.slice(start, start + VILLAGERS_PER_PAGE);
     }, [filteredVillagers, villagerPage]);
 
+    // FIX: clamp pages if the list shrinks (e.g. catalog refresh) so we never
+    // land on an empty "Page 5 of 3".
+    useEffect(() => {
+        if (itemPage > totalItemPages) setItemPage(totalItemPages);
+    }, [itemPage, totalItemPages]);
+    useEffect(() => {
+        if (villagerPage > totalVillagerPages) setVillagerPage(totalVillagerPages);
+    }, [villagerPage, totalVillagerPages]);
+
     // ── Handlers ──
     const handleGetDodo = async (island: IslandData | null) => {
         if (!island) return;
 
         // Require saved in-game character before revealing Dodo codes
         if (!hasSavedCharacters) {
-            setRevealPopupError('You must save your In-Game Character (IGN & Island Name) first before you can reveal Dodo codes. Please add your character in Profile Settings.');
+            setRevealPopupError('Save your in-game character (IGN and island name) in Profile settings, then come back to reveal Dodo codes.');
             return;
         }
 
@@ -310,10 +604,10 @@ export const DropBot: React.FC = () => {
                 triggerConfetti({ theme: 'gold', particleCount: 70 });
                 setSubmissionNotice({
                     type: 'success',
-                    message: `Dodo code revealed for ${island.name}: ${res.dodoCode}! Head to the airport to fly.`,
+                    message: `Dodo code for ${island.name} is ${res.dodoCode}. Head to the airport to fly.`,
                 });
             } else {
-                const errMsg = res.error || 'Unable to retrieve Dodo code.';
+                const errMsg = res.error || 'We couldn’t get the Dodo code. Try again in a moment.';
                 setDropDodoError(errMsg);
                 if ((res as any).requires_character || /character|ign|island name/i.test(errMsg)) {
                     setRevealPopupError(errMsg);
@@ -321,7 +615,7 @@ export const DropBot: React.FC = () => {
             }
         } catch (e: any) {
             console.error(e);
-            setDropDodoError('Network error while retrieving Dodo code. Please try again.');
+            setDropDodoError('Network error while getting the Dodo code. Check your connection and try again.');
         } finally {
             setDropDodoLoading(false);
         }
@@ -336,15 +630,21 @@ export const DropBot: React.FC = () => {
         }
     };
 
-    const handleCopyDodoCode = () => {
+    const handleCopyDodoCode = async () => {
         if (!dropDodoCode) return;
-        navigator.clipboard.writeText(dropDodoCode).catch(() => { });
         playSound();
+        const ok = await copyText(dropDodoCode);
+        if (!ok) {
+            setSubmissionNotice({
+                type: 'danger',
+                message: `Couldn’t copy automatically. Select ${dropDodoCode} and copy it by hand.`,
+            });
+            return;
+        }
         setDodoCopied(true);
-        setTimeout(() => setDodoCopied(false), 2000);
         setSubmissionNotice({
             type: 'info',
-            message: `Copied Dodo code ${dropDodoCode} to clipboard!`,
+            message: `Copied Dodo code ${dropDodoCode}.`,
         });
     };
 
@@ -353,7 +653,7 @@ export const DropBot: React.FC = () => {
         if (!selectedDropIsland) {
             setSubmissionNotice({
                 type: 'danger',
-                message: 'Please select a destination sub island above first.',
+                message: 'Pick a destination island first.',
             });
             return;
         }
@@ -361,7 +661,17 @@ export const DropBot: React.FC = () => {
         if (totalDropCount === 0 || !dropCommandText) {
             setSubmissionNotice({
                 type: 'danger',
-                message: 'Your drop pocket is empty. Choose up to 9 items first.',
+                message: `Your drop pocket is empty. Add up to ${DROP_MAX} items from the catalog or use a quick fill.`,
+            });
+            return;
+        }
+
+        // FIX: block over-limit drops instead of sending them to the bot.
+        if (totalDropCount > DROP_MAX) {
+            const extra = totalDropCount - DROP_MAX;
+            setSubmissionNotice({
+                type: 'danger',
+                message: `Your pocket is over the ${DROP_MAX}-slot limit. Remove ${extra} item${extra !== 1 ? 's' : ''} and try again.`,
             });
             return;
         }
@@ -386,18 +696,18 @@ export const DropBot: React.FC = () => {
                 playSound();
                 setSubmissionNotice({
                     type: 'success',
-                    message: `🚀 Success! Dispatched drop of ${totalDropCount} item(s) to ${selectedDropIsland.name}! SysBot is placing them at the airport zone.`,
+                    message: `Dropping ${totalDropCount} item${totalDropCount !== 1 ? 's' : ''} on ${selectedDropIsland.name}. Look for them near the airport.`,
                 });
             } else {
                 setSubmissionNotice({
                     type: 'danger',
-                    message: `SysBot Notice: ${res.error || 'Failed to dispatch drop'}.`,
+                    message: `The drop bot said: ${res.error || 'the drop failed'}. Check your pocket and try again.`,
                 });
             }
         } catch (err: any) {
             setSubmissionNotice({
                 type: 'danger',
-                message: `Connection error: ${err?.message || 'Failed to communicate with island SysBot'}.`,
+                message: `Couldn’t reach the island bot (${err?.message || 'connection error'}). Wait a moment and try again.`,
             });
         } finally {
             setIsDropping(false);
@@ -409,11 +719,10 @@ export const DropBot: React.FC = () => {
         if (!selectedDropIsland) {
             setSubmissionNotice({
                 type: 'danger',
-                message: 'Please select a destination sub island first.',
+                message: 'Pick a destination island first.',
             });
             return;
         }
-
 
         playSound();
         setInjectingPlot(plot);
@@ -426,18 +735,18 @@ export const DropBot: React.FC = () => {
                 setInjectedHouses((prev) => ({ ...prev, [plot]: villager }));
                 setSubmissionNotice({
                     type: 'success',
-                    message: `✨ ${villager.name} is now moving into House Plot #${plot} on ${selectedDropIsland.name}!`,
+                    message: `${villager.name} is moving into house plot ${plot} on ${selectedDropIsland.name}.`,
                 });
             } else {
                 setSubmissionNotice({
                     type: 'danger',
-                    message: `SysBot Notice: ${res.error || 'Villager injection failed'}.`,
+                    message: `The island bot said: ${res.error || 'the move-in failed'}. Try another plot or try again.`,
                 });
             }
         } catch (err: any) {
             setSubmissionNotice({
                 type: 'danger',
-                message: `Error: ${err?.message || 'Failed to inject villager'}.`,
+                message: `Couldn’t move the villager in (${err?.message || 'connection error'}). Try again in a moment.`,
             });
         } finally {
             setInjectingPlot(null);
@@ -449,11 +758,10 @@ export const DropBot: React.FC = () => {
         if (!selectedDropIsland) {
             setSubmissionNotice({
                 type: 'danger',
-                message: 'Please select a destination sub island first.',
+                message: 'Pick a destination island first.',
             });
             return;
         }
-
 
         playSound();
         setIsBatchInjecting(true);
@@ -465,18 +773,18 @@ export const DropBot: React.FC = () => {
                 playSound();
                 setSubmissionNotice({
                     type: 'success',
-                    message: `🎉 Batch villagers dispatched! Plots assigned on ${selectedDropIsland.name}.`,
+                    message: `Villagers are moving into their plots on ${selectedDropIsland.name}.`,
                 });
             } else {
                 setSubmissionNotice({
                     type: 'danger',
-                    message: `SysBot Notice: ${res.error || 'Batch injection failed'}.`,
+                    message: `The island bot said: ${res.error || 'the batch move-in failed'}. Check your plot list and try again.`,
                 });
             }
         } catch (err: any) {
             setSubmissionNotice({
                 type: 'danger',
-                message: `Error: ${err?.message || 'Failed to batch inject villagers'}.`,
+                message: `Couldn’t move the villagers in (${err?.message || 'connection error'}). Try again in a moment.`,
             });
         } finally {
             setIsBatchInjecting(false);
@@ -560,23 +868,140 @@ export const DropBot: React.FC = () => {
         }
     };
 
-    const handleCopyCommand = (command: string, label = 'command') => {
+    const handleCopyCommand = async (command: string, label = 'command') => {
         if (!command) return;
-        navigator.clipboard.writeText(command).catch(() => { });
         playSound();
-        setSubmissionNotice({
-            type: 'success',
-            message: `Copied ${label} to clipboard!`,
-        });
+        const ok = await copyText(command);
+        setSubmissionNotice(
+            ok
+                ? { type: 'success', message: `Copied the ${label}.` }
+                : { type: 'danger', message: `Couldn’t copy automatically. Select the ${label} and copy it by hand.` }
+        );
+    };
+
+    // FIX: favorites can contain villagers; those now open the villager
+    // picker instead of being pushed into the item drop pocket.
+    const handleFavoriteActivate = (it: CatalogEntity) => {
+        playSound();
+        if (villagerIdSet.has(it.id)) {
+            setSelectedVillager(it);
+            setActiveTab('villagers');
+            setSubmissionNotice({
+                type: 'info',
+                message: `Selected ${it.name}. Choose a house plot to move them in.`,
+            });
+        } else {
+            addItemToDropPockets(it);
+        }
+    };
+
+    const handleTabKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        const idx = TABS.findIndex((t) => t.key === activeTab);
+        let next = -1;
+        if (e.key === 'ArrowRight') next = (idx + 1) % TABS.length;
+        else if (e.key === 'ArrowLeft') next = (idx - 1 + TABS.length) % TABS.length;
+        else if (e.key === 'Home') next = 0;
+        else if (e.key === 'End') next = TABS.length - 1;
+        if (next < 0) return;
+        e.preventDefault();
+        const key = TABS[next].key;
+        playSound();
+        setActiveTab(key);
+        document.getElementById(`cpdb-tab-${key}`)?.focus();
+    };
+
+    // ── Render helpers ──
+    const renderLoading = (label: string) => (
+        <div className="cpdb-empty" role="status">
+            <span className="spinner-border text-success mb-2" aria-hidden="true" />
+            <strong>{label}</strong>
+        </div>
+    );
+
+    const renderPager = (
+        page: number,
+        total: number,
+        setPage: React.Dispatch<React.SetStateAction<number>>,
+        label: string
+    ) =>
+        total > 1 ? (
+            <nav className="cpdb-pager" aria-label={label}>
+                <button
+                    type="button"
+                    className="cpdb-btn cpdb-btn-secondary cpdb-btn-sm"
+                    disabled={page === 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                    <i className="fa-solid fa-chevron-left" aria-hidden="true" />
+                    Previous
+                </button>
+                <span aria-live="polite">
+                    Page {page} of {total}
+                </span>
+                <button
+                    type="button"
+                    className="cpdb-btn cpdb-btn-secondary cpdb-btn-sm"
+                    disabled={page === total}
+                    onClick={() => setPage((p) => Math.min(total, p + 1))}
+                >
+                    Next
+                    <i className="fa-solid fa-chevron-right" aria-hidden="true" />
+                </button>
+            </nav>
+        ) : null;
+
+    const renderItemTile = (it: CatalogEntity, onActivate: () => void, isVillager = false) => {
+        const quantity = isVillager ? 0 : getDropPocketQuantity(it.id);
+        const fav = isFavorite(it.id);
+        const actionLabel = isVillager
+            ? `Select ${it.name} to move in`
+            : `Add ${it.name} to drop pocket${quantity > 0 ? `, ${quantity} already in pocket` : ''}`;
+        return (
+            <li key={it.id} className="cpdb-tile">
+                <button type="button" className="cpdb-tile-main" onClick={onActivate} aria-label={actionLabel}>
+                    <img
+                        src={it.image || FALLBACK_IMG}
+                        alt=""
+                        className={`cpdb-tile-img ${isVillager ? 'cpdb-tile-img--round' : ''}`}
+                        loading="lazy"
+                        onError={handleImgError}
+                    />
+                    <span className="cpdb-tile-name" title={it.name}>
+                        {it.name}
+                    </span>
+                    {isVillager && <span className="cpdb-tile-sub">Villager</span>}
+                    {quantity > 0 && (
+                        <span className="cpdb-count" aria-hidden="true">
+                            ×{quantity} in pocket
+                        </span>
+                    )}
+                </button>
+                <button
+                    type="button"
+                    className="cpdb-icon-btn cpdb-fav"
+                    aria-pressed={fav}
+                    aria-label={`Favorite ${it.name}`}
+                    onClick={() => {
+                        playSound();
+                        toggleFavorite(it.id);
+                    }}
+                >
+                    <i className={`fa-star ${fav ? 'fa-solid' : 'fa-regular'}`} aria-hidden="true" />
+                </button>
+            </li>
+        );
     };
 
     // ── Auth loading skeleton ──
     if (authLoading) {
         return (
-            <div className="nook-bg min-vh-100 d-flex align-items-center justify-content-center p-4">
-                <div className="text-center bg-white rounded-4 shadow-sm border p-5">
-                    <div className="spinner-border text-success mb-3" role="status" />
-                    <p className="fw-bold text-muted mb-0">Connecting to ChoPaeng…</p>
+            <div className="cpdb cpdb--center">
+                <style>{STYLES}</style>
+                <div className="cpdb-card px-4 py-5 text-center mx-3" role="status">
+                    <span className="spinner-border text-success mb-3" aria-hidden="true" />
+                    <p className="fw-bold mb-0" style={{ color: 'var(--ink-soft)' }}>
+                        Checking your resident passport…
+                    </p>
                 </div>
             </div>
         );
@@ -585,7 +1010,8 @@ export const DropBot: React.FC = () => {
     // ── Resident Sign In Wall ──
     if (!user) {
         return (
-            <>
+            <div className="cpdb cpdb--center">
+                <style>{STYLES}</style>
                 <Helmet>
                     <title>Treasure Island Drop Bot · ChoPaeng</title>
                     <meta
@@ -593,82 +1019,83 @@ export const DropBot: React.FC = () => {
                         content="Sign in with ChoPaeng to access the Treasure Island Drop Bot and Villager Injector."
                     />
                 </Helmet>
-                <div className="nook-bg min-vh-100 py-5 px-3 d-flex align-items-center justify-content-center font-nunito">
-                    <div className="container" style={{ maxWidth: 640 }}>
-                        <div className="bg-white rounded-5 shadow-sm border p-4 p-md-5 text-center mb-4 animate-fade">
-                            <div
-                                className="d-inline-flex align-items-center justify-content-center rounded-circle text-white mb-4 shadow-sm"
-                                style={{ width: 76, height: 76, backgroundColor: '#37b06d' }}
-                            >
-                                <i className="fa-solid fa-parachute-box fa-2x" />
-                            </div>
+                <div className="container" style={{ maxWidth: 620 }}>
+                    <PassportCard
+                        id="cpdb-signin"
+                        icon="fa-passport"
+                        title="Treasure Island drop bot"
+                        subtitle="Show your resident passport to board"
+                        headingLevel={1}
+                    >
+                        <p className="cpdb-lede">
+                            Sign in with your ChoPaeng account to pick a VIP sub island, reveal its Dodo code,
+                            drop items on the ground and move villagers into house plots 0–9.
+                        </p>
 
-                            <h1 className="ac-font h2 text-dark mb-2 fw-black">
-                                Treasure Island Drop Bot
-                            </h1>
-                            <p className="text-muted fw-bold mb-4" style={{ fontSize: '0.95rem', lineHeight: 1.6 }}>
-                                Sign in to your ChoPaeng account to select any island, reveal live Dodo codes, drop custom items on the ground, and inject villagers into House Plots 0–9.
-                            </p>
+                        <ul className="cpdb-features">
+                            <li>
+                                <i className="fa-solid fa-parachute-box" aria-hidden="true" />
+                                Drop up to {DROP_MAX} items at once
+                            </li>
+                            <li>
+                                <i className="fa-solid fa-house-user" aria-hidden="true" />
+                                Move villagers into plots 0–9
+                            </li>
+                            <li>
+                                <i className="fa-solid fa-plane-departure" aria-hidden="true" />
+                                Reveal live Dodo codes
+                            </li>
+                            <li>
+                                <i className="fa-solid fa-bolt" aria-hidden="true" />
+                                Send it all from your browser
+                            </li>
+                        </ul>
 
-                            <div className="d-flex gap-2 flex-wrap justify-content-center mb-4">
-                                <span className="badge bg-light text-dark border rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
-                                    <i className="fa-solid fa-parachute-box text-success me-1" /> Max 9 Drop Slots
-                                </span>
-                                <span className="badge bg-light text-dark border rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
-                                    <i className="fa-solid fa-house-user text-warning me-1" /> House Plots 0–9 Injector
-                                </span>
-                                <span className="badge bg-light text-dark border rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
-                                    <i className="fa-solid fa-plane-departure text-primary me-1" /> Live Dodo Reveal
-                                </span>
-                                <span className="badge bg-light text-dark border rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
-                                    <i className="fa-solid fa-bolt text-info me-1" /> Instant In-Browser Dispatch
-                                </span>
-                            </div>
+                        <button
+                            id="dropbot-resident-login-btn"
+                            type="button"
+                            onClick={() => {
+                                playSound();
+                                login();
+                            }}
+                            className="cpdb-btn cpdb-btn-primary cpdb-btn-lg cpdb-btn-block"
+                        >
+                            <i className="fa-solid fa-passport" aria-hidden="true" />
+                            Sign in with ChoPaeng
+                        </button>
 
-                            <div className="mb-3">
-                                <button
-                                    id="dropbot-resident-login-btn"
-                                    type="button"
-                                    onClick={() => {
-                                        playSound();
-                                        login();
-                                    }}
-                                    className="btn btn-success rounded-pill fw-black px-5 py-3 shadow-sm d-inline-flex align-items-center gap-2 hover-scale transition-all"
-                                    style={{ fontSize: '1.05rem', backgroundColor: '#37b06d', borderColor: '#37b06d' }}
-                                >
-                                    <i className="fa-solid fa-passport me-1" />
-                                    <span>Resident Sign In</span>
-                                </button>
-                            </div>
+                        <hr className="cpdb-stitch" />
 
-                            <div className="d-flex align-items-center justify-content-center gap-3 mt-3 flex-wrap">
-                                <Link
-                                    to="/order"
-                                    className="text-decoration-none small fw-bold text-muted d-inline-flex align-items-center gap-1 hover-text-dark"
-                                >
-                                    <i className="fa-solid fa-paper-plane text-primary" />
-                                    <span>Switch to 40-Slot Order Bot</span>
-                                </Link>
-                                <span className="text-muted small">•</span>
-                                <Link
-                                    to="/membership"
-                                    className="text-decoration-none small fw-bold text-muted d-inline-flex align-items-center gap-1 hover-text-dark"
-                                >
-                                    <i className="fa-solid fa-crown text-warning" />
-                                    <span>Sub Member Benefits</span>
-                                </Link>
-                            </div>
-                        </div>
-                    </div>
+                        <nav className="cpdb-alt-links" aria-label="Other tools">
+                            <Link to="/order" className="cpdb-link">
+                                Use the 40-slot order bot instead
+                            </Link>
+                            <Link to="/membership" className="cpdb-link">
+                                See sub member benefits
+                            </Link>
+                        </nav>
+                    </PassportCard>
                 </div>
-            </>
+            </div>
         );
     }
 
     const isCurrentIslandAccessible = canAccessIsland(selectedDropIsland);
+    const isOverLimit = totalDropCount > DROP_MAX;
+    const emptySlots = Math.max(0, DROP_MAX - totalDropCount);
+    const dropDisabled = totalDropCount === 0 || isDropping || !selectedDropIsland || isOverLimit;
+    const meterState = isOverLimit ? 'is-over' : totalDropCount === DROP_MAX ? 'is-full' : '';
+
+    const catalogSubtitle =
+        activeTab === 'items'
+            ? 'Tap an item to add it to your drop pocket.'
+            : activeTab === 'favorites'
+                ? 'Your starred items and villagers, ready to go.'
+                : 'Pick a villager, then choose a house plot.';
 
     return (
-        <div className="ob-page">
+        <div className="cpdb">
+            <style>{STYLES}</style>
             <Helmet>
                 <title>Treasure Island Drop Bot &amp; Villager Injector | ChoPaeng</title>
                 <meta
@@ -677,486 +1104,346 @@ export const DropBot: React.FC = () => {
                 />
             </Helmet>
 
-            {/* ════ HERO HEADER ════ */}
-            <header className="ob-hero">
+            {/* ════ HERO ════ */}
+            <header className="cpdb-hero">
                 <div className="container">
-                    <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                    <div className="d-flex align-items-end justify-content-between flex-wrap gap-3">
                         <div>
-                            <div className="d-flex align-items-center gap-2 mb-1">
-                                <span className="badge rounded-pill bg-success-subtle text-success border border-success-subtle px-3 py-1 fw-bold" style={{ fontSize: '0.75rem' }}>
-                                    <i className="fa-solid fa-parachute-box me-1" />
-                                    IN-ISLAND DROP BOT
-                                </span>
-                                <span className="badge rounded-pill bg-light text-muted border px-2 py-1 fw-semibold" style={{ fontSize: '0.72rem' }}>
-                                    Max {DROP_MAX} Slots · House Plots 0–9 · Live Dodo
-                                </span>
-                            </div>
-                            <h1 className="h3 fw-black text-dark mb-1" style={{ fontFamily: 'var(--font-heading, "Nunito", sans-serif)' }}>
-                                Treasure Island Drop Bot
-                            </h1>
-                            <p className="text-muted mb-0" style={{ fontSize: '0.88rem' }}>
-                                Select any island, reveal your Dodo code, drop items onto the airport zone, and inject villagers directly from your browser!
+                            <h1 className="ac-font">Treasure Island drop bot</h1>
+                            <p className="cpdb-lede">
+                                Pick an island, reveal its Dodo code, then drop items at the airport or move villagers in,
+                                all from your browser.
                             </p>
+                            <ul className="cpdb-meta">
+                                <li>
+                                    <i className="fa-solid fa-parachute-box" aria-hidden="true" />
+                                    Up to {DROP_MAX} slots per drop
+                                </li>
+                                <li>
+                                    <i className="fa-solid fa-house-chimney" aria-hidden="true" />
+                                    House plots 0–9
+                                </li>
+                            </ul>
                         </div>
-
-                        {/* Quick switch to Order Bot */}
-                        <div className="d-flex align-items-center gap-2">
-                            <Link
-                                to="/order"
-                                className="btn btn-outline-dark rounded-pill fw-bold px-3 py-2 d-flex align-items-center gap-2 shadow-2xs"
-                                style={{ fontSize: '0.82rem' }}
-                            >
-                                <i className="fa-solid fa-paper-plane text-primary" />
-                                <span>Switch to 40-Slot Order Bot</span>
-                            </Link>
-                        </div>
+                        <Link to="/order" className="cpdb-btn cpdb-btn-secondary">
+                            <i className="fa-solid fa-paper-plane" aria-hidden="true" />
+                            Switch to the 40-slot order bot
+                        </Link>
                     </div>
                 </div>
             </header>
 
-            {/* ════ MAIN CONTAINER ════ */}
-            <main className="container py-4">
-                {/* Notice Alert */}
-                {submissionNotice && (
-                    <div
-                        className={`alert alert-${submissionNotice.type} rounded-4 border-0 p-3 mb-4 d-flex align-items-center justify-content-between gap-3 shadow-2xs animate-fade`}
-                    >
-                        <div className="d-flex align-items-center gap-2">
-                            <i
-                                className={`fa-solid ${submissionNotice.type === 'success'
-                                    ? 'fa-circle-check text-success'
-                                    : submissionNotice.type === 'danger'
-                                        ? 'fa-triangle-exclamation text-danger'
-                                        : 'fa-circle-info text-primary'
-                                    } fs-5`}
-                            />
-                            <span className="fw-bold text-dark small">{submissionNotice.message}</span>
-                        </div>
-                        <button
-                            type="button"
-                            className="btn btn-sm btn-link p-0 text-muted"
-                            onClick={() => setSubmissionNotice(null)}
+            {/* ════ MAIN ════ */}
+            <main className="container pt-3">
+                {/* Notice region stays mounted so screen readers announce changes */}
+                <div aria-live="polite" aria-atomic="true">
+                    {submissionNotice && (
+                        <div
+                            className={`cpdb-notice cpdb-notice--${submissionNotice.type}`}
+                            role={submissionNotice.type === 'danger' ? 'alert' : 'status'}
                         >
-                            <i className="fa-solid fa-xmark" />
-                        </button>
-                    </div>
-                )}
+                            <i
+                                aria-hidden="true"
+                                className={`fa-solid ${submissionNotice.type === 'success'
+                                    ? 'fa-circle-check'
+                                    : submissionNotice.type === 'danger'
+                                        ? 'fa-triangle-exclamation'
+                                        : 'fa-circle-info'
+                                    }`}
+                            />
+                            <p>{submissionNotice.message}</p>
+                            <button
+                                type="button"
+                                className="cpdb-icon-btn"
+                                aria-label="Dismiss message"
+                                onClick={() => setSubmissionNotice(null)}
+                            >
+                                <i className="fa-solid fa-xmark" aria-hidden="true" />
+                            </button>
+                        </div>
+                    )}
+                </div>
 
                 <div className="row g-4">
-                    {/* ══════════════════════════════════════════
-                        LEFT COLUMN: CATALOG / FAVORITES / VILLAGERS
-                    ══════════════════════════════════════════ */}
+                    {/* ══════════ LEFT: CATALOG ══════════ */}
                     <div className="col-12 col-lg-7">
-                        <div className="bg-white rounded-4 border border-light p-3 p-md-4 shadow-sm mb-4">
-                            {/* Navigation Tabs */}
-                            <div className="d-flex align-items-center gap-2 mb-3 pb-3 border-bottom flex-wrap">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        playSound();
-                                        setActiveTab('items');
-                                    }}
-                                    className={`btn rounded-pill fw-black px-3 py-2 transition-all d-flex align-items-center gap-2 ${activeTab === 'items'
-                                        ? 'btn-success text-white shadow-2xs'
-                                        : 'btn-light text-muted border-0'
-                                        }`}
-                                    style={{ fontSize: '0.82rem' }}
-                                >
-                                    <i className="fa-solid fa-boxes-stacked" />
-                                    <span>Items (Max {DROP_MAX})</span>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        playSound();
-                                        setActiveTab('favorites');
-                                    }}
-                                    className={`btn rounded-pill fw-black px-3 py-2 transition-all d-flex align-items-center gap-2 ${activeTab === 'favorites'
-                                        ? 'btn-success text-white shadow-2xs'
-                                        : 'btn-light text-muted border-0'
-                                        }`}
-                                    style={{ fontSize: '0.82rem' }}
-                                >
-                                    <i className="fa-solid fa-star text-warning" />
-                                    <span>Wishlist &amp; Favorites ({favorites.length})</span>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        playSound();
-                                        setActiveTab('villagers');
-                                    }}
-                                    className={`btn rounded-pill fw-black px-3 py-2 transition-all d-flex align-items-center gap-2 ${activeTab === 'villagers'
-                                        ? 'btn-success text-white shadow-2xs'
-                                        : 'btn-light text-muted border-0'
-                                        }`}
-                                    style={{ fontSize: '0.82rem' }}
-                                >
-                                    <i className="fa-solid fa-house-chimney text-info" />
-                                    <span>Villagers (Plots 0–9)</span>
-                                </button>
+                        <PassportCard id="cpdb-catalog" icon="fa-book-open" title="Nook catalog" subtitle={catalogSubtitle}>
+                            <div
+                                className="cpdb-seg cpdb-seg--stack mb-3"
+                                role="tablist"
+                                aria-label="Catalog sections"
+                                onKeyDown={handleTabKeyDown}
+                            >
+                                {TABS.map((t) => {
+                                    const selected = activeTab === t.key;
+                                    return (
+                                        <button
+                                            key={t.key}
+                                            id={`cpdb-tab-${t.key}`}
+                                            type="button"
+                                            role="tab"
+                                            aria-selected={selected}
+                                            aria-controls="cpdb-catalog-panel"
+                                            tabIndex={selected ? 0 : -1}
+                                            onClick={() => {
+                                                playSound();
+                                                setActiveTab(t.key);
+                                            }}
+                                        >
+                                            <i className={`fa-solid ${t.icon}`} aria-hidden="true" />
+                                            <span>
+                                                {t.label}
+                                                {t.key === 'favorites' && (
+                                                    <span className="cpdb-seg-count"> ({favoriteItems.length})</span>
+                                                )}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
                             </div>
 
-                            {/* ── ITEMS TAB ── */}
-                            {activeTab === 'items' && (
-                                <>
-                                    <div className="row g-2 mb-3">
-                                        <div className="col-12 col-md-7">
-                                            <div className="input-group">
-                                                <span className="input-group-text bg-light border-end-0 rounded-start-pill text-muted">
-                                                    <i className="fa-solid fa-magnifying-glass" />
-                                                </span>
-                                                <input
-                                                    type="text"
-                                                    value={itemSearch}
-                                                    onChange={(e) => {
-                                                        setItemSearch(e.target.value);
-                                                        setItemPage(1);
-                                                    }}
-                                                    placeholder="Search furniture, materials, DIYs, clothes…"
-                                                    className="form-control bg-light border-start-0 rounded-end-pill shadow-none"
-                                                    style={{ fontSize: '0.85rem' }}
-                                                />
+                            <div
+                                id="cpdb-catalog-panel"
+                                role="tabpanel"
+                                aria-labelledby={`cpdb-tab-${activeTab}`}
+                            >
+                                {/* ── ITEMS ── */}
+                                {activeTab === 'items' && (
+                                    <>
+                                        <div className="row g-3 mb-2">
+                                            <div className="col-12 col-md-7">
+                                                <label htmlFor="cpdb-item-search" className="cpdb-label">
+                                                    Search items
+                                                </label>
+                                                <div className="cpdb-control">
+                                                    <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+                                                    <input
+                                                        id="cpdb-item-search"
+                                                        type="search"
+                                                        autoComplete="off"
+                                                        value={itemSearch}
+                                                        onChange={(e) => {
+                                                            setItemSearch(e.target.value);
+                                                            setItemPage(1);
+                                                        }}
+                                                        placeholder="Furniture, materials, DIYs, clothes…"
+                                                        className="cpdb-input"
+                                                        aria-describedby="cpdb-item-count"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="col-12 col-md-5">
+                                                <label htmlFor="cpdb-item-category" className="cpdb-label">
+                                                    Category
+                                                </label>
+                                                <div className="cpdb-control">
+                                                    <i className="fa-solid fa-filter" aria-hidden="true" />
+                                                    <select
+                                                        id="cpdb-item-category"
+                                                        value={selectedCategory}
+                                                        onChange={(e) => {
+                                                            setSelectedCategory(e.target.value);
+                                                            setItemPage(1);
+                                                        }}
+                                                        className="cpdb-input cpdb-select"
+                                                    >
+                                                        {itemCategories.map((c) => (
+                                                            <option key={c} value={c}>
+                                                                {c}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <div className="col-12 col-md-5">
-                                            <select
-                                                value={selectedCategory}
-                                                onChange={(e) => {
-                                                    setSelectedCategory(e.target.value);
-                                                    setItemPage(1);
-                                                }}
-                                                className="form-select rounded-pill bg-light border text-muted shadow-none"
-                                                style={{ fontSize: '0.85rem' }}
-                                            >
-                                                {itemCategories.map((c) => (
-                                                    <option key={c} value={c}>
-                                                        {c}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
+                                        {!catalogLoading && (
+                                            <p id="cpdb-item-count" className="cpdb-hint mb-3" aria-live="polite">
+                                                {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''}
+                                            </p>
+                                        )}
 
-                                    {/* Item Grid */}
-                                    {catalogLoading ? (
-                                        <div className="text-center py-5">
-                                            <div className="spinner-border text-success mb-2" role="status" />
-                                            <p className="text-muted small fw-bold">Loading Nook Catalog…</p>
+                                        {catalogLoading ? (
+                                            renderLoading('Loading the Nook catalog…')
+                                        ) : paginatedItems.length === 0 ? (
+                                            <div className="cpdb-empty">
+                                                <i className="fa-solid fa-box-open" aria-hidden="true" />
+                                                <strong>No items found</strong>
+                                                <p>
+                                                    {itemSearch.trim()
+                                                        ? `Nothing matches “${itemSearch.trim()}”. Try a shorter name or set the category to All.`
+                                                        : 'This category is empty. Pick another category.'}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <ul className="cpdb-grid" role="list">
+                                                {paginatedItems.map((it) =>
+                                                    renderItemTile(it, () => {
+                                                        playSound();
+                                                        addItemToDropPockets(it);
+                                                    })
+                                                )}
+                                            </ul>
+                                        )}
+
+                                        {renderPager(itemPage, totalItemPages, setItemPage, 'Item pages')}
+                                    </>
+                                )}
+
+                                {/* ── FAVORITES ── */}
+                                {activeTab === 'favorites' && (
+                                    <>
+                                        {catalogLoading ? (
+                                            renderLoading('Loading your favorites…')
+                                        ) : favoriteItems.length === 0 ? (
+                                            <div className="cpdb-empty">
+                                                <i className="fa-regular fa-star" aria-hidden="true" />
+                                                <strong>No favorites yet</strong>
+                                                <p>Tap the star on any item to keep it here for quick drops.</p>
+                                            </div>
+                                        ) : (
+                                            <ul className="cpdb-grid" role="list">
+                                                {favoriteItems.map((it) =>
+                                                    renderItemTile(
+                                                        it,
+                                                        () => handleFavoriteActivate(it),
+                                                        villagerIdSet.has(it.id)
+                                                    )
+                                                )}
+                                            </ul>
+                                        )}
+                                    </>
+                                )}
+
+                                {/* ── VILLAGERS ── */}
+                                {activeTab === 'villagers' && (
+                                    <>
+                                        <div className="mb-3">
+                                            <label htmlFor="cpdb-villager-search" className="cpdb-label">
+                                                Search villagers
+                                            </label>
+                                            <div className="cpdb-control">
+                                                <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+                                                <input
+                                                    id="cpdb-villager-search"
+                                                    type="search"
+                                                    autoComplete="off"
+                                                    value={villagerSearch}
+                                                    onChange={(e) => {
+                                                        setVillagerSearch(e.target.value);
+                                                        setVillagerPage(1);
+                                                    }}
+                                                    placeholder="Name or personality, e.g. Raymond or smug"
+                                                    className="cpdb-input"
+                                                    aria-describedby="cpdb-villager-hint"
+                                                />
+                                            </div>
+                                            <p id="cpdb-villager-hint" className="cpdb-hint" aria-live="polite">
+                                                {selectedVillager
+                                                    ? `Selected ${selectedVillager.name}. Now choose a house plot.`
+                                                    : 'Pick a villager, then choose a house plot.'}
+                                            </p>
                                         </div>
-                                    ) : paginatedItems.length === 0 ? (
-                                        <div className="text-center py-5 text-muted">
-                                            <i className="fa-solid fa-box-open fs-2 mb-2 d-block text-secondary" />
-                                            <span className="small fw-bold">No items found matching "{itemSearch}".</span>
-                                        </div>
-                                    ) : (
-                                        <div className="row g-2 mb-3">
-                                            {paginatedItems.map((it) => {
-                                                const quantity = getDropPocketQuantity(it.id);
-                                                return (
-                                                    <div key={it.id} className="col-6 col-sm-4 col-md-3">
-                                                        <div
-                                                            className="p-2 rounded-4 text-center border h-100 bg-white transition-all position-relative shadow-2xs hover-shadow"
-                                                            style={{ cursor: 'pointer' }}
-                                                            onClick={() => {
-                                                                playSound();
-                                                                addItemToDropPockets(it);
-                                                            }}
-                                                        >
-                                                            {/* Favorite button */}
+
+                                        {catalogLoading ? (
+                                            renderLoading('Loading villagers…')
+                                        ) : paginatedVillagers.length === 0 ? (
+                                            <div className="cpdb-empty">
+                                                <i className="fa-solid fa-user-slash" aria-hidden="true" />
+                                                <strong>No villagers found</strong>
+                                                <p>
+                                                    {villagerSearch.trim()
+                                                        ? `Nothing matches “${villagerSearch.trim()}”. Check the spelling or search by personality.`
+                                                        : 'The villager list is empty right now. Refresh the page to try again.'}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <ul className="cpdb-grid" role="list">
+                                                {paginatedVillagers.map((v) => {
+                                                    const isChosen = selectedVillager?.id === v.id;
+                                                    return (
+                                                        <li key={v.id} className={`cpdb-tile ${isChosen ? 'is-active' : ''}`}>
                                                             <button
                                                                 type="button"
-                                                                className="btn btn-link p-0 position-absolute top-0 end-0 m-1 border-0"
-                                                                style={{ fontSize: '0.75rem', zIndex: 2 }}
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
+                                                                className="cpdb-tile-main"
+                                                                aria-pressed={isChosen}
+                                                                aria-label={`Select ${v.name}${v.category ? `, ${v.category}` : ''}`}
+                                                                onClick={() => {
                                                                     playSound();
-                                                                    toggleFavorite(it.id);
+                                                                    setSelectedVillager(v);
                                                                 }}
                                                             >
-                                                                <i className={`fa-star ${isFavorite(it.id) ? 'fa-solid text-warning' : 'fa-regular text-muted'}`} />
+                                                                <img
+                                                                    src={v.image || FALLBACK_IMG}
+                                                                    alt=""
+                                                                    className="cpdb-tile-img cpdb-tile-img--round"
+                                                                    loading="lazy"
+                                                                    onError={handleImgError}
+                                                                />
+                                                                <span className="cpdb-tile-name">{v.name}</span>
+                                                                {v.category && <span className="cpdb-tile-sub">{v.category}</span>}
                                                             </button>
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                        )}
 
-                                                            <img
-                                                                src={it.image || FALLBACK_IMG}
-                                                                alt={it.name}
-                                                                className="mb-1"
-                                                                style={{ width: 44, height: 44, objectFit: 'contain' }}
-                                                                onError={(e) => {
-                                                                    (e.currentTarget as HTMLImageElement).src = FALLBACK_IMG;
-                                                                }}
-                                                            />
-                                                            <span className="d-block fw-bold text-dark text-truncate" style={{ fontSize: '0.75rem' }} title={it.name}>
-                                                                {it.name}
-                                                            </span>
-
-                                                            {quantity > 0 && (
-                                                                <span className="badge bg-success rounded-pill px-2 py-0.5 mt-1" style={{ fontSize: '0.68rem' }}>
-                                                                    ×{quantity} in Drop
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-
-                                    {/* Pagination */}
-                                    {totalItemPages > 1 && (
-                                        <div className="d-flex align-items-center justify-content-between pt-2 border-top">
-                                            <button
-                                                type="button"
-                                                disabled={itemPage === 1}
-                                                onClick={() => setItemPage((p) => Math.max(1, p - 1))}
-                                                className="btn btn-sm btn-outline-secondary rounded-pill px-3"
-                                                style={{ fontSize: '0.75rem' }}
-                                            >
-                                                Previous
-                                            </button>
-                                            <span className="text-muted small fw-bold">
-                                                Page {itemPage} of {totalItemPages}
-                                            </span>
-                                            <button
-                                                type="button"
-                                                disabled={itemPage === totalItemPages}
-                                                onClick={() => setItemPage((p) => Math.min(totalItemPages, p + 1))}
-                                                className="btn btn-sm btn-outline-secondary rounded-pill px-3"
-                                                style={{ fontSize: '0.75rem' }}
-                                            >
-                                                Next
-                                            </button>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-
-                            {/* ── FAVORITES TAB ── */}
-                            {activeTab === 'favorites' && (
-                                <div>
-                                    {favoriteItems.length === 0 ? (
-                                        <div className="text-center py-5 text-muted">
-                                            <i className="fa-solid fa-star fs-2 mb-2 d-block text-warning opacity-50" />
-                                            <p className="fw-bold mb-1">Your Wishlist is Empty</p>
-                                            <span className="small text-muted">
-                                                Star items or villagers from the catalog to quickly drop or inject them anytime.
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <div className="row g-2 mb-3">
-                                            {favoriteItems.map((it) => {
-                                                const quantity = getDropPocketQuantity(it.id);
-                                                return (
-                                                    <div key={it.id} className="col-6 col-sm-4 col-md-3">
-                                                        <div
-                                                            className="p-2 rounded-4 text-center border h-100 bg-white transition-all position-relative shadow-2xs hover-shadow"
-                                                            style={{ cursor: 'pointer' }}
-                                                            onClick={() => {
-                                                                playSound();
-                                                                addItemToDropPockets(it);
-                                                            }}
-                                                        >
-                                                            <button
-                                                                type="button"
-                                                                className="btn btn-link p-0 position-absolute top-0 end-0 m-1 border-0"
-                                                                style={{ fontSize: '0.75rem', zIndex: 2 }}
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    playSound();
-                                                                    toggleFavorite(it.id);
-                                                                }}
-                                                            >
-                                                                <i className="fa-solid fa-star text-warning" />
-                                                            </button>
-
-                                                            <img
-                                                                src={it.image || FALLBACK_IMG}
-                                                                alt={it.name}
-                                                                className="mb-1"
-                                                                style={{ width: 44, height: 44, objectFit: 'contain' }}
-                                                            />
-                                                            <span className="d-block fw-bold text-dark text-truncate" style={{ fontSize: '0.75rem' }} title={it.name}>
-                                                                {it.name}
-                                                            </span>
-
-                                                            {quantity > 0 && (
-                                                                <span className="badge bg-success rounded-pill px-2 py-0.5 mt-1" style={{ fontSize: '0.68rem' }}>
-                                                                    ×{quantity} in Drop
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* ── VILLAGERS TAB ── */}
-                            {activeTab === 'villagers' && (
-                                <>
-                                    <div className="mb-3">
-                                        <div className="input-group">
-                                            <span className="input-group-text bg-light border-end-0 rounded-start-pill text-muted">
-                                                <i className="fa-solid fa-magnifying-glass" />
-                                            </span>
-                                            <input
-                                                type="text"
-                                                value={villagerSearch}
-                                                onChange={(e) => {
-                                                    setVillagerSearch(e.target.value);
-                                                    setVillagerPage(1);
-                                                }}
-                                                placeholder="Search villagers by name or personality (e.g. Raymond, Sasha, Judy)…"
-                                                className="form-control bg-light border-start-0 rounded-end-pill shadow-none"
-                                                style={{ fontSize: '0.85rem' }}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Villager Grid */}
-                                    {paginatedVillagers.length === 0 ? (
-                                        <div className="text-center py-5 text-muted">
-                                            <i className="fa-solid fa-user-ninja fs-2 mb-2 d-block text-secondary" />
-                                            <span className="small fw-bold">No villagers found matching "{villagerSearch}".</span>
-                                        </div>
-                                    ) : (
-                                        <div className="row g-2 mb-3">
-                                            {paginatedVillagers.map((v) => {
-                                                const isChosen = selectedVillager?.id === v.id;
-                                                return (
-                                                    <div key={v.id} className="col-6 col-sm-4 col-md-3">
-                                                        <div
-                                                            className={`p-2 rounded-4 text-center border h-100 transition-all position-relative shadow-2xs hover-shadow ${isChosen
-                                                                    ? 'bg-success-subtle border-2 border-success'
-                                                                    : 'bg-white'
-                                                                }`}
-                                                            style={{ cursor: 'pointer' }}
-                                                            onClick={() => {
-                                                                playSound();
-                                                                setSelectedVillager(v);
-                                                            }}
-                                                        >
-                                                            <img
-                                                                src={v.image || FALLBACK_IMG}
-                                                                alt={v.name}
-                                                                className="rounded-circle border mb-1 bg-white"
-                                                                style={{ width: 44, height: 44, objectFit: 'contain' }}
-                                                            />
-                                                            <span className="d-block fw-bold text-dark text-truncate" style={{ fontSize: '0.75rem' }}>
-                                                                {v.name}
-                                                            </span>
-                                                            {v.category && (
-                                                                <span className="text-muted d-block tiny-text">
-                                                                    {v.category}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-
-                                    {/* Pagination */}
-                                    {totalVillagerPages > 1 && (
-                                        <div className="d-flex align-items-center justify-content-between pt-2 border-top">
-                                            <button
-                                                type="button"
-                                                disabled={villagerPage === 1}
-                                                onClick={() => setVillagerPage((p) => Math.max(1, p - 1))}
-                                                className="btn btn-sm btn-outline-secondary rounded-pill px-3"
-                                                style={{ fontSize: '0.75rem' }}
-                                            >
-                                                Previous
-                                            </button>
-                                            <span className="text-muted small fw-bold">
-                                                Page {villagerPage} of {totalVillagerPages}
-                                            </span>
-                                            <button
-                                                type="button"
-                                                disabled={villagerPage === totalVillagerPages}
-                                                onClick={() => setVillagerPage((p) => Math.min(totalVillagerPages, p + 1))}
-                                                className="btn btn-sm btn-outline-secondary rounded-pill px-3"
-                                                style={{ fontSize: '0.75rem' }}
-                                            >
-                                                Next
-                                            </button>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
+                                        {renderPager(villagerPage, totalVillagerPages, setVillagerPage, 'Villager pages')}
+                                    </>
+                                )}
+                            </div>
+                        </PassportCard>
                     </div>
 
-                    {/* ══════════════════════════════════════════
-                        RIGHT COLUMN: DESTINATION ISLAND & DROP GRID
-                    ══════════════════════════════════════════ */}
+                    {/* ══════════ RIGHT: ISLAND + POCKET ══════════ */}
                     <div className="col-12 col-lg-5">
-                        {/* ── STEP 1: DESTINATION ISLAND SELECTOR & DODO BOARDING PASS ── */}
-                        <div className="bg-white rounded-4 border border-light p-3 p-md-4 shadow-sm mb-4">
-                            <div className="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
-                                <div className="d-flex align-items-center gap-2">
-                                    <div
-                                        className="rounded-circle d-flex align-items-center justify-content-center text-white"
-                                        style={{ width: 34, height: 34, background: 'linear-gradient(135deg, #f59e0b, #d97706)', fontSize: '0.95rem' }}
-                                    >
-                                        <i className="fa-solid fa-location-dot" />
-                                    </div>
-                                    <div>
-                                        <h3 className="h6 fw-bold mb-0 text-dark">Destination Island</h3>
-                                        <span className="text-muted" style={{ fontSize: '0.75rem' }}>
-                                            Select any island to reveal live Dodo boarding pass, drop items, or inject villagers
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Filter categories */}
-                                <div className="d-flex gap-1 bg-light p-1 rounded-pill border flex-wrap">
+                        <PassportCard
+                            id="cpdb-island"
+                            icon="fa-location-dot"
+                            title="Destination island"
+                            subtitle="Where your drop or villager will go"
+                        >
+                            <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                <span className="cpdb-section-label mb-0" id="cpdb-filter-label">
+                                    Show
+                                </span>
+                                <div className="cpdb-seg cpdb-seg--sm" role="group" aria-labelledby="cpdb-filter-label">
                                     <button
                                         type="button"
+                                        aria-pressed={dropFilter === 'all'}
                                         onClick={() => {
                                             playSound();
                                             setDropFilter('all');
                                         }}
-                                        className={`btn btn-xs rounded-pill fw-bold px-2.5 py-1 ${dropFilter === 'all'
-                                            ? 'btn-dark text-white'
-                                            : 'text-muted border-0 bg-transparent'
-                                            }`}
-                                        style={{ fontSize: '0.72rem' }}
                                     >
-                                        VIP Sub ({subMemberIslands.length})
+                                        All islands ({subMemberIslands.length})
                                     </button>
                                     <button
                                         type="button"
+                                        aria-pressed={dropFilter === 'unlocked'}
                                         onClick={() => {
                                             playSound();
                                             setDropFilter('unlocked');
                                         }}
-                                        className={`btn btn-xs rounded-pill fw-bold px-2.5 py-1 ${dropFilter === 'unlocked'
-                                            ? 'btn-dark text-white'
-                                            : 'text-muted border-0 bg-transparent'
-                                            }`}
-                                        style={{ fontSize: '0.72rem' }}
                                     >
-                                        My Pass ({unlockedIslands.length})
+                                        My pass ({unlockedIslands.length})
                                     </button>
                                 </div>
                             </div>
 
-                            {/* Island Dropdown */}
-                            {islandsLoading ? (
-                                <div className="text-center py-2 text-muted small">Loading islands…</div>
-                            ) : (
-                                <div className="mb-3">
+                            <div className="mb-3">
+                                <label htmlFor="cpdb-island-select" className="cpdb-label">
+                                    Island
+                                </label>
+                                <div className="cpdb-control">
+                                    <i className="fa-solid fa-umbrella-beach" aria-hidden="true" />
                                     <select
-                                        className="form-select rounded-4 border shadow-2xs fw-bold text-dark"
-                                        style={{ fontSize: '0.88rem' }}
+                                        id="cpdb-island-select"
+                                        className="cpdb-input cpdb-select"
                                         value={selectedDropIsland?.id || ''}
+                                        disabled={islandsLoading}
+                                        aria-describedby="cpdb-island-hint"
                                         onChange={(e) => {
                                             const found = subMemberIslands.find((i) => i.id === e.target.value);
                                             setSelectedDropIsland(found || null);
@@ -1164,170 +1451,146 @@ export const DropBot: React.FC = () => {
                                             playSound();
                                         }}
                                     >
-                                        <option value="">-- Choose VIP Sub Island ({availableDropIslands.length} Available) --</option>
-                                        {availableDropIslands.map((isl) => (
-                                            <option key={isl.id} value={isl.id}>
-                                                ⭐ {isl.name} · VIP Sub Island
-                                            </option>
-                                        ))}
+                                        {islandsLoading ? (
+                                            <option value="">Loading islands…</option>
+                                        ) : (
+                                            <>
+                                                <option value="">Choose a VIP sub island</option>
+                                                {islandOptions.map((isl) => (
+                                                    <option key={isl.id} value={isl.id}>
+                                                        {isl.name}
+                                                        {canAccessIsland(isl) ? '' : ' (sub pass needed)'}
+                                                    </option>
+                                                ))}
+                                            </>
+                                        )}
                                     </select>
                                 </div>
-                            )}
+                                <p id="cpdb-island-hint" className="cpdb-hint">
+                                    {islandsLoading
+                                        ? 'Fetching the island list.'
+                                        : `${availableDropIslands.length} island${availableDropIslands.length !== 1 ? 's' : ''} in this list. Every one is a VIP sub island.`}
+                                </p>
+                            </div>
 
-                            {/* Selected Island Info & Dodo Boarding Pass */}
                             {selectedDropIsland && (
-                                <div className="mb-2">
-                                    {/* Island Header Card */}
-                                    <div
-                                        className="p-3 rounded-4 border mb-3 transition-all"
-                                        style={{
-                                            background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
-                                            borderColor: '#fde68a',
-                                        }}
-                                    >
-                                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-                                            <div className="d-flex align-items-center gap-2">
-                                                <div
-                                                    className="rounded-circle d-flex align-items-center justify-content-center text-white"
-                                                    style={{
-                                                        width: 32,
-                                                        height: 32,
-                                                        background: '#f59e0b',
-                                                        fontSize: '0.85rem',
-                                                    }}
-                                                >
-                                                    <i className="fa-solid fa-crown" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="fw-black text-dark mb-0" style={{ fontSize: '1rem' }}>
-                                                        {selectedDropIsland.name}
-                                                    </h4>
-                                                    <span className="text-muted tiny-text">
-                                                        ⭐ VIP Sub Member Island
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            <div className="d-flex align-items-center gap-1.5 flex-wrap">
-                                                <span
-                                                    className={`badge rounded-pill fw-bold px-2.5 py-1 ${isCurrentIslandAccessible
-                                                            ? 'bg-success text-white'
-                                                            : 'bg-warning text-dark'
-                                                        }`}
-                                                    style={{ fontSize: '0.7rem' }}
-                                                >
-                                                    {isCurrentIslandAccessible ? 'Access Granted' : 'Sub Pass Needed'}
-                                                </span>
-                                                <span className="badge bg-light text-dark border rounded-pill px-2 py-1 fw-bold tiny-text">
-                                                    🟢 Online
-                                                </span>
-                                            </div>
+                                <div className="cpdb-pass">
+                                    <div className="cpdb-pass-row mb-3">
+                                        <div style={{ minWidth: 0 }}>
+                                            <p className="cpdb-pass-label">Boarding pass for</p>
+                                            <p className="cpdb-island-name ac-font">{selectedDropIsland.name}</p>
                                         </div>
-
-                                        {/* Boarding Pass Ticket */}
-                                        <div className="bg-white rounded-3 p-3 border shadow-2xs mt-2">
-                                            <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                                <div>
-                                                    <span className="text-muted fw-bold text-uppercase d-block" style={{ fontSize: '0.65rem', letterSpacing: '0.05em' }}>
-                                                        DAL AIRLINE BOARDING PASS
-                                                    </span>
-                                                    {dropDodoCode ? (
-                                                        <div className="d-flex align-items-center gap-2 mt-0.5">
-                                                            <span className="font-monospace fw-black text-success" style={{ fontSize: '1.45rem', letterSpacing: '0.08em' }}>
-                                                                {dropDodoCode}
-                                                            </span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={handleCopyDodoCode}
-                                                                className={`btn btn-xs rounded-pill fw-bold px-2.5 py-1 ${dodoCopied ? 'btn-success text-white' : 'btn-outline-success'}`}
-                                                                style={{ fontSize: '0.72rem' }}
-                                                                title="Copy Dodo Code"
-                                                            >
-                                                                <i className={`fa-solid ${dodoCopied ? 'fa-check' : 'fa-copy'} me-1`} />
-                                                                {dodoCopied ? 'Copied!' : 'Copy'}
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-muted fw-bold small">
-                                                            Dodo code hidden for subscriber security
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <div>
-                                                    {!dropDodoCode ? (
-                                                        <button
-                                                            type="button"
-                                                            disabled={dropDodoLoading}
-                                                            onClick={() => handleGetDodo(selectedDropIsland)}
-                                                            className="btn btn-sm btn-warning text-dark rounded-pill fw-black px-3.5 py-1.5 shadow-2xs hover-scale transition-all"
-                                                            style={{ fontSize: '0.8rem', background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: 'none', color: '#fff' }}
-                                                        >
-                                                            {dropDodoLoading ? (
-                                                                <>
-                                                                    <span className="spinner-border spinner-border-sm me-1" /> Revealing…
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <i className="fa-solid fa-eye me-1.5" /> Reveal Dodo Code
-                                                                </>
-                                                            )}
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleGetDodo(selectedDropIsland)}
-                                                            disabled={dropDodoLoading}
-                                                            className="btn btn-xs btn-outline-secondary rounded-pill px-2.5 py-1"
-                                                            style={{ fontSize: '0.72rem' }}
-                                                            title="Refresh Dodo Code"
-                                                        >
-                                                            <i className="fa-solid fa-arrows-rotate me-1" /> Refresh
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Airport hint */}
-                                            <div className="d-flex align-items-center justify-content-between mt-2 pt-2 border-top flex-wrap gap-1">
-                                                <span className="text-muted tiny-text">
-                                                    <i className="fa-solid fa-plane-departure text-primary me-1" />
-                                                    Fly via Dodo Airlines at Orville's airport counter
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        playSound();
-                                                        setAlreadyOnIsland(!alreadyOnIsland);
-                                                    }}
-                                                    className={`btn btn-xs rounded-pill fw-bold px-2 py-0.5 border-0 ${alreadyOnIsland ? 'text-success' : 'text-muted'}`}
-                                                    style={{ fontSize: '0.72rem' }}
-                                                >
-                                                    <i className={`fa-solid ${alreadyOnIsland ? 'fa-circle-check text-success' : 'fa-circle-dot'} me-1`} />
-                                                    {alreadyOnIsland ? "I'm on Island" : "Mark as on Island"}
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {dropDodoError && (
-                                            <div className="alert alert-danger rounded-3 p-2 mt-2 mb-0 tiny-text fw-bold d-flex align-items-center justify-content-between">
-                                                <span>
-                                                    <i className="fa-solid fa-circle-exclamation me-1" />
-                                                    {dropDodoError}
-                                                </span>
-                                                {dropDodoError.includes('Sub Member') && (
-                                                    <Link to="/membership" className="btn btn-xs btn-dark rounded-pill px-2 py-0.5 text-nowrap">
-                                                        Unlock
-                                                    </Link>
-                                                )}
-                                            </div>
+                                        {isCurrentIslandAccessible ? (
+                                            <span className="cpdb-chip cpdb-chip--ok">
+                                                <i className="fa-solid fa-circle-check" aria-hidden="true" />
+                                                You have access
+                                            </span>
+                                        ) : (
+                                            <span className="cpdb-chip cpdb-chip--warn">
+                                                <i className="fa-solid fa-lock" aria-hidden="true" />
+                                                Sub pass needed
+                                            </span>
                                         )}
                                     </div>
+
+                                    <div className="cpdb-pass-row">
+                                        <div>
+                                            <p className="cpdb-pass-label">Dodo code</p>
+                                            {dropDodoCode ? (
+                                                <span className="cpdb-code">{dropDodoCode}</span>
+                                            ) : (
+                                                <p className="cpdb-hint mt-0">Hidden until you reveal it, to keep the island private.</p>
+                                            )}
+                                        </div>
+                                        <div className="d-flex gap-2 flex-wrap">
+                                            {dropDodoCode ? (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        className="cpdb-btn cpdb-btn-secondary cpdb-btn-sm"
+                                                        onClick={handleCopyDodoCode}
+                                                    >
+                                                        <i className={`fa-solid ${dodoCopied ? 'fa-check' : 'fa-copy'}`} aria-hidden="true" />
+                                                        {dodoCopied ? 'Copied' : 'Copy code'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="cpdb-btn cpdb-btn-secondary cpdb-btn-sm"
+                                                        onClick={() => handleGetDodo(selectedDropIsland)}
+                                                        disabled={dropDodoLoading}
+                                                        aria-busy={dropDodoLoading}
+                                                    >
+                                                        <i className="fa-solid fa-arrows-rotate" aria-hidden="true" />
+                                                        {dropDodoLoading ? 'Refreshing…' : 'Refresh code'}
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    className="cpdb-btn cpdb-btn-primary"
+                                                    disabled={dropDodoLoading}
+                                                    aria-busy={dropDodoLoading}
+                                                    onClick={() => handleGetDodo(selectedDropIsland)}
+                                                >
+                                                    {dropDodoLoading ? (
+                                                        <>
+                                                            <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+                                                            Revealing…
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <i className="fa-solid fa-eye" aria-hidden="true" />
+                                                            Reveal Dodo code
+                                                        </>
+                                                    )}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="cpdb-pass-foot">
+                                        <span>
+                                            <i className="fa-solid fa-plane-departure me-2" aria-hidden="true" />
+                                            Fly from Orville’s counter at the airport.
+                                        </span>
+                                        <label className="cpdb-check" htmlFor="cpdb-on-island">
+                                            <input
+                                                id="cpdb-on-island"
+                                                type="checkbox"
+                                                checked={alreadyOnIsland}
+                                                onChange={() => {
+                                                    playSound();
+                                                    setAlreadyOnIsland(!alreadyOnIsland);
+                                                }}
+                                            />
+                                            I’m on the island
+                                        </label>
+                                    </div>
+
+                                    {!isCurrentIslandAccessible && (
+                                        <p className="cpdb-hint">
+                                            This island needs a sub pass.{' '}
+                                            <Link to="/membership" className="cpdb-link">
+                                                See sub member benefits
+                                            </Link>
+                                        </p>
+                                    )}
+
+                                    {dropDodoError && (
+                                        <div className="cpdb-error" role="alert">
+                                            <i className="fa-solid fa-circle-exclamation" aria-hidden="true" />
+                                            <span style={{ flex: 1, minWidth: 0 }}>{dropDodoError}</span>
+                                            {dropDodoError.includes('Sub Member') && (
+                                                <Link to="/membership" className="cpdb-link">
+                                                    Get a sub pass
+                                                </Link>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             )}
-                        </div>
+                        </PassportCard>
 
-                        {/* ── RIGHT VIEW CONDITIONAL: VILLAGER HOUSE PLOTS OR 9-SLOT DROP GRID ── */}
                         {activeTab === 'villagers' ? (
                             <DropBotHouseGrid
                                 selectedVillager={selectedVillager}
@@ -1341,18 +1604,7 @@ export const DropBot: React.FC = () => {
                                     setInjectedHouses((prev) => ({ ...prev, [p]: null }));
                                 }}
                                 onClearAllPlots={() => {
-                                    setInjectedHouses({
-                                        0: null,
-                                        1: null,
-                                        2: null,
-                                        3: null,
-                                        4: null,
-                                        5: null,
-                                        6: null,
-                                        7: null,
-                                        8: null,
-                                        9: null,
-                                    });
+                                    setInjectedHouses({ ...EMPTY_HOUSES });
                                 }}
                                 onCopyCommand={handleCopyCommand}
                                 targetIsland={selectedDropIsland}
@@ -1362,227 +1614,189 @@ export const DropBot: React.FC = () => {
                                 isBatchInjecting={isBatchInjecting}
                             />
                         ) : (
-                            /* ── 9-SLOT DROP POCKET TRACKER & DISPATCH ── */
-                            <div className="bg-white rounded-4 border border-light p-3 p-md-4 shadow-sm">
-                                {/* Header */}
-                                <div className="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom flex-wrap gap-2">
-                                    <div className="d-flex align-items-center gap-2">
-                                        <div
-                                            className="rounded-circle d-flex align-items-center justify-content-center text-white"
-                                            style={{
-                                                width: 38,
-                                                height: 38,
-                                                background: 'linear-gradient(135deg, #10b981, #059669)',
-                                                fontSize: '1rem',
-                                            }}
-                                        >
-                                            <i className="fa-solid fa-parachute-box" />
-                                        </div>
-                                        <div>
-                                            <h3 className="h6 fw-bold mb-0 text-dark">Drop Pocket</h3>
-                                            <span className="text-muted" style={{ fontSize: '0.75rem' }}>
-                                                {totalDropCount} / {DROP_MAX} slots filled
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {totalDropCount > 0 && (
+                            <PassportCard
+                                id="cpdb-pocket"
+                                icon="fa-parachute-box"
+                                title="Drop pocket"
+                                subtitle={`${totalDropCount} of ${DROP_MAX} slots filled`}
+                                action={
+                                    totalDropCount > 0 ? (
                                         <button
                                             type="button"
+                                            className="cpdb-btn cpdb-btn-on-cover cpdb-btn-sm"
                                             onClick={() => {
                                                 playSound();
                                                 setDropItems([]);
                                             }}
-                                            className="btn btn-sm btn-link p-0 text-danger text-decoration-none fw-bold"
-                                            style={{ fontSize: '0.75rem' }}
                                         >
-                                            <i className="fa-solid fa-trash-can me-1" /> Clear
+                                            <i className="fa-solid fa-trash-can" aria-hidden="true" />
+                                            Clear pocket
                                         </button>
-                                    )}
+                                    ) : undefined
+                                }
+                            >
+                                <p className="cpdb-section-label" id="cpdb-presets-label">
+                                    Quick fill
+                                </p>
+                                <p className="cpdb-hint mt-0 mb-2" id="cpdb-presets-hint">
+                                    Each one fills 9 slots and replaces what’s in your pocket.
+                                </p>
+                                <div
+                                    className="cpdb-presets"
+                                    role="group"
+                                    aria-labelledby="cpdb-presets-label"
+                                    aria-describedby="cpdb-presets-hint"
+                                >
+                                    {DROP_PRESETS.map((preset) => (
+                                        <button
+                                            key={preset.id}
+                                            type="button"
+                                            className="cpdb-preset"
+                                            onClick={() => handleApplyPreset(preset.fillType)}
+                                            aria-label={`Fill pocket with 9 ${preset.name}`}
+                                        >
+                                            <img src={preset.icon} alt="" onError={handleImgError} />
+                                            {preset.name}
+                                        </button>
+                                    ))}
                                 </div>
 
-                                {/* Quick Presets Bar */}
-                                <div className="mb-3">
-                                    <span className="text-muted fw-bold text-uppercase d-block mb-2" style={{ fontSize: '0.68rem', letterSpacing: '0.04em' }}>
-                                        Quick 9-Slot Presets
-                                    </span>
-                                    <div className="d-flex gap-2 flex-wrap">
-                                        {DROP_PRESETS.map((preset) => (
-                                            <button
-                                                key={preset.id}
-                                                type="button"
-                                                onClick={() => handleApplyPreset(preset.fillType)}
-                                                className="btn btn-sm btn-light rounded-pill border px-3 py-1 d-flex align-items-center gap-2 hover-shadow shadow-2xs"
-                                                style={{ fontSize: '0.75rem' }}
-                                            >
-                                                <img
-                                                    src={preset.icon}
-                                                    alt=""
-                                                    style={{ width: 16, height: 16, objectFit: 'contain' }}
-                                                />
-                                                <span className="fw-bold">{preset.name}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
+                                <hr className="cpdb-stitch" />
 
-                                {/* 9 Slots Visual Grid */}
-                                {dropItems.length === 0 ? (
-                                    <div className="text-center py-4 bg-light rounded-4 border mb-3">
-                                        <i className="fa-solid fa-box-open fs-2 text-secondary mb-2 d-block" />
-                                        <span className="text-muted small fw-semibold">
-                                            Drop pocket is empty. Pick items from the left or click a preset above.
-                                        </span>
-                                    </div>
-                                ) : (
-                                    <div className="row g-2 mb-3">
-                                        {dropItems.map((entry) => (
-                                            <div key={entry.item.id} className="col-4 col-sm-4">
-                                                <div className="p-2 rounded-4 text-center border bg-white position-relative shadow-2xs">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            playSound();
-                                                            removeDropItem(entry.item.id);
-                                                        }}
-                                                        className="btn btn-link p-0 position-absolute top-0 end-0 m-1 text-muted hover-text-danger border-0"
-                                                        style={{ fontSize: '0.72rem' }}
-                                                        title="Remove"
-                                                    >
-                                                        <i className="fa-solid fa-xmark" />
-                                                    </button>
-                                                    <img
-                                                        src={entry.item.image || FALLBACK_IMG}
-                                                        alt={entry.item.name}
-                                                        style={{ width: 40, height: 40, objectFit: 'contain' }}
-                                                    />
-                                                    <span
-                                                        className="d-block fw-bold text-dark text-truncate mt-1"
-                                                        style={{ fontSize: '0.72rem' }}
-                                                        title={entry.item.name}
-                                                    >
-                                                        {entry.item.name}
-                                                    </span>
-                                                    <div className="d-flex align-items-center justify-content-center gap-1 mt-1">
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-xs btn-light border rounded-circle"
-                                                            style={{ width: 18, height: 18, padding: 0 }}
-                                                            onClick={() => {
-                                                                playSound();
-                                                                decreaseDropQuantity(entry.item.id);
-                                                            }}
-                                                        >
-                                                            -
-                                                        </button>
-                                                        <span className="fw-black text-success" style={{ fontSize: '0.75rem' }}>
-                                                            ×{entry.quantity}
-                                                        </span>
-                                                        <button
-                                                            type="button"
-                                                            disabled={!canIncreaseDrop}
-                                                            className="btn btn-xs btn-light border rounded-circle"
-                                                            style={{ width: 18, height: 18, padding: 0 }}
-                                                            onClick={() => {
-                                                                playSound();
-                                                                increaseDropQuantity(entry.item.id);
-                                                            }}
-                                                        >
-                                                            +
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                <p className="cpdb-section-label">Your items</p>
+                                {dropItems.length === 0 && (
+                                    <p className="cpdb-hint mt-0 mb-2">
+                                        Your pocket is empty. Pick items from the catalog or use a quick fill.
+                                    </p>
                                 )}
-
-                                {/* Live Command Box */}
-                                <div className="bg-light rounded-4 p-3 border mb-3">
-                                    <div className="d-flex align-items-center justify-content-between mb-1">
-                                        <span className="text-muted fw-bold text-uppercase" style={{ fontSize: '0.68rem' }}>
-                                            In-Game Drop Command Preview
-                                        </span>
-                                        {dropCommandText && (
+                                <ul className="cpdb-slots" role="list">
+                                    {dropItems.map((entry) => (
+                                        <li key={entry.item.id} className="cpdb-slot">
                                             <button
                                                 type="button"
+                                                className="cpdb-icon-btn"
+                                                aria-label={`Remove ${entry.item.name} from pocket`}
                                                 onClick={() => {
-                                                    navigator.clipboard.writeText(dropCommandText).catch(() => { });
                                                     playSound();
+                                                    removeDropItem(entry.item.id);
                                                 }}
-                                                className="btn btn-link p-0 text-success fw-bold text-decoration-none"
-                                                style={{ fontSize: '0.72rem' }}
                                             >
-                                                <i className="fa-solid fa-copy me-1" /> Copy
+                                                <i className="fa-solid fa-xmark" aria-hidden="true" />
                                             </button>
-                                        )}
-                                    </div>
+                                            <img
+                                                src={entry.item.image || FALLBACK_IMG}
+                                                alt=""
+                                                onError={handleImgError}
+                                            />
+                                            <span className="cpdb-tile-name" title={entry.item.name}>
+                                                {entry.item.name}
+                                            </span>
+                                            <div
+                                                className="cpdb-stepper"
+                                                role="group"
+                                                aria-label={`Quantity of ${entry.item.name}`}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    aria-label={`Remove one ${entry.item.name}`}
+                                                    onClick={() => {
+                                                        playSound();
+                                                        decreaseDropQuantity(entry.item.id);
+                                                    }}
+                                                >
+                                                    <i className="fa-solid fa-minus fa-xs" aria-hidden="true" />
+                                                </button>
+                                                <span className="cpdb-qty">×{entry.quantity}</span>
+                                                <button
+                                                    type="button"
+                                                    aria-label={`Add one ${entry.item.name}`}
+                                                    disabled={!canIncreaseDrop}
+                                                    onClick={() => {
+                                                        playSound();
+                                                        increaseDropQuantity(entry.item.id);
+                                                    }}
+                                                >
+                                                    <i className="fa-solid fa-plus fa-xs" aria-hidden="true" />
+                                                </button>
+                                            </div>
+                                        </li>
+                                    ))}
+                                    {Array.from({ length: emptySlots }).map((_, i) => (
+                                        <li key={`empty-${i}`} className="cpdb-slot cpdb-slot--empty" aria-hidden="true">
+                                            <i className="fa-regular fa-square" />
+                                        </li>
+                                    ))}
+                                </ul>
 
-                                    {/* Capacity bar */}
-                                    <div className="progress mb-2 rounded-pill" style={{ height: 6 }}>
-                                        <div
-                                            className={`progress-bar ${totalDropCount >= DROP_MAX ? 'bg-danger' : totalDropCount >= DROP_MAX * 0.8 ? 'bg-warning' : 'bg-success'}`}
-                                            style={{ width: `${Math.min(100, (totalDropCount / DROP_MAX) * 100)}%`, transition: 'width 0.3s ease' }}
-                                            role="progressbar"
-                                            aria-valuenow={totalDropCount}
-                                            aria-valuemin={0}
-                                            aria-valuemax={DROP_MAX}
-                                        />
+                                <div className="cpdb-command mt-3">
+                                    <div className="d-flex align-items-center justify-content-between gap-2">
+                                        <span className="cpdb-section-label mb-0" id="cpdb-cmd-label">
+                                            Drop command
+                                        </span>
+                                        <span className="cpdb-hint m-0">
+                                            {totalDropCount}/{DROP_MAX}
+                                        </span>
                                     </div>
-
-                                    {/* Overflow warning */}
-                                    {totalDropCount > DROP_MAX && (
-                                        <div className="alert alert-warning py-1 px-2 mb-2 rounded-3 d-flex align-items-center gap-2" role="alert" style={{ fontSize: '0.72rem' }}>
-                                            <i className="fa-solid fa-triangle-exclamation flex-shrink-0" aria-hidden="true" />
-                                            <span className="fw-bold">Too many items! Drop limit is {DROP_MAX} slots — remove {totalDropCount - DROP_MAX} item{totalDropCount - DROP_MAX !== 1 ? 's' : ''}.</span>
+                                    <div
+                                        className={`cpdb-meter ${meterState}`}
+                                        role="progressbar"
+                                        aria-label="Pocket slots used"
+                                        aria-valuenow={totalDropCount}
+                                        aria-valuemin={0}
+                                        aria-valuemax={DROP_MAX}
+                                        aria-valuetext={`${totalDropCount} of ${DROP_MAX} slots used`}
+                                    >
+                                        <span style={{ width: `${Math.min(100, (totalDropCount / DROP_MAX) * 100)}%` }} />
+                                    </div>
+                                    {isOverLimit && (
+                                        <div className="cpdb-error mt-0 mb-2" role="alert">
+                                            <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+                                            <span>
+                                                Too many items. Remove {totalDropCount - DROP_MAX} item
+                                                {totalDropCount - DROP_MAX !== 1 ? 's' : ''} to get back to {DROP_MAX}.
+                                            </span>
                                         </div>
                                     )}
-
-                                    <div className="font-monospace text-dark text-truncate" style={{ fontSize: '0.8rem' }}>
-                                        {dropCommandText || '!drop <select items>'}
-                                    </div>
+                                    <code aria-labelledby="cpdb-cmd-label">
+                                        {dropCommandText || '!drop (add items to build the command)'}
+                                    </code>
                                 </div>
 
-                                {/* Dispatch Actions */}
-                                <div className="d-flex flex-column gap-2">
-                                    {/* PRIMARY DIRECT DROP BUTTON */}
+                                <div className="d-grid gap-2 mt-3">
                                     <button
                                         type="button"
-                                        disabled={totalDropCount === 0 || isDropping || !selectedDropIsland}
+                                        disabled={dropDisabled}
+                                        aria-busy={isDropping}
                                         onClick={handleDirectDrop}
-                                        className="btn btn-success text-white rounded-pill fw-black py-3 shadow-sm d-flex align-items-center justify-content-center gap-2 hover-scale transition-all"
-                                        style={{
-                                            fontSize: '0.96rem',
-                                            background: 'linear-gradient(135deg, #10b981, #059669)',
-                                            border: 'none',
-                                        }}
+                                        className="cpdb-btn cpdb-btn-primary cpdb-btn-lg cpdb-btn-block"
                                     >
                                         {isDropping ? (
                                             <>
-                                                <span className="spinner-border spinner-border-sm me-1" />
-                                                <span>Dropping to {selectedDropIsland?.name || 'Island'}…</span>
+                                                <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+                                                Dropping on {selectedDropIsland?.name || 'island'}…
                                             </>
                                         ) : (
                                             <>
-                                                <i className="fa-solid fa-parachute-box fa-lg text-warning" />
-                                                <span>
-                                                    Drop {totalDropCount} Item{totalDropCount !== 1 ? 's' : ''} to {selectedDropIsland?.name || 'Island'} Now
-                                                </span>
+                                                <i className="fa-solid fa-parachute-box" aria-hidden="true" />
+                                                Drop {totalDropCount} item{totalDropCount !== 1 ? 's' : ''} on{' '}
+                                                {selectedDropIsland?.name || 'island'}
                                             </>
                                         )}
                                     </button>
-
+                                    {!selectedDropIsland && (
+                                        <p className="cpdb-hint mt-0 text-center">Choose an island above to enable dropping.</p>
+                                    )}
                                     <button
                                         type="button"
                                         disabled={totalDropCount === 0}
-                                        onClick={() => handleCopyCommand(dropCommandText, '!drop command')}
-                                        className="btn btn-outline-secondary rounded-pill fw-bold py-1.5 d-flex align-items-center justify-content-center gap-2 border"
-                                        style={{ fontSize: '0.8rem' }}
+                                        onClick={() => handleCopyCommand(dropCommandText, 'drop command')}
+                                        className="cpdb-btn cpdb-btn-secondary cpdb-btn-block"
                                     >
-                                        <i className="fa-solid fa-copy" /> Copy Command
+                                        <i className="fa-solid fa-copy" aria-hidden="true" />
+                                        Copy drop command
                                     </button>
                                 </div>
-                            </div>
+                            </PassportCard>
                         )}
                     </div>
                 </div>
@@ -1608,7 +1822,7 @@ export const DropBot: React.FC = () => {
                 />
             )}
 
-            {/* Sub Rules Modal (One-time only for Sub members) */}
+            {/* Sub Rules Modal (one-time only for Sub members) */}
             {showSubRulesModal && (
                 <SubRulesModal
                     isOpen={showSubRulesModal}
@@ -1620,7 +1834,7 @@ export const DropBot: React.FC = () => {
                 />
             )}
 
-            {/* Error Popup with direct Profile link if character is missing */}
+            {/* Error popup with a Profile link if the character is missing */}
             {revealPopupError && (
                 <RevealErrorPopup
                     message={revealPopupError}

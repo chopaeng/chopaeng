@@ -8,7 +8,6 @@ const AuthCallback = () => {
     const { refreshAuth, loginWithProvider } = useAuth();
     const [status, setStatus] = useState<"loading" | "error">("loading");
     const [errorMsg, setErrorMsg] = useState("");
-    const [errorCode, setErrorCode] = useState<string | null>(null);
 
     useEffect(() => {
         let isMounted = true;
@@ -20,18 +19,15 @@ const AuthCallback = () => {
 
             if (error) {
                 if (!isMounted) return;
-                setErrorCode(error);
                 const messages: Record<string, string> = {
-                    discord_login_disabled: "Discord login is temporarily disabled. Please log in using Twitch, Patreon, or YouTube.",
-                    twitch_auth_failed: "Twitch authorization failed. Please try again.",
-                    patreon_auth_failed: "Patreon authorization failed. Please verify your membership and try again.",
-                    youtube_auth_failed: "YouTube channel membership authorization failed. Please try again.",
-                    not_a_member: "You are not an active member on the selected platform.",
-                    roles_fetch_failed: "Could not fetch your subscription roles. Please try again.",
+                    access_denied: "Discord sign-in was cancelled.",
+                    discord_auth_failed: "Discord authorization failed. Please try again.",
+                    roles_fetch_failed: "Could not fetch your Discord roles. Please try again.",
                     token_exchange_failed: "Authorization failed during token exchange. Please try again.",
-                    invalid_state: "Invalid session state. Please try again.",
+                    invalid_state: "Invalid session state. Please try logging in again.",
+                    not_a_member: "You are not an active member on Discord.",
                 };
-                setErrorMsg(messages[error] ?? `Authorization failed (${error}). Please try again.`);
+                setErrorMsg(messages[error] ?? `Authorization failed (${error}). Please try again with Discord.`);
                 setStatus("error");
                 return;
             }
@@ -40,7 +36,7 @@ const AuthCallback = () => {
                 storeAuthToken(token);
                 const ok = await refreshAuth(token);
                 if (!ok && isMounted) {
-                    setErrorMsg("Failed to verify user session with the server. Please try again.");
+                    setErrorMsg("Failed to verify Discord session with the server. Please try again.");
                     setStatus("error");
                     return;
                 }
@@ -60,7 +56,7 @@ const AuthCallback = () => {
                 navigate(returnTo, { replace: true });
             } else {
                 if (!isMounted) return;
-                setErrorMsg("No token received from login provider. Please try again.");
+                setErrorMsg("No token received from Discord. Please try logging in again.");
                 setStatus("error");
             }
         };
@@ -72,66 +68,54 @@ const AuthCallback = () => {
         };
     }, [navigate, refreshAuth]);
 
+    const handleRetryDiscord = () => {
+        let returnTo = "/islands";
+        try {
+            const saved = sessionStorage.getItem("chopaeng_auth_return_to");
+            if (saved && saved.startsWith("/") && !saved.startsWith("/auth/")) {
+                returnTo = saved;
+            }
+        } catch (_err) {
+            // ignore
+        }
+        loginWithProvider("discord", returnTo);
+    };
+
     if (status === "error") {
-        const isDiscordDisabled = errorCode === "discord_login_disabled";
         return (
             <div className="min-vh-100 d-flex align-items-center justify-content-center nook-bg p-3">
-                <div className="text-center p-4 p-md-5 rounded-5 shadow-lg bg-white border border-white animate-up" style={{ maxWidth: '480px' }}>
-                    {isDiscordDisabled ? (
-                        <>
-                            <div className="mb-3 d-inline-flex align-items-center justify-content-center text-white rounded-circle shadow-sm" style={{ width: '72px', height: '72px', backgroundColor: '#5865F2' }}>
-                                <i className="fa-brands fa-discord fa-2x"></i>
-                            </div>
-                            <h2 className="fw-black mb-2 ac-font h4 text-dark">Discord Login Disabled</h2>
-                        </>
-                    ) : (
-                        <>
-                            <i className="fa-solid fa-circle-xmark fa-3x text-danger mb-3"></i>
-                            <h2 className="fw-black mb-2 ac-font h4 text-dark">Login Notice</h2>
-                        </>
-                    )}
-                    
-                    <p className="text-muted mb-4 fs-6 fw-bold" style={{ lineHeight: 1.5 }}>{errorMsg}</p>
-                    
-                    {/* Retry Buttons with active providers */}
+                <div className="text-center p-4 p-md-5 rounded-5 shadow-lg bg-white border border-white animate-up" style={{ maxWidth: '440px', width: '100%' }}>
+                    <div
+                        className="mb-3 d-inline-flex align-items-center justify-content-center text-white rounded-circle shadow-sm"
+                        style={{ width: '64px', height: '64px', backgroundColor: '#5865F2' }}
+                    >
+                        <i className="fa-brands fa-discord fa-2x"></i>
+                    </div>
+
+                    <h2 className="fw-black mb-2 ac-font h4 text-dark">Discord Sign-In Notice</h2>
+                    <p className="text-muted mb-4 fs-6 fw-semibold" style={{ lineHeight: 1.5 }}>
+                        {errorMsg}
+                    </p>
+
                     <div className="d-flex flex-column gap-2 mb-3">
                         <button
                             type="button"
-                            onClick={() => loginWithProvider("twitch")}
+                            onClick={handleRetryDiscord}
                             className="btn fw-bold py-2.5 rounded-pill d-flex align-items-center justify-content-center gap-2 shadow-sm text-white"
-                            style={{ backgroundColor: '#9146FF' }}
+                            style={{ backgroundColor: '#5865F2' }}
                         >
-                            <i className="fa-brands fa-twitch"></i>
-                            Log in with Twitch (ChoTato Club)
+                            <i className="fa-brands fa-discord"></i>
+                            Continue with Discord
                         </button>
 
-                        <button
+                        <button 
                             type="button"
-                            onClick={() => loginWithProvider("patreon")}
-                            className="btn fw-bold py-2.5 rounded-pill d-flex align-items-center justify-content-center gap-2 shadow-sm text-white"
-                            style={{ backgroundColor: '#FF424D' }}
+                            onClick={() => navigate("/islands")} 
+                            className="btn btn-light border text-muted fw-bold py-2 rounded-pill w-100 shadow-2xs"
                         >
-                            <i className="fa-brands fa-patreon"></i>
-                            Log in with Patreon
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => loginWithProvider("youtube")}
-                            className="btn fw-bold py-2.5 rounded-pill d-flex align-items-center justify-content-center gap-2 shadow-sm text-white"
-                            style={{ backgroundColor: '#FF0000' }}
-                        >
-                            <i className="fa-brands fa-youtube"></i>
-                            Log in with YouTube
+                            Back to Islands
                         </button>
                     </div>
-
-                    <button 
-                        onClick={() => window.location.href = "/islands"} 
-                        className="btn btn-light border text-muted fw-bold py-2 rounded-pill w-100 shadow-2xs"
-                    >
-                        Back to Islands
-                    </button>
                 </div>
             </div>
         );
@@ -141,10 +125,11 @@ const AuthCallback = () => {
         <div className="min-vh-100 d-flex align-items-center justify-content-center nook-bg">
             <div className="text-center">
                 <div className="spinner-border text-success mb-3" role="status" />
-                <p className="fw-bold text-muted ac-font">Verifying Resident Credentials…</p>
+                <p className="fw-bold text-muted ac-font">Verifying Discord Credentials…</p>
             </div>
         </div>
     );
 };
 
 export default AuthCallback;
+

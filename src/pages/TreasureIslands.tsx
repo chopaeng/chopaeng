@@ -762,14 +762,23 @@ const TreasureIslands = () => {
                                         />
                                         <div className="position-absolute top-0 start-0 w-100 h-100" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.65) 100%)' }}></div>
 
-                                        {/* Floating Status Badge (Top-Left) */}
-                                        <div className="position-absolute top-0 start-0 m-3">
+                                        {/* Floating Status & In-Game Clock Badges (Top-Left) */}
+                                        <div className="position-absolute top-0 start-0 m-3 d-flex flex-column gap-1">
                                             <span className={`badge rounded-pill border px-2 py-1 d-inline-flex align-items-center gap-1 shadow-sm ${
                                                 island.discordBotOnline ? 'bg-success text-white border-success' : 'bg-danger text-white border-danger'
                                             }`} style={{ fontSize: '0.7rem' }}>
                                                 <span className="live-dot bg-white rounded-circle" style={{ width: '6px', height: '6px' }}></span>
                                                 {island.discordBotOnline ? "ONLINE" : "OFFLINE"}
                                             </span>
+                                            {island.gameTime && (
+                                                <span className="badge rounded-pill bg-dark bg-opacity-75 text-white border border-white border-opacity-25 px-2 py-1 d-inline-flex align-items-center gap-1.5 shadow-sm" style={{ fontSize: '0.68rem', backdropFilter: 'blur(4px)' }}>
+                                                    <i className="fa-solid fa-clock text-warning"></i>
+                                                    <span>{island.gameTime}</span>
+                                                    <span className="opacity-40">•</span>
+                                                    <i className={`fa-solid ${island.isNooksOpen ? 'fa-store text-success' : 'fa-moon text-secondary'}`}></i>
+                                                    <span>{island.isNooksOpen ? 'Open' : 'Closed'}</span>
+                                                </span>
+                                            )}
                                         </div>
 
                                         {/* Floating Action Buttons (Top-Right: Favorite + Map Zoom) */}

@@ -152,6 +152,12 @@ export const IslandProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     accessible,
                     viewerHasAccess: accessible,
                     channel_id: liveData.channel_id || liveData.channelId || undefined,
+                    gameTime: liveData.game_time || liveData.gametime?.formatted || liveData.gametime?.game_time || undefined,
+                    isNooksOpen: liveData.is_nooks_open ?? liveData.gametime?.is_nooks_open ?? undefined,
+                    nooksStatus: liveData.nooks_status || liveData.gametime?.nooks_status || undefined,
+                    nooksMessage: liveData.nooks_message || liveData.gametime?.nooks_message || undefined,
+                    mode: liveData.mode || liveData.gametime?.mode || undefined,
+                    gametime: liveData.gametime || undefined,
                 };
             });
 

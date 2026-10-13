@@ -672,6 +672,46 @@ const IslandDetail = () => {
                             </div>
 
                             <div className="passport-body">
+                                {island.gameTime && (
+                                    <div className="card rounded-4 border-0 p-3 mb-4 shadow-sm bg-white position-relative overflow-hidden">
+                                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                            <div className="d-flex align-items-center gap-3">
+                                                <div className="rounded-circle p-2.5 d-flex align-items-center justify-content-center shadow-2xs" style={{ width: '44px', height: '44px', background: 'rgba(56, 189, 248, 0.12)' }}>
+                                                    <i className="fa-solid fa-clock fa-lg text-info"></i>
+                                                </div>
+                                                <div>
+                                                    <div className="d-flex align-items-center gap-2">
+                                                        <span className="text-dark fw-black fs-5 lh-1">{island.gameTime}</span>
+                                                        {island.mode && (
+                                                            <span className="badge bg-light text-muted border rounded-pill px-2 py-0.5" style={{ fontSize: '0.68rem' }}>
+                                                                <i className="fa-solid fa-gear me-1"></i>{island.mode}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span className="x-small text-muted fw-bold">In-Game Island Time</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="d-flex align-items-center gap-2">
+                                                <span className={`badge rounded-pill px-3 py-2 d-inline-flex align-items-center gap-1.5 fw-bold ${
+                                                    island.isNooksOpen
+                                                        ? 'bg-success-subtle text-success border border-success-subtle'
+                                                        : 'bg-secondary-subtle text-secondary border border-secondary-subtle'
+                                                }`} style={{ fontSize: '0.78rem' }}>
+                                                    <i className={`fa-solid ${island.isNooksOpen ? 'fa-store' : 'fa-door-closed'}`}></i>
+                                                    <span>Nook's Cranny: {island.isNooksOpen ? 'Open' : 'Closed'}</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {island.nooksMessage && (
+                                            <div className="mt-2.5 pt-2 border-top border-light-subtle d-flex align-items-center gap-1.5 text-muted x-small">
+                                                <i className="fa-solid fa-circle-info text-info"></i>
+                                                <span>{island.nooksMessage}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 <div className="mb-4">
                                     <h5 className="notebook-heading">
                                         <i className="fa-solid fa-bullhorn me-2 text-nook"></i>

@@ -375,7 +375,7 @@ export const IslandActionArea: React.FC<IslandActionAreaProps> = ({
                         className="btn btn-link text-muted text-decoration-none small fw-bold d-inline-flex align-items-center gap-1.5"
                     >
                         <i className="fa-solid fa-passport text-success" />
-                        <span>Sign in with Twitch, Patreon, or YouTube to check your island access</span>
+                        <span>Sign in with Discord to check your island access</span>
                     </button>
                 </div>
             )}

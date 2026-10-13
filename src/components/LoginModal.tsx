@@ -89,6 +89,34 @@ const STYLES = `
 .cpm-foot a { color: var(--leaf-dark); font-weight: 800; text-decoration: none; }
 .cpm-foot a:hover { text-decoration: underline; }
 
+
+.cpm-discord-notice {
+    display: flex; gap: .75rem; align-items: flex-start;
+    background: #eef2ff; border: 1.5px solid #c7d2fe;
+    border-radius: 14px; padding: .8rem .95rem; margin-bottom: 1.1rem;
+    font-size: .85rem; color: #1e1b4b; line-height: 1.45;
+}
+.cpm-discord-notice__icon {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: #5865f2; color: #fff; display: grid; place-items: center;
+    flex: none; font-size: .95rem; margin-top: .1rem;
+}
+.cpm-discord-notice__content { flex: 1; }
+.cpm-discord-notice__content strong {
+    display: block; font-size: .88rem; font-weight: 800; color: #312e81; margin-bottom: .15rem;
+}
+.cpm-discord-notice__content p { margin: 0 0 .45rem 0; font-size: .82rem; color: #4338ca; }
+.cpm-discord-notice__link {
+    display: inline-flex; align-items: center; gap: .3rem;
+    font-size: .8rem; font-weight: 700; color: #4f46e5; text-decoration: none;
+    background: #fff; padding: .25rem .6rem; border-radius: 9999px;
+    border: 1px solid #c7d2fe; box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    transition: all .15s ease;
+}
+.cpm-discord-notice__link:hover {
+    background: #5865f2; color: #fff; border-color: #5865f2; text-decoration: none;
+}
+
 .cpm :is(button, a):focus-visible { outline: 3px solid #0f5132; outline-offset: 2px; }
 .cpm__close:focus-visible { outline-color: #fff; }
 
@@ -204,6 +232,28 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                             <span>{tooltipMsg}</span>
                         </div>
                     )}
+
+                                        {/* Notice to join Discord server */}
+                    <div className="cpm-discord-notice">
+                        <div className="cpm-discord-notice__icon" aria-hidden="true">
+                            <i className="fa-brands fa-discord" />
+                        </div>
+                        <div className="cpm-discord-notice__content">
+                            <strong>Make sure to join our Discord server</strong>
+                            <p>
+                                Make sure you have joined our Discord server so your membership roles, subscriber perks, and island access sync properly.
+                            </p>
+                            <a
+                                href="https://discord.gg/chopaeng"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="cpm-discord-notice__link"
+                            >
+                                <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
+                                Join Server (discord.gg/chopaeng)
+                            </a>
+                        </div>
+                    </div>
 
                     {/* Primary Discord button */}
                     <button

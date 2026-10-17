@@ -23,6 +23,8 @@ export interface BotStatusResponse {
     last_dodo_fetch?: string;
     server_time?: string;
     error?: string;
+    code?: string;
+    requiresOrderRules?: boolean;
 }
 
 export interface SubmitOrderResponse {
@@ -33,6 +35,8 @@ export interface SubmitOrderResponse {
     dodoCode?: string;
     message?: string;
     error?: string;
+    code?: string;
+    requiresOrderRules?: boolean;
 }
 
 export interface OrderStatusResponse {
@@ -68,6 +72,8 @@ export interface OrderQueueResponse {
     island_name?: string;
     current_active_user?: string;
     error?: string;
+    code?: string;
+    requiresOrderRules?: boolean;
 }
 
 export interface OrderHistoryItem {
@@ -90,6 +96,8 @@ export interface UserOrderHistoryResponse {
     success: boolean;
     orders?: OrderHistoryItem[];
     error?: string;
+    code?: string;
+    requiresOrderRules?: boolean;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -245,6 +253,8 @@ export const submitOrderToBot = async (
         return {
             success: false,
             error: errData?.error || 'Order submission failed.',
+            code: errData?.code,
+            requiresOrderRules: Boolean(errData?.requires_order_rules),
         };
     } catch {
         return {

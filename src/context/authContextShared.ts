@@ -30,6 +30,7 @@ export interface AuthUser {
     email?: string;
     has_password?: boolean;
     sub_rules_accepted?: boolean;
+    order_rules_accepted?: boolean;
     auth_checked_at?: number;
 }
 

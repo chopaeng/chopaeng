@@ -325,6 +325,10 @@ const IslandDetail = () => {
                     return;
                 }
                 if (resp.status === 403) {
+                    if (err.requires_sub_rules || err.code === "missing_sub_rules_acceptance" || err.code === "missing_global_island_access_role") {
+                        setShowSubRulesModal(true);
+                        return;
+                    }
                     setRevealError(err.error || "You do not have access to this island's dodo code.");
                     return;
                 }

@@ -21,6 +21,7 @@ import {
 import type { CatalogEntity } from '../data/commandBuilderData';
 import { useSavedCharacters } from '../hooks/useSavedCharacters';
 import SubRulesModal from '../components/sub/SubRulesModal';
+import { SanrioGuidanceModal, isSanrioVillager } from '../components/villager/SanrioGuidanceModal';
 import { isSubRulesAccepted } from '../utils/subRulesStorage';
 import RevealErrorPopup from '../components/RevealErrorPopup';
 import './OrderBot.css';
@@ -328,6 +329,8 @@ export const DropBot: React.FC = () => {
     const { islands, loading: islandsLoading } = useIslandData();
     const { hasSavedCharacters } = useSavedCharacters();
     const [showSubRulesModal, setShowSubRulesModal] = useState(false);
+    const [showSanrioModal, setShowSanrioModal] = useState(false);
+    const [sanrioModalVillager, setSanrioModalVillager] = useState<string | null>(null);
     const [pendingDodoIsland, setPendingDodoIsland] = useState<IslandData | null>(null);
     const [revealPopupError, setRevealPopupError] = useState<string | null>(null);
     const { data: catalogData, isLoading: catalogLoading } = useCatalogData();
@@ -716,6 +719,11 @@ export const DropBot: React.FC = () => {
 
     // ── Direct Inject Single Villager ──
     const handleDirectInjectVillager = async (plot: number, villager: CatalogEntity) => {
+        if (isSanrioVillager(villager.name)) {
+            setSanrioModalVillager(villager.name);
+            setShowSanrioModal(true);
+            return;
+        }
         if (!selectedDropIsland) {
             setSubmissionNotice({
                 type: 'danger',
@@ -1592,7 +1600,56 @@ export const DropBot: React.FC = () => {
                         </PassportCard>
 
                         {activeTab === 'villagers' ? (
-                            <DropBotHouseGrid
+                            <>
+                                {selectedVillager && isSanrioVillager(selectedVillager.name) && (
+                                    <div
+                                        className="d-flex align-items-center justify-content-between p-3 rounded-4 mb-3 border shadow-2xs gap-3 flex-wrap"
+                                        style={{ background: '#fdf2f8', borderColor: '#fbcfe8' }}
+                                    >
+                                        <div className="d-flex align-items-center gap-2">
+                                            <span style={{ fontSize: '1.4rem' }}>🎀</span>
+                                            <div>
+                                                <strong className="text-dark d-block" style={{ fontSize: '0.9rem' }}>
+                                                    Special Sanrio Villager: {selectedVillager.name}
+                                                </strong>
+                                                <span className="text-muted" style={{ fontSize: '0.8rem' }}>
+                                                    Requires a 2-step swap technique before moving in.
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="btn btn-sm rounded-pill fw-bold px-3 py-1 text-white shadow-2xs d-inline-flex align-items-center gap-1.5"
+                                            style={{ background: 'linear-gradient(135deg, #ec4899, #f43f5e)', border: 'none', fontSize: '0.8rem' }}
+                                            onClick={() => {
+                                                playSound();
+                                                setSanrioModalVillager(selectedVillager.name);
+                                                setShowSanrioModal(true);
+                                            }}
+                                        >
+                                            <i className="fa-solid fa-wand-magic-sparkles" />
+                                            <span>Open 2-Step Wizard</span>
+                                        </button>
+                                    </div>
+                                )}
+                                <div className="d-flex align-items-center justify-content-between mb-2 px-1">
+                                    <span className="text-muted fw-bold" style={{ fontSize: '0.78rem' }}>
+                                        House Plots (0–9)
+                                    </span>
+                                    <button
+                                        type="button"
+                                        className="btn btn-sm rounded-pill px-2.5 py-0.5 fw-bold d-inline-flex align-items-center gap-1 border-0"
+                                        style={{ background: '#fdf2f8', color: '#be185d', fontSize: '0.75rem' }}
+                                        onClick={() => {
+                                            playSound();
+                                            setShowSanrioModal(true);
+                                        }}
+                                    >
+                                        <span>🎀</span>
+                                        <span>Sanrio / Amiibo Guide</span>
+                                    </button>
+                                </div>
+                                <DropBotHouseGrid
                                 selectedVillager={selectedVillager}
                                 activePlot={activePlot}
                                 onSelectPlot={(p) => setActivePlot(p)}
@@ -1613,6 +1670,7 @@ export const DropBot: React.FC = () => {
                                 injectingPlot={injectingPlot}
                                 isBatchInjecting={isBatchInjecting}
                             />
+                            </>
                         ) : (
                             <PassportCard
                                 id="cpdb-pocket"
@@ -1821,6 +1879,29 @@ export const DropBot: React.FC = () => {
                     onToggleFavorite={(id) => toggleFavorite(id)}
                 />
             )}
+
+            {/* Sanrio / Amiibo Guidance Modal */}
+            <SanrioGuidanceModal
+                isOpen={showSanrioModal}
+                onClose={() => {
+                    setShowSanrioModal(false);
+                    setSanrioModalVillager(null);
+                }}
+                targetIslandName={selectedDropIsland?.name}
+                initialVillagerName={sanrioModalVillager}
+                onInjectSuccess={(villagerName, plot) => {
+                    const foundVillager = allVillagers.find(
+                        (v: CatalogEntity) => v.name.toLowerCase() === villagerName.toLowerCase()
+                    );
+                    if (foundVillager) {
+                        setInjectedHouses((prev) => ({ ...prev, [plot]: foundVillager }));
+                    }
+                    setSubmissionNotice({
+                        type: 'success',
+                        message: `${villagerName} is moving into house plot ${plot} on ${selectedDropIsland?.name || 'the island'}.`,
+                    });
+                }}
+            />
 
             {/* Sub Rules Modal (one-time only for Sub members) */}
             {showSubRulesModal && (

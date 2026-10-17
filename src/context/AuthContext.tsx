@@ -48,10 +48,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     email: data.email || "",
                     has_password: Boolean(data.has_password),
                     sub_rules_accepted: Boolean(data.sub_rules_accepted),
+                    order_rules_accepted: Boolean(data.order_rules_accepted),
                 };
                 handleAccountSwitchCheck(authedUser.user_id);
                 if (data.sub_rules_accepted) {
                     setUserScopedItem('chopaeng_sub_rules_accepted_v1', 'true', authedUser.user_id);
+                }
+                if (data.order_rules_accepted) {
+                    setUserScopedItem('chopaeng_order_rules_accepted_v1', 'true', authedUser.user_id);
                 }
                 setUser(authedUser);
                 return authedUser;

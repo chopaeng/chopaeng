@@ -279,6 +279,11 @@ const TreasureIslands = () => {
                 }
                 if (resp.status === 403) {
                     const backendMessage = String(err.error || "");
+                    if (err.requires_sub_rules || err.code === "missing_sub_rules_acceptance" || err.code === "missing_global_island_access_role") {
+                        setPendingSubIsland(island);
+                        setShowSubRulesModal(true);
+                        return;
+                    }
                     setRevealError(backendMessage || "You do not have access to this island's dodo code.");
                     return;
                 }

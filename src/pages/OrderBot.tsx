@@ -14,6 +14,8 @@ import { QuickAddItemModal } from '../components/command-builder/QuickAddItemMod
 import { CommandBuilderPocketBundlesModal } from '../components/command-builder/CommandBuilderPocketBundlesModal';
 import { CommandBuilderShareModal } from '../components/command-builder/CommandBuilderShareModal';
 import { CommandBuilderVariantModal } from '../components/command-builder/CommandBuilderVariantModal';
+import OrderRulesModal from '../components/order/OrderRulesModal';
+import { isOrderRulesAccepted } from '../utils/orderRulesStorage';
 import { HowItWorksExplainer, ORDER_BOT_EXPLAINER_CONFIG } from '../components/HowItWorksExplainer';
 import { type PocketBundleItem } from '../data/pocketBundles';
 import { triggerConfetti } from '../utils/confetti';
@@ -656,6 +658,7 @@ const OrderBot: React.FC = () => {
     const [orderStatus, setOrderStatus] = useState<OrderStatusResponse | null>(null);
     const [submitLoading, setSubmitLoading] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
+    const [showOrderRulesModal, setShowOrderRulesModal] = useState(false);
     const [cancelLoading, setCancelLoading] = useState(false);
     const [commandCopied, setCommandCopied] = useState(false);
     const [showTerminal, setShowTerminal] = useState(false);
@@ -978,6 +981,11 @@ const OrderBot: React.FC = () => {
         const orderForName = orderProfile?.orderFor || defaultChar?.ign || user?.username || '';
         const islandName = orderProfile?.islandName || defaultChar?.islandName || '';
 
+        if (!isOrderRulesAccepted(user?.user_id) && !user?.is_admin) {
+            setShowOrderRulesModal(true);
+            return;
+        }
+
         if (!orderForName.trim() || !islandName.trim()) {
             handleOpenSetup();
             playSound();
@@ -1005,6 +1013,10 @@ const OrderBot: React.FC = () => {
         setSubmitLoading(false);
 
         if (!res.success || !res.orderId) {
+            if (res.requiresOrderRules || res.code === 'missing_order_rules_acceptance') {
+                setShowOrderRulesModal(true);
+                return;
+            }
             setSubmitError(res.error || 'Submission failed. Please try again.');
             return;
         }
@@ -3664,6 +3676,15 @@ const OrderBot: React.FC = () => {
                     getDropPocketQuantity={getDropPocketQuantity}
                 />
             )}
+            <OrderRulesModal
+                isOpen={showOrderRulesModal}
+                onClose={() => setShowOrderRulesModal(false)}
+                onAccept={() => {
+                    setShowOrderRulesModal(false);
+                    handleSubmit();
+                }}
+                userId={user?.user_id}
+            />
         </div>
     );
 };

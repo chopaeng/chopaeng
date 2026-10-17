@@ -697,8 +697,8 @@ export const useCommandBuilderPockets = () => {
     const dropVillagerCommand = useMemo(() => {
         const villagers = dropItems.filter((p) => p.item.entityType === 'villager');
         if (villagers.length === 0) return '';
-        const uniqueNames = Array.from(new Set(villagers.map((p) => p.item.name)));
-        return uniqueNames.length === 1 ? `!injectvillager ${uniqueNames[0]}` : `!mvi ${uniqueNames.join(' ')}`;
+        const uniqueVillagerCodes = Array.from(new Set(villagers.map((p) => p.item.id ? ("villager:" + p.item.id) : p.item.name)));
+        return uniqueVillagerCodes.length === 1 ? ("!injectvillager " + uniqueVillagerCodes[0]) : ("!mvi " + uniqueVillagerCodes.join(" "));
     }, [dropItems]);
 
     const dropItemsOnlyCommand = useMemo(() => {
@@ -736,11 +736,11 @@ export const useCommandBuilderPockets = () => {
         }
 
         let villagerPart = '';
-        const uniqueVillagerNames = Array.from(new Set(villagers.map(p => p.item.name)));
-        if (uniqueVillagerNames.length === 1) {
-            villagerPart = `!injectvillager ${uniqueVillagerNames[0]}`;
-        } else if (uniqueVillagerNames.length > 1) {
-            villagerPart = `!mvi ${uniqueVillagerNames.join(' ')}`;
+        const uniqueVillagerCodes = Array.from(new Set(villagers.map(p => p.item.id ? ("villager:" + p.item.id) : p.item.name)));
+        if (uniqueVillagerCodes.length === 1) {
+            villagerPart = "!injectvillager " + uniqueVillagerCodes[0];
+        } else if (uniqueVillagerCodes.length > 1) {
+            villagerPart = "!mvi " + uniqueVillagerCodes.join(" ");
         }
 
         if (dropPart && villagerPart) return `${dropPart}\n${villagerPart}`;

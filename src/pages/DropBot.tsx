@@ -736,7 +736,8 @@ export const DropBot: React.FC = () => {
         setInjectingPlot(plot);
 
         try {
-            const res = await injectIslandVillager(selectedDropIsland.name, villager.name, plot);
+            const villagerCode = villager.id ? ("villager:" + villager.id) : villager.name;
+            const res = await injectIslandVillager(selectedDropIsland.name, villagerCode, plot);
             if (res.success) {
                 triggerConfetti({ theme: 'gold', particleCount: 60 });
                 playSound();

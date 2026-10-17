@@ -6,6 +6,7 @@ import App from './App.tsx'
 import './assets/css/style.css';
 import { initTheme } from './utils/theme';
 import './utils/soundFxManager';
+console.log("made with love by bitress");
 
 initTheme();
 
